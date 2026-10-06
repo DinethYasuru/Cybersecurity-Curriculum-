@@ -567,7 +567,7 @@ body:not(.os-lin) .lin{display:none!important}
         <p class="sub" style="max-width:none">From zero to networks.</p>
         <div class="row" style="justify-content:center"><button class="btn" id="startBtn">Begin</button></div>
       </div>
-      <aside class="nt"><h4>Before class</h4><ul><li>Press <b>N</b> any time for these notes, <b>M</b> for the slide menu, <b>F</b> for full screen.</li><li>Install on the lab PCs: <b>Wireshark</b> (wireshark.org, include Npcap on Windows) and <b>Postman</b> (postman.com/downloads) or use web.postman.co.</li><li>Check internet works on the lab PCs, and that students can open a Command Prompt / Terminal.</li><li>Pick your OS on any lab slide (Windows / Linux). The choice is remembered.</li></ul></aside>
+      <aside class="nt"><h4>Before class</h4><ul><li>Press <b>P</b> (or the Presenter button) to open the presenter window on your laptop screen; put the deck on the projector. Press <b>N</b> for notes on the deck itself, <b>M</b> for the slide menu, <b>F</b> for full screen.</li><li>Install on the lab PCs: <b>Wireshark</b> (wireshark.org, include Npcap on Windows) and <b>Postman</b> (postman.com/downloads) or use web.postman.co.</li><li>Check internet works on the lab PCs, and that students can open a Command Prompt / Terminal.</li><li>Pick your OS on any lab slide (Windows / Linux). The choice is remembered.</li></ul></aside>
     </section>
 
     <section class="slide" data-id="recap" data-title="Last week">
@@ -1433,6 +1433,7 @@ Content-Type: application/json
     <div class="prog"><i id="pf"></i></div>
     <span class="ct" id="ct">1 / 1</span>
     <button class="nb main" id="next" aria-label="Next">Next</button>
+    <button class="nb opt" id="pvBtn" title="Presenter window (P)">Presenter</button>
     <button class="nb opt" id="notesBtn" title="Instructor notes (N)">Notes</button>
     <button class="nb opt" id="menuBtn" title="All slides (M)">Slides</button>
     <button class="nb opt" id="fsBtn">Full</button>
@@ -1687,6 +1688,7 @@ function applyBuilds(i){
   bs[i].forEach((el,k)=>el.classList.toggle('in',k<n));
   for(let k=1;k<=Math.max(bs[i].length,1);k++)s.classList.toggle('st'+k,n>=k);
   $$('[data-at]',s).forEach(el=>el.classList.toggle('on',n>=Number(el.dataset.at)));
+  if(typeof PV!=='undefined'&&PV.w)pvUpdate();
 }
 const ENTER={
   ipv6:()=>countUp($('#v4n'),4294967296,2200),
@@ -1773,6 +1775,7 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='f'||e.key==='F')fs();
   else if(e.key==='n'||e.key==='N')toggleNotes();
   else if(e.key==='m'||e.key==='M')openMenu();
+  else if(e.key==='p'||e.key==='P')openPresenter();
 });
 let sx=0,sy=0;
 $('#stage').addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
@@ -1923,6 +1926,142 @@ $('#brkGo').onclick=()=>{
 };
 $('#brkReset').onclick=()=>{brkEnd=0;clearInterval(brkT);brkDraw();$('#brkBack').textContent='25 minutes';};
 brkDraw();
+
+/* ---- presenter window (P): notes, current + next, timers; drives this deck ---- */
+const PV={w:null,t0:0,paused:0,pauseAt:0,tick:0,fs:ls('s2-pv-fs')||'22'};
+const PV_CSS=`
+html,body{height:100%;margin:0;overflow:hidden;background:var(--bg)}
+body{font-size:16px;line-height:1.4}
+.P{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;gap:14px;height:100vh;padding:14px;box-sizing:border-box}
+.ph{grid-column:1/-1;display:flex;align-items:center;gap:22px;flex-wrap:wrap;border-bottom:3px solid transparent;border-image:linear-gradient(90deg,var(--c-red) 0 33.3%,var(--line) 33.3% 66.6%,var(--c-blue) 66.6%) 1;padding-bottom:10px}
+.tm{display:grid;line-height:1.05}
+.tm small{font:600 11px var(--body);letter-spacing:.18em;text-transform:uppercase;color:var(--mute)}
+.tm b{font:300 clamp(28px,3.4vw,46px) var(--display);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.tm b.r{color:var(--c-red)}.tm b.bl{color:var(--c-blue)}
+.pace{font:600 13px var(--body);padding:.25em .8em;border-radius:999px;border:1.5px solid currentColor}
+.pace.ok{color:var(--c-blue)}.pace.late{color:var(--c-red)}
+.sp{flex:1}
+.pb{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:.45em 1.1em;font:600 14px var(--body);cursor:pointer;color:var(--text)}
+.pb:hover{border-color:var(--c-blue)}
+.pb.main{background:var(--c-blue);border-color:var(--c-blue);color:#fff}
+.col{display:grid;gap:10px;min-height:0;align-content:start}
+.lbl{display:flex;justify-content:space-between;align-items:baseline;font:600 12px var(--body);letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+.lbl b{color:var(--text);letter-spacing:0;text-transform:none;font:500 16px var(--display)}
+.frame{position:relative;width:100%;background:#fff;border:1.5px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 20px 50px -30px rgba(0,30,80,.45)}
+.frame.cur{border:2px solid var(--c-blue)}
+.vp{position:absolute;left:0;top:0;transform-origin:0 0;background-image:radial-gradient(rgba(0,40,104,.12) 1.5px,transparent 1.7px);background-size:26px 26px;background-color:#fbfcfe}
+.vp .slide{position:absolute;inset:0;overflow:hidden}
+.vp *,.vp *::before,.vp *::after{animation:none!important;transition:none!important}
+.vp .wd{transform:none!important}
+.vp .mod,.vp .port{opacity:1!important}
+.vp .cia .edge{stroke-dashoffset:0}
+.vp .red,.vp .hl{background-size:100% .055em}
+.vp .nt,.vp .ctl{display:none!important}
+.end{display:grid;place-items:center;height:100%;font:300 34px var(--display);color:var(--mute)}
+.notes{min-height:0;overflow:auto;background:#fff;border:1.5px solid var(--line);border-top:6px solid var(--c-blue);border-radius:14px;padding:14px 18px;font-size:var(--nfs,22px);line-height:1.45}
+.notes h4{margin:0 0 .3em;font:500 1.05em var(--display);color:var(--c-blue)}
+.notes ul{margin:.3em 0;padding-left:1.1em}.notes li{margin:.2em 0}
+.notes code{font-family:'JetBrains Mono',ui-monospace,monospace;background:var(--tint);padding:.05em .35em;border-radius:6px;font-size:.9em}
+.notes .none{color:var(--mute)}
+.pf{grid-column:1/-1;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pf .big{font-size:18px;padding:.6em 2em}
+.pvd{display:flex;gap:5px;flex-wrap:wrap}.pvd i{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--c-blue)}.pvd i.on{background:var(--c-blue)}
+.pg{flex:1;height:4px;background:var(--line);border-radius:4px;overflow:hidden;min-width:60px}.pg i{display:block;height:100%;background:var(--c-blue)}
+`;
+function pvFmt(ms){const s=Math.max(0,Math.floor(ms/1000));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0');}
+function pvElapsed(){if(!PV.t0)return 0;return (PV.pauseAt||Date.now())-PV.t0-PV.paused;}
+function pvPlanned(){for(let k=cur;k>=0;k--){const t=$('.time',slides[k]);const m=t&&t.textContent.match(/^\s*(\d):(\d\d)/);if(m)return {at:Number(m[1])*60+Number(m[2]),title:slides[k].dataset.title};}return {at:0,title:'Welcome'};}
+function pvClock(){
+  const d=PV.w&&!PV.w.closed&&PV.w.document;if(!d)return;
+  const el=pvElapsed();
+  d.getElementById('pvEl').textContent=pvFmt(el);
+  d.getElementById('pvNow').textContent=new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  d.getElementById('pvLeft').textContent=pvFmt(240*60000-el);
+  const pl=pvPlanned(),diff=Math.round(el/60000)-pl.at,pc=d.getElementById('pvPace');
+  pc.textContent='Plan: '+Math.floor(pl.at/60)+':'+String(pl.at%60).padStart(2,'0')+' · '+(PV.t0?(diff>1?diff+' min behind':diff<-1?(-diff)+' min ahead':'on time'):'press Start');
+  pc.className='pace '+(diff>5?'late':'ok');
+  d.getElementById('pvGo').textContent=!PV.t0?'Start':PV.pauseAt?'Resume':'Pause';
+}
+function pvClone(i,n){
+  const src=slides[i],c=src.cloneNode(true),all=$$('.b',src),cb=[...c.querySelectorAll('.b')];
+  c.hidden=false;c.removeAttribute('id');
+  c.classList.remove('f','bk','out','o-f','o-b','morph','nopop');c.classList.add('active');
+  [...c.classList].filter(x=>/^st\d+$/.test(x)).forEach(x=>c.classList.remove(x));
+  for(let k=1;k<=n;k++)c.classList.add('st'+k);
+  all.forEach((el,j)=>{const k=bs[i].indexOf(el);if(cb[j])cb[j].classList.toggle('in',k>=0&&k<n);});
+  c.querySelectorAll('[data-at]').forEach(el=>el.classList.toggle('on',n>=Number(el.dataset.at)));
+  c.querySelectorAll('[id]').forEach(el=>el.removeAttribute('id'));
+  return c;
+}
+function pvFrame(box,i,n){
+  const d=PV.w.document,VW=Math.max(900,PV.w.innerWidth),VH=Math.round(VW*9/16);
+  box.innerHTML='';box.style.height=Math.round(box.clientWidth*9/16)+'px';
+  if(i<0){box.innerHTML='<div class="end">End of deck</div>';return;}
+  const vp=d.createElement('div');vp.className='vp';vp.style.width=VW+'px';vp.style.height=VH+'px';vp.style.transform='scale('+(box.clientWidth/VW)+')';
+  vp.appendChild(d.importNode(pvClone(i,n),true));box.appendChild(vp);
+}
+function pvUpdate(){
+  const w=PV.w;if(!w||w.closed){PV.w=null;return;}
+  const d=w.document,n=shown[cur],tot=bs[cur].length;
+  const nx=n<tot?[cur,n+1,'Next click']:cur+1<slides.length?[cur+1,0,'Next slide']:[-1,0,'End'];
+  d.getElementById('pvCurT').textContent=(cur+1)+'. '+(slides[cur].dataset.title||'');
+  d.getElementById('pvNxL').textContent=nx[2];
+  d.getElementById('pvNxT').textContent=nx[0]>=0?(nx[0]+1)+'. '+(slides[nx[0]].dataset.title||''):'';
+  d.getElementById('pvCt').textContent=(cur+1)+' / '+slides.length;
+  d.getElementById('pvPg').style.width=((cur+1)/slides.length*100)+'%';
+  d.getElementById('pvDots').innerHTML=tot?Array.from({length:tot},(_,k)=>'<i class="'+(k<n?'on':'')+'"></i>').join(''):'';
+  const nt=$('.nt',slides[cur]);
+  d.getElementById('pvNotes').innerHTML=nt?nt.innerHTML:'<p class="none">No notes for this slide.</p>';
+  pvFrame(d.getElementById('pvCur'),cur,n);
+  pvFrame(d.getElementById('pvNx'),nx[0],nx[1]);
+  d.title='Presenter · '+(cur+1)+'/'+slides.length;
+  pvClock();
+}
+function openPresenter(){
+  if(PV.w&&!PV.w.closed){PV.w.focus();return;}
+  let w=null;
+  try{w=window.open('','s2presenter','width=1280,height=760');}catch(e){}
+  if(!w){toast('Pop-up blocked: allow pop-ups for this page, then press P again');return;}
+  const css=$$('style').map(s=>s.textContent).join('\n');
+  const font=document.querySelector('link[rel=stylesheet]');
+  w.document.open();
+  w.document.write('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Presenter</title>'+(font?'<link rel="stylesheet" href="'+font.href+'">':'')+'<style>'+css+PV_CSS+'</style></head><body>'+
+  '<div class="P">'+
+   '<div class="ph">'+
+    '<div class="tm"><small>Elapsed</small><b id="pvEl">0:00</b></div>'+
+    '<div class="tm"><small>Left of 4 h</small><b class="bl" id="pvLeft">4:00:00</b></div>'+
+    '<div class="tm"><small>Clock</small><b id="pvNow"></b></div>'+
+    '<span class="pace ok" id="pvPace"></span>'+
+    '<button class="pb main" id="pvGo">Start</button><button class="pb" id="pvRs">Reset</button>'+
+    '<span class="sp"></span>'+
+    '<span class="lbl">Notes size</span><button class="pb" id="pvFm">A&minus;</button><button class="pb" id="pvFp">A+</button>'+
+   '</div>'+
+   '<div class="col"><div class="lbl"><span>Now</span><b id="pvCurT"></b></div><div class="frame cur" id="pvCur"></div></div>'+
+   '<div class="col" style="grid-template-rows:auto auto auto minmax(0,1fr);height:100%"><div class="lbl"><span id="pvNxL">Next</span><b id="pvNxT"></b></div><div class="frame" id="pvNx"></div><div class="lbl"><span>Notes</span><span class="pvd" id="pvDots"></span></div><div class="notes" id="pvNotes"></div></div>'+
+   '<div class="pf"><button class="pb big" id="pvBack">Back</button><button class="pb main big" id="pvNext">Next</button><span class="lbl" id="pvCt"></span><div class="pg"><i id="pvPg"></i></div><button class="pb" id="pvMenu">Slides</button><span class="lbl">Deck window: press F for full screen</span></div>'+
+  '</div></body></html>');
+  w.document.close();
+  PV.w=w;
+  const d=w.document,g=id=>d.getElementById(id);
+  d.documentElement.style.setProperty('--nfs',PV.fs+'px');
+  const fsz=k=>{PV.fs=String(Math.max(14,Math.min(44,Number(PV.fs)+k)));ls('s2-pv-fs',PV.fs);d.documentElement.style.setProperty('--nfs',PV.fs+'px');};
+  g('pvFm').onclick=()=>fsz(-2);g('pvFp').onclick=()=>fsz(2);
+  g('pvNext').onclick=()=>next();g('pvBack').onclick=()=>back();
+  g('pvMenu').onclick=()=>{window.focus();openMenu();};
+  g('pvGo').onclick=()=>{if(!PV.t0){PV.t0=Date.now();PV.paused=0;PV.pauseAt=0;}else if(PV.pauseAt){PV.paused+=Date.now()-PV.pauseAt;PV.pauseAt=0;}else PV.pauseAt=Date.now();pvClock();};
+  g('pvRs').onclick=()=>{PV.t0=0;PV.paused=0;PV.pauseAt=0;pvClock();};
+  d.addEventListener('keydown',e=>{
+    if(['ArrowRight','PageDown',' ','Enter','ArrowDown'].includes(e.key)){e.preventDefault();next();}
+    else if(['ArrowLeft','PageUp','ArrowUp'].includes(e.key)){e.preventDefault();back();}
+    else if(e.key==='Home')show(0);else if(e.key==='End')show(slides.length-1,true);
+  });
+  let rz=0;w.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(pvUpdate,150);});
+  clearInterval(PV.tick);PV.tick=setInterval(()=>{if(!PV.w||PV.w.closed){clearInterval(PV.tick);PV.w=null;return;}pvClock();},1000);
+  setTimeout(pvUpdate,60);
+  if(d.fonts)d.fonts.ready.then(pvUpdate);
+}
+addEventListener('beforeunload',()=>{try{if(PV.w)PV.w.close();}catch(e){}});
+$('#pvBtn').onclick=openPresenter;
 
 /* ---- boot ---- */
 setOS(ls('s2-os')==='lin'?'lin':'win');
