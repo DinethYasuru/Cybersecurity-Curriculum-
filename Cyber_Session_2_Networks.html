@@ -544,6 +544,19 @@ body:not(.os-lin) .lin{display:none!important}
 #menu button.sx{border-color:var(--c-blue);color:var(--c-blue);font-weight:600}
 .copied{position:fixed;left:50%;top:14%;translate:-50% 0;z-index:50;background:var(--c-blue);color:#fff;padding:.5em 1.2em;border-radius:999px;font-weight:600;font-size:1rem;animation:fadein .2s both}
 @media (prefers-reduced-motion:reduce){.flow.on .pkt,.slide.active .sonar i.r,.slide.active .tl i,.slide.active .port,.slide.active .sect .num,.cmd.in code{animation:none}.port{opacity:1}}
+
+/* runaway Begin button */
+.btn.dodge{position:fixed;z-index:45;margin:0;white-space:nowrap}
+.btn.armed{background:var(--c-blue);box-shadow:0 0 0 8px rgba(0,40,104,.16),0 0 60px rgba(0,40,104,.45);animation:armed 1s ease-in-out infinite alternate}
+@keyframes armed{to{box-shadow:0 0 0 14px rgba(0,40,104,.08),0 0 80px rgba(191,10,48,.35)}}
+.dgghost{position:fixed;z-index:44;pointer-events:none;margin:0}
+.dgdust{position:fixed;z-index:44;width:7px;height:7px;border-radius:2px;pointer-events:none}
+.taunt{position:fixed;z-index:46;pointer-events:none;font-family:var(--display);font-weight:400;font-size:clamp(1.1rem,2vw,1.9rem);letter-spacing:-.01em;background:#fff;border:1.5px solid var(--line);border-left:6px solid var(--c-red);border-radius:14px;padding:.35em .9em;box-shadow:0 18px 40px -22px rgba(0,30,80,.5);animation:taunt 1.3s var(--ease) both;white-space:nowrap}
+@keyframes taunt{0%{opacity:0;transform:translateY(12px) scale(.8)}15%{opacity:1;transform:none}75%{opacity:1}100%{opacity:0;transform:translateY(-16px)}}
+.dgline{min-height:1.5em;display:grid;gap:.2rem;justify-items:center}
+#dgMsg{font-size:clamp(1rem,1.7vw,1.6rem);color:var(--mute);font-weight:400}
+#dgMsg kbd{font-family:'JetBrains Mono',ui-monospace,monospace;font-weight:700;color:var(--c-blue);border:1.5px solid var(--c-blue);border-bottom-width:4px;border-radius:8px;padding:.05em .45em;background:#fff}
+#dgCount{font-weight:600;letter-spacing:.2em;text-transform:uppercase;font-size:clamp(.75rem,1.1vw,1rem);color:var(--c-red)}
 </style>
 </head>
 <body>
@@ -566,8 +579,9 @@ body:not(.os-lin) .lin{display:none!important}
         <h1 class="split-words">Cyber <span class="hl">Foundations</span></h1>
         <p class="sub" style="max-width:none">From zero to networks.</p>
         <div class="row" style="justify-content:center"><button class="btn" id="startBtn">Begin</button></div>
+        <div class="dgline"><span id="dgCount"></span><span id="dgMsg"></span></div>
       </div>
-      <aside class="nt"><h4>Before class</h4><ul><li>Press <b>P</b> (or the Presenter button) to open the presenter window on your laptop screen; put the deck on the projector. Press <b>N</b> for notes on the deck itself, <b>M</b> for the slide menu, <b>F</b> for full screen.</li><li>Install on the lab PCs: <b>Wireshark</b> (wireshark.org, include Npcap on Windows) and <b>Postman</b> (postman.com/downloads) or use web.postman.co.</li><li>Check internet works on the lab PCs, and that students can open a Command Prompt / Terminal.</li><li>Pick your OS on any lab slide (Windows / Linux). The choice is remembered.</li></ul></aside>
+      <aside class="nt"><h4>Before class</h4><ul><li>Press <b>P</b> (or the Presenter button) to open the presenter window on your laptop screen; put the deck on the projector. Press <b>N</b> for notes on the deck itself, <b>M</b> for the slide menu, <b>F</b> for full screen.</li><li>Install on the lab PCs: <b>Wireshark</b> (wireshark.org, include Npcap on Windows) and <b>Postman</b> (postman.com/downloads) or use web.postman.co.</li><li>Check internet works on the lab PCs, and that students can open a Command Prompt / Terminal.</li><li><b>Opening gag</b>: the Begin button runs away from the mouse. Let a student try to click it. Hints appear after 3 and 6 tries. To catch it, hold <b>Ctrl</b> (the button glows "Access granted") and click. Moral: brute force fails, the right key works. Emergency exit: the Next button, arrow keys or a clicker still start the session.</li><li>Pick your OS on any lab slide (Windows / Linux). The choice is remembered.</li></ul></aside>
     </section>
 
     <section class="slide" data-id="recap" data-title="Last week">
@@ -1740,6 +1754,7 @@ function show(i,fromEnd){
     });
   }
   if(topWasOff&&!slides[i].dataset.notop&&animate)$('#top').animate([{opacity:0},{opacity:1}],{duration:900,easing:'cubic-bezier(.22,1,.36,1)'});
+  if(oldId==='welcome'||newId==='welcome')dgReset();
   if(ENTER[newId])ENTER[newId]();
   if(newId!=='https')stopScramble();
   if(newId!=='break')stopFacts();
@@ -1761,7 +1776,6 @@ function back(){
   else show(cur-1,true);
 }
 $('#next').onclick=next;$('#prev').onclick=back;
-$('#startBtn').onclick=next;
 document.addEventListener('keydown',e=>{
   const t=e.target.tagName;
   if(t==='INPUT')return;
@@ -1926,6 +1940,80 @@ $('#brkGo').onclick=()=>{
 };
 $('#brkReset').onclick=()=>{brkEnd=0;clearInterval(brkT);brkDraw();$('#brkBack').textContent='25 minutes';};
 brkDraw();
+
+/* ---- Begin button that refuses to be clicked (hold Ctrl to catch it) ---- */
+const DG={btn:$('#startBtn'),home:null,tries:0,cool:0,on:false,ctrl:false,busy:false};
+DG.home=DG.btn.parentElement;
+const TAUNTS=['Nope.','Too slow.','Access denied.','Firewall says no.','Try harder.','Not today.','Brute force? Really?','Wrong approach.','I can do this all day.','Think like a hacker.'];
+function dgMsg(){
+  const m=$('#dgMsg'),t=DG.tries;
+  m.innerHTML=t>=6?'Hint: hackers hold the right <b class="hl">key</b>. Hold <kbd>Ctrl</kbd> and click.':t>=3?'Hint: brute force never works. Find the <b class="hl">key</b>.':'';
+  $('#dgCount').textContent=t?('Attempts: '+t):'';
+}
+function dgTaunt(x,y){
+  const b=document.createElement('div');b.className='taunt';b.textContent=TAUNTS[(DG.tries-1)%TAUNTS.length];
+  document.body.appendChild(b);
+  const r=b.getBoundingClientRect();
+  b.style.left=Math.max(12,Math.min(innerWidth-r.width-12,x-r.width/2))+'px';
+  b.style.top=Math.max(12,y-r.height-18)+'px';
+  setTimeout(()=>b.remove(),1300);
+}
+function dgGhost(r){
+  const g=DG.btn.cloneNode(true);g.removeAttribute('id');g.className='btn dgghost';
+  g.style.left=r.left+'px';g.style.top=r.top+'px';g.style.width=r.width+'px';g.style.height=r.height+'px';
+  document.body.appendChild(g);
+  for(let k=0;k<14;k++){const p=document.createElement('i');p.className='dgdust';const a=Math.random()*Math.PI*2,d=40+Math.random()*90;
+    p.style.left=(r.left+r.width/2)+'px';p.style.top=(r.top+r.height/2)+'px';p.style.background=k%2?'#BF0A30':'#002868';
+    p.animate([{transform:'translate(-50%,-50%)',opacity:1},{transform:'translate(calc(-50% + '+Math.cos(a)*d+'px),calc(-50% + '+Math.sin(a)*d+'px)) scale(.2)',opacity:0}],{duration:650+Math.random()*300,easing:'cubic-bezier(.2,.8,.2,1)'}).onfinish=()=>p.remove();
+    document.body.appendChild(p);}
+  g.animate([{opacity:.9,transform:'none',filter:'blur(0)'},{opacity:0,transform:'scale(1.8)',filter:'blur(8px)'}],{duration:500,easing:'ease-out'}).onfinish=()=>g.remove();
+}
+function dgDodge(px,py){
+  const now=performance.now();if(DG.busy||now<DG.cool)return;
+  DG.cool=now+260;DG.tries++;
+  const b=DG.btn,r=b.getBoundingClientRect();
+  if(!DG.on){DG.on=true;DG.home.style.minHeight=r.height+'px';b.classList.add('dodge');document.body.appendChild(b);}
+  const W=innerWidth,H=innerHeight,m=24;let x=r.left,y=r.top;
+  for(let k=0;k<30;k++){x=m+Math.random()*(W-r.width-2*m);y=90+Math.random()*(H-r.height-180);if(Math.hypot(x+r.width/2-px,y+r.height/2-py)>Math.min(W,H)*.42)break;}
+  if(!REDUCED)dgGhost(r);
+  b.style.left=x+'px';b.style.top=y+'px';
+  if(!REDUCED){
+    const dx=r.left-x,dy=r.top-y,rot=(Math.random()<.5?-1:1)*(10+Math.random()*18);
+    b.animate([{transform:'translate('+dx+'px,'+dy+'px) scale(.3)',opacity:.2},{transform:'rotate('+rot+'deg) scale(1.25,.8)',opacity:1,offset:.6},{transform:'rotate('+(-rot/3)+'deg) scale(.92,1.08)',offset:.8},{transform:'none'}],{duration:520,easing:'cubic-bezier(.22,1,.36,1)'});
+    if(DG.tries>=4){const w=$('.slide[data-id=welcome] .wrap');w.animate([{transform:'none'},{transform:'translateX(-14px) rotate(-.6deg)'},{transform:'translateX(12px) rotate(.5deg)'},{transform:'translateX(-6px)'},{transform:'none'}],{duration:380});}
+  }
+  dgTaunt(x+r.width/2,y);
+  dgMsg();
+}
+function dgArm(v){DG.ctrl=v;DG.btn.classList.toggle('armed',v&&DG.on);DG.btn.textContent=v&&DG.on?'Access granted':'Begin';}
+function dgReset(){
+  const b=DG.btn;DG.on=false;DG.tries=0;DG.busy=false;DG.touchOk=false;b.classList.remove('dodge','armed');b.style.cssText='';b.textContent='Begin';
+  if(b.parentElement!==DG.home)DG.home.appendChild(b);DG.home.style.minHeight='';
+  $$('.taunt').forEach(t=>t.remove());dgMsg();
+}
+function dgBegin(){
+  DG.busy=true;const b=DG.btn;b.textContent='Access granted';b.classList.add('armed');
+  if(!REDUCED){b.animate([{transform:'scale(1)'},{transform:'scale(1.25)'},{transform:'scale(1)'}],{duration:450,easing:'cubic-bezier(.34,1.56,.64,1)'});confetti();}
+  setTimeout(()=>{if(cur===0)next();},REDUCED?0:750);
+}
+document.addEventListener('mousemove',e=>{
+  if(cur!==0||DG.busy||slides[0].classList.contains('out'))return;
+  if(e.ctrlKey!==DG.ctrl)dgArm(e.ctrlKey);
+  if(e.ctrlKey||shown[0]>0)return;
+  const r=DG.btn.getBoundingClientRect();if(!r.width)return;
+  const d=Math.hypot(e.clientX-(r.left+r.width/2),e.clientY-(r.top+r.height/2));
+  if(d<Math.max(120,r.width*.95))dgDodge(e.clientX,e.clientY);
+},{passive:true});
+addEventListener('keydown',e=>{if(e.key==='Control')dgArm(true);});
+addEventListener('keyup',e=>{if(e.key==='Control')dgArm(false);});
+addEventListener('blur',()=>dgArm(false));
+DG.btn.addEventListener('touchstart',e=>{if(cur!==0||DG.busy)return;if(DG.tries<6){e.preventDefault();const t=e.touches[0];dgDodge(t.clientX,t.clientY);}else DG.touchOk=true;},{passive:false});
+DG.btn.onclick=e=>{
+  if(DG.busy)return;
+  if(e.ctrlKey||e.metaKey||e.detail===0||DG.touchOk)dgBegin();
+  else dgDodge(e.clientX,e.clientY);
+};
+dgMsg();
 
 /* ---- presenter window (P): notes, current + next, timers; drives this deck ---- */
 const PV={w:null,t0:0,paused:0,pauseAt:0,tick:0,fs:ls('s2-pv-fs')||'22'};
