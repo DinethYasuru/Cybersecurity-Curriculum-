@@ -577,7 +577,7 @@ body:not(.os-lin) .lin{display:none!important}
         <div class="row" style="justify-content:center"><button class="btn" id="startBtn">Begin</button></div>
         <div class="dgline"><span id="dgCount"></span></div>
       </div>
-      <aside class="nt"><h4>Before class</h4><ul><li>Press <b>P</b> (or the Presenter button) to open the presenter window on your laptop screen; put the deck on the projector. Press <b>N</b> for notes on the deck itself, <b>M</b> for the slide menu, <b>F</b> for full screen.</li><li>Install on the lab PCs: <b>Wireshark</b> (wireshark.org, include Npcap on Windows) and <b>Postman</b> (postman.com/downloads) or use web.postman.co.</li><li>Check internet works on the lab PCs, and that students can open a Command Prompt / Terminal.</li><li><b>Opening gag</b>: the Begin button runs away from the mouse. Let a student try to click it. No hints appear on screen. To catch it, hold <b>Ctrl</b> (the button glows "Access granted") and click. Moral: brute force fails, the right key works. Emergency exit: the Next button, arrow keys or a clicker still start the session.</li><li>Pick your OS on any lab slide (Windows / Linux). The choice is remembered.</li></ul></aside>
+      <aside class="nt"><h4>Before class</h4><ul><li>Press <b>P</b> (or the Presenter button) to open the presenter window on your laptop screen; put the deck on the projector. Press <b>N</b> for notes on the deck itself, <b>M</b> for the slide menu, <b>F</b> for full screen.</li><li>Install on the lab PCs: <b>Wireshark</b> (wireshark.org, include Npcap on Windows) and <b>Postman</b> (postman.com/downloads) or use web.postman.co.</li><li>Check internet works on the lab PCs, and that students can open a Command Prompt / Terminal.</li><li><b>Opening gag &middot; IMPORTANT</b>: the welcome slide is locked. Next, arrow keys, Space, Enter, a clicker, swipe, the slide menu and the presenter window will NOT move on; they only make Begin run away. The <b>only</b> way in: hold <b>Ctrl</b> (Begin glows "Access granted") and click it with the mouse. Let students chase it first. Moral: brute force fails, the right key works.</li><li>Pick your OS on any lab slide (Windows / Linux). The choice is remembered.</li></ul></aside>
     </section>
 
     <section class="slide" data-id="recap" data-title="Last week">
@@ -1709,6 +1709,7 @@ const ENTER={
 let outTimer=0,firstShow=true,svT=0;
 function show(i,fromEnd){
   i=Math.max(0,Math.min(slides.length-1,i));
+  if(!firstShow&&cur===0&&i!==0&&!DG.passed){dgBlocked();return;}
   const old=slides[cur],dir=i>cur?1:(i<cur?-1:0);
   const animate=!firstShow&&dir!==0;
   const oldId=old.dataset.id,newId=slides[i].dataset.id;
@@ -1970,13 +1971,18 @@ function dgDodge(px,py){
   dgMsg();
 }
 function dgArm(v){DG.ctrl=v;DG.btn.classList.toggle('armed',v&&DG.on);DG.btn.textContent=v&&DG.on?'Access granted':'Begin';}
+function dgBlocked(){
+  if(DG.busy)return;
+  const r=DG.btn.getBoundingClientRect();
+  DG.cool=0;dgDodge(r.left+r.width/2,r.top+r.height/2);
+}
 function dgReset(){
-  const b=DG.btn;DG.on=false;DG.tries=0;DG.busy=false;DG.touchOk=false;b.classList.remove('dodge','armed');b.style.cssText='';b.textContent='Begin';
+  const b=DG.btn;DG.on=false;DG.tries=0;DG.busy=false;DG.passed=false;b.classList.remove('dodge','armed');b.style.cssText='';b.textContent='Begin';
   if(b.parentElement!==DG.home)DG.home.appendChild(b);DG.home.style.minHeight='';
   $$('.taunt').forEach(t=>t.remove());dgMsg();
 }
 function dgBegin(){
-  DG.busy=true;const b=DG.btn;b.textContent='Access granted';b.classList.add('armed');
+  DG.busy=true;DG.passed=true;const b=DG.btn;b.textContent='Access granted';b.classList.add('armed');
   if(!REDUCED){b.animate([{transform:'scale(1)'},{transform:'scale(1.25)'},{transform:'scale(1)'}],{duration:450,easing:'cubic-bezier(.34,1.56,.64,1)'});confetti();}
   setTimeout(()=>{if(cur===0)next();},REDUCED?0:750);
 }
@@ -1991,10 +1997,10 @@ document.addEventListener('mousemove',e=>{
 addEventListener('keydown',e=>{if(e.key==='Control')dgArm(true);});
 addEventListener('keyup',e=>{if(e.key==='Control')dgArm(false);});
 addEventListener('blur',()=>dgArm(false));
-DG.btn.addEventListener('touchstart',e=>{if(cur!==0||DG.busy)return;if(DG.tries<6){e.preventDefault();const t=e.touches[0];dgDodge(t.clientX,t.clientY);}else DG.touchOk=true;},{passive:false});
+DG.btn.addEventListener('touchstart',e=>{if(cur!==0||DG.busy)return;e.preventDefault();const t=e.touches[0];dgDodge(t.clientX,t.clientY);},{passive:false});
 DG.btn.onclick=e=>{
   if(DG.busy)return;
-  if(e.ctrlKey||e.metaKey||e.detail===0||DG.touchOk)dgBegin();
+  if(e.ctrlKey&&e.detail>0)dgBegin();
   else dgDodge(e.clientX,e.clientY);
 };
 dgMsg();
