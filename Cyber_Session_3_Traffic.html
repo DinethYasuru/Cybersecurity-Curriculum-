@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Cyber Foundations Session 2</title>
+<title>Cyber Foundations Session 3</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600&family=DM+Sans:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
@@ -801,7 +801,7 @@ body:not(.os-lin) .lin{display:none!important}
 @keyframes fl2{0%,30%{opacity:0}40%,60%{opacity:1}70%,100%{opacity:0}}
 </style>
 </head>
-<body data-total="240">
+<body data-total="180">
 <div id="app">
   <div class="glow" aria-hidden="true"><i></i><i></i></div>
   <header class="top" id="top">
@@ -814,455 +814,249 @@ body:not(.os-lin) .lin{display:none!important}
     <div class="deco" id="deco" aria-hidden="true" data-v="0"><i class="wash a"></i><i class="wash b"></i><i class="spot" id="spot"></i><i class="dots"></i><canvas class="wcv" id="wcv"></canvas><div class="starc" id="starc"></div></div>
 
     <!-- ===================== OPENING ===================== -->
-    <section class="slide" data-id="welcome" data-lock="1" data-v="0" data-title="Welcome" data-notop="1">
+    <section class="slide" data-id="welcome" data-v="0" data-title="Welcome" data-notop="1">
       <div class="wrap center">
         <div class="logos xl" id="logosBig"></div>
-        <p class="kick">Session 2 &middot; American Corner Matara</p>
-        <h1 class="split-words">Cyber <span class="hl">Foundations</span></h1>
-        <p class="sub" style="max-width:none">From zero to networks.</p>
+        <p class="kick">Session 3 &middot; American Corner Matara</p>
+        <h1 class="split-words">Inside the <span class="hl">Traffic</span></h1>
+        <p class="sub" style="max-width:none">Ports, packets, Wireshark, Postman.</p>
         <div class="row" style="justify-content:center"><button class="btn" id="startBtn">Begin</button></div>
-        <div class="dgline"><span id="dgCount"></span></div>
       </div>
-      <aside class="nt"><h4>Before class</h4><ul><li>Press <b>P</b> (or the Presenter button) to open the presenter window on your laptop screen; put the deck on the projector. Press <b>N</b> for notes on the deck itself, <b>M</b> for the slide menu, <b>F</b> for full screen.</li><li>No installs needed today: both labs use the built-in Command Prompt / Terminal. For Lab 2 step 4, a few students need a phone hotspot (mobile data).</li><li>Check internet works on the lab PCs, and that students can open a Command Prompt / Terminal.</li><li><b>Opening gag &middot; IMPORTANT</b>: the welcome slide is locked. Next, arrow keys, Space, Enter, a clicker, swipe, the slide menu and the presenter window will NOT move on; they only make Begin run away. The <b>only</b> way in: hold <b>Ctrl</b> (Begin glows "Access granted") and click it with the mouse. Let students chase it first. Moral: brute force fails, the right key works.</li><li>Pick your OS on any lab slide (Windows / Linux). The choice is remembered.</li></ul></aside>
+      <aside class="nt"><h4>Before class</h4><ul><li>Press <b>P</b> (or the Presenter button) for the presenter window, <b>N</b> for notes, <b>M</b> for the slide menu, <b>F</b> for full screen.</li><li>Install on the lab PCs: <b>Wireshark</b> (wireshark.org, include Npcap on Windows) and <b>Postman</b> (postman.com/downloads) or use web.postman.co.</li><li>Check internet works on the lab PCs, and that students can open a Command Prompt / Terminal.</li><li>Pick your OS on any lab slide (Windows / Linux). The choice is remembered.</li></ul></aside>
     </section>
 
     <section class="slide" data-id="recap" data-title="Last week">
       <div class="wrap center">
         <p class="kick">Last week</p>
-        <h2 class="split-words">Remember <span class="red">this?</span></h2>
+        <h2 class="split-words">Remember <span class="red">these?</span></h2>
         <div class="chips">
-          <span class="chip b">Hacking is a part. Not all.</span>
-          <span class="chip b">11 modules</span>
-          <span class="chip b hot">You got quished.</span>
+          <span class="chip b">IP = home address</span>
+          <span class="chip b">DNS = phonebook</span>
+          <span class="chip b">Gateway = the way out</span>
+          <span class="chip b hot">Cable &middot; Wi-Fi &middot; SIM &middot; satellite</span>
         </div>
-        <p class="sub b">Today we open the box: how the internet really works.</p>
+        <p class="sub b">Today we look inside the packets.</p>
       </div>
-      <aside class="nt"><h4>0:00 &middot; 5 min</h4>Ask: "Who remembers what quishing is?" Let two students answer. Then move on quickly.</aside>
+      <aside class="nt"><h4>0:00 &middot; 10 min</h4>Ask for last week's ping race results from home (homework). Who was faster: Wi-Fi or mobile data?</aside>
     </section>
 
     <section class="slide" data-id="today" data-title="Today's map">
       <div class="wrap">
-        <div class="labhead"><h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Today: <span class="red">4 hours</span></h2><span class="time">2 labs &middot; 1 break</span></div>
+        <div class="labhead"><h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Today: <span class="red">3 hours</span></h2><span class="time">3 labs &middot; 1 break</span></div>
         <div class="tl" aria-hidden="true">
-          <i style="flex:10;--i:0"></i><i style="flex:35;--i:1"></i><i style="flex:30;--i:2"></i><i class="lab" style="flex:30;--i:3"></i><i class="brk" style="flex:25;--i:4"></i><i style="flex:35;--i:5"></i><i style="flex:35;--i:6"></i><i class="lab" style="flex:25;--i:7"></i><i style="flex:15;--i:8"></i>
-        </div>
+        <i style="flex:10;--i:0"></i><i style="flex:40;--i:1"></i><i class="lab" style="flex:25;--i:2"></i><i class="brk" style="flex:20;--i:3"></i><i class="lab" style="flex:45;--i:4"></i><i class="lab" style="flex:30;--i:5"></i><i style="flex:10;--i:6"></i></div>
         <div class="agenda">
-          <div class="ag"><span class="t">0:00</span><b>Welcome</b><em>10m</em></div>
-          <div class="ag"><span class="t">2:10</span><b>Words, decoded</b><em>35m</em></div>
-          <div class="ag"><span class="t">0:10</span><b>What is cyber security?</b><em>35m</em></div>
-          <div class="ag"><span class="t">2:45</span><b>How you get online</b><em>35m</em></div>
-          <div class="ag"><span class="t">0:45</span><b>How the internet works</b><em>30m</em></div>
-          <div class="ag lab"><span class="t">3:20</span><b>Race the connections</b><em>25m</em></div>
-          <div class="ag lab"><span class="t">1:15</span><b>Find yourself</b><em>30m</em></div>
-          <div class="ag"><span class="t">3:45</span><b>Recap &amp; quiz</b><em>15m</em></div>
-          <div class="ag brk"><span class="t">1:45</span><b>Break</b><em>25m</em></div>
+          <div class="ag"><span class="t">0:00</span><b>Welcome &amp; recap</b><em>10m</em></div>
+          <div class="ag lab"><span class="t">1:35</span><b>Wireshark</b><em>45m</em></div>
+          <div class="ag"><span class="t">0:10</span><b>Ports, protocols, services</b><em>40m</em></div>
+          <div class="ag lab"><span class="t">2:20</span><b>Postman</b><em>30m</em></div>
+          <div class="ag lab"><span class="t">0:50</span><b>netstat</b><em>25m</em></div>
+          <div class="ag"><span class="t">2:50</span><b>Recap &amp; quiz</b><em>10m</em></div>
+          <div class="ag brk"><span class="t">1:15</span><b>Break</b><em>20m</em></div>
         </div>
       </div>
-      <aside class="nt"><h4>Pacing</h4>Times are from the start of class. If you run late before the break, shorten the ARP and IPv6 slides. Keep the break at 25 minutes. After the break everything is simpler: words explained with pictures, then how devices get online, then a ping race.</aside>
+      <aside class="nt"><h4>Pacing</h4>Times are from the start of class. Have 4 hours? Give Wireshark and Postman more time.</aside>
     </section>
 
-    <!-- ===================== 01 INTRODUCTION ===================== -->
-    <section class="slide" data-id="s-intro" data-title="01 Introduction" data-sec="01 · Introduction">
+    <!-- ===================== 03 PORTS & PROTOCOLS ===================== -->
+    <section class="slide" data-id="s-ports" data-title="01 Ports & protocols" data-sec="01 · Ports & Protocols">
       <div class="wrap">
         <div class="sect">
           <div class="num">01</div>
           <div class="txt">
-            <span class="time">0:10 &middot; 35 min</span>
-            <p class="kick">Module 1 &middot; Introduction</p>
-            <h2 class="split-words">What are we <span class="red">protecting?</span></h2>
+            <span class="time">0:10 &middot; 40 min</span>
+            <p class="kick">Module 3 &middot; Network Traffic Analysis</p>
+            <h2 class="split-words">Doors, rules and <span class="red">handshakes.</span></h2>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="slide" data-id="define" data-title="Cyber security is...">
-      <div class="wrap center">
-        <p class="kick">In one line</p>
-        <h2 class="split-words" style="font-size:clamp(2.2rem,6vw,6rem)">Protecting <span class="red">people</span>, devices and data from digital harm.</h2>
-        <div class="chips">
-          <span class="chip b">People</span>
-          <span class="chip b">Devices</span>
-          <span class="chip b">Networks</span>
-          <span class="chip b hot">Data</span>
+    <section class="slide" data-id="warm" data-title="Quick check">
+      <div class="wrap">
+        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Quick <span class="red">check.</span></h2>
+        <div class="qcs">
+          <button class="qc" type="button"><span class="q">Postal address of a device?</span><span class="ans b">IP address</span></button>
+          <button class="qc" type="button"><span class="q">Factory name tag of a network card?</span><span class="ans b">MAC address</span></button>
+          <button class="qc" type="button"><span class="q">Turns google.com into numbers?</span><span class="ans b">DNS</span></button>
         </div>
       </div>
-      <aside class="nt">Point out "people" comes first. Most attacks trick a human, not a machine.</aside>
     </section>
 
-    <section class="slide" data-id="cia" data-title="The CIA triad">
+    <section class="slide" data-id="ports" data-title="Ports">
       <div class="wrap">
         <div class="split">
-          <div class="cia" aria-hidden="true">
-            <svg viewBox="0 0 440 400">
-              <path class="edge" d="M220 50 L390 340 L50 340 Z"/>
-              <g class="v v1"><circle cx="220" cy="50" r="46"/><text x="220" y="52">C</text></g>
-              <g class="v v2"><circle cx="390" cy="340" r="46"/><text x="390" y="342">I</text></g>
-              <g class="v v3"><circle cx="50" cy="340" r="46"/><text x="50" y="342">A</text></g>
-            </svg>
+          <div class="bld" aria-hidden="true">
+            <div class="roof">192.168.1.25</div>
+            <div class="doors">
+              <span class="door">21</span><span class="door op">22</span><span class="door">25</span><span class="door op">53</span><span class="door">80</span><span class="door op">443</span>
+              <span class="door">110</span><span class="door">139</span><span class="door op">445</span><span class="door">3306</span><span class="door">3389</span><span class="door">8080</span>
+            </div>
           </div>
           <div class="lst">
-            <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">The <span class="red">CIA</span> triad</h2>
-            <div class="li b"><span class="k">C</span><b>Confidentiality</b><span>Only the right eyes.</span></div>
-            <div class="li b"><span class="k">I</span><b>Integrity</b><span>No secret changes.</span></div>
-            <div class="li b"><span class="k">A</span><b>Availability</b><span>There when you need it.</span></div>
+            <div class="li b"><span class="k">IP</span><b>= the building</b><span>Which computer.</span></div>
+            <div class="li b"><span class="k">Port</span><b>= the door</b><span>Which program.</span></div>
+            <div class="li b"><span class="k">65,535</span><b>doors per device</b><span>Numbered 1 to 65535.</span></div>
+            <div class="li b"><span class="k">Open</span><b>= someone is listening</b><span>Every open door is a door to check.</span></div>
           </div>
         </div>
       </div>
-      <aside class="nt">Not the spy agency. Every attack breaks at least one of these three. Next slide tests it.</aside>
+      <aside class="nt">On the 4th click the open doors light up red. Attackers always ask first: "Which doors are open?" That's port scanning (Nmap, Module 7).</aside>
     </section>
 
-    <section class="slide" data-id="ciaquiz" data-title="Which one broke?">
+    <section class="slide" data-id="common" data-title="Famous ports">
       <div class="wrap">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Which one <span class="red">broke?</span></h2>
-        <div class="qcs">
-          <button class="qc" type="button"><span class="q">Your Instagram password leaked.</span><span class="ans b">Confidentiality</span></button>
-          <button class="qc" type="button"><span class="q">Someone changed your exam marks.</span><span class="ans b">Integrity</span></button>
-          <button class="qc" type="button"><span class="q">Bank app is down on salary day.</span><span class="ans b">Availability</span></button>
-          <button class="qc" type="button"><span class="q">Ransomware locks every file.</span><span class="ans b">Availability (and maybe C)</span></button>
+        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Famous <span class="red">doors</span></h2>
+        <div class="ports">
+          <div class="port plain" style="--i:0"><span class="n">21</span><b>FTP</b><span>file transfer</span></div>
+          <div class="port" style="--i:1"><span class="n">22</span><b>SSH</b><span>secure remote shell</span></div>
+          <div class="port plain" style="--i:2"><span class="n">23</span><b>Telnet</b><span>old remote shell</span></div>
+          <div class="port" style="--i:3"><span class="n">25</span><b>SMTP</b><span>sending email</span></div>
+          <div class="port" style="--i:4"><span class="n">53</span><b>DNS</b><span>the phonebook</span></div>
+          <div class="port plain" style="--i:5"><span class="n">80</span><b>HTTP</b><span>web</span></div>
+          <div class="port" style="--i:6"><span class="n">443</span><b>HTTPS</b><span>secure web</span></div>
+          <div class="port" style="--i:7"><span class="n">445</span><b>SMB</b><span>Windows file sharing</span></div>
+          <div class="port" style="--i:8"><span class="n">3389</span><b>RDP</b><span>remote desktop</span></div>
         </div>
       </div>
-      <aside class="nt">Read each one, let the room shout, then press Next (or click the card) to reveal.</aside>
+      <aside class="nt">Red = sends everything in plain text, including passwords. We prove that in the Wireshark lab. 445 was used by WannaCry (2017).</aside>
     </section>
 
-    <section class="slide" data-id="tvr" data-title="Threat, vulnerability, risk">
+    <section class="slide" data-id="tcpudp" data-title="TCP vs UDP">
       <div class="wrap">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Three words you will <span class="red">hear daily</span></h2>
-        <div class="cards" style="--cw:300px">
-          <div class="card b"><div class="big">Threat</div><p>The thief outside.</p></div>
-          <div class="card b"><div class="big">Vulnerability</div><p>The open window.</p></div>
-          <div class="card b ink"><div class="big">Risk</div><p>How likely he gets in &times; what you lose.</p></div>
-        </div>
-        <p class="sub b" style="max-width:none">You can't stop thieves. You <span class="hl">can</span> close windows.</p>
-      </div>
-      <aside class="nt">Security work = finding open windows (vulnerabilities) before the thief (threat) does.</aside>
-    </section>
-
-    <section class="slide" data-id="who" data-title="Who attacks?">
-      <div class="wrap center">
-        <h2 class="split-words">Who <span class="red">attacks?</span></h2>
-        <div class="chips">
-          <span class="chip b">Script kiddies</span>
-          <span class="chip b">Scammers</span>
-          <span class="chip b">Hacktivists</span>
-          <span class="chip b">Insiders</span>
-          <span class="chip b">Nation states</span>
-          <span class="chip b hot">Bored classmates</span>
+        <p class="kick">Protocol = rules for talking</p>
+        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">TCP vs <span class="red">UDP</span></h2>
+        <div class="cards" style="--cw:380px">
+          <div class="card b"><div class="big">TCP</div><p>Registered post. Every piece is confirmed.</p><p class="small"><b class="blue">Web &middot; email &middot; files</b></p></div>
+          <div class="card b"><div class="big">UDP</div><p>Live cricket on radio. Fast. A missed word is gone.</p><p class="small"><b class="hl">Calls &middot; games &middot; DNS</b></p></div>
         </div>
       </div>
-      <aside class="nt">Script kiddie = uses tools without understanding them. Our goal: understand the tools. The last chip links to Module 8 (bullying).</aside>
+      <aside class="nt">Ask: "If a WhatsApp video call lags, does it replay the missed second?" No: UDP. "If one byte of a file is missing?" The file breaks: TCP.</aside>
     </section>
 
-    <section class="slide" data-id="hats" data-title="Hats">
+    <section class="slide" data-id="hand" data-title="TCP handshake">
       <div class="wrap">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Pick your <span class="red">hat.</span></h2>
-        <div class="cards" style="--cw:280px">
-          <div class="card b hat" data-o="1"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#fff"/></svg><div class="big">White</div><p>Permission. Report. Fix.</p><p class="hero b" data-o="4"><b>Spider-Man</b>"With great power comes great responsibility."</p></div>
-          <div class="card b hat" data-o="2"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#9aa1b0"/></svg><div class="big">Grey</div><p>No permission. "Good" intent. Still illegal.</p><p class="hero b" data-o="5"><b>Batman</b>"I'm Batman." Fights crime, breaks every law doing it.</p></div>
-          <div class="card b hat ink" data-o="3"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#15171e"/></svg><div class="big">Black</div><p>Harm. Steal. Prison.</p><p class="hero b" data-o="6"><b>The Joker</b>"Why so serious?" Just wants to watch the world burn.</p></div>
-        </div>
-        <p class="sub b" data-o="7" style="max-width:none">In this room, we wear <span class="hl">white.</span></p>
-      </div>
-      <aside class="nt"><b>Clicks:</b> 1-3 show the hats. 4 = Spider-Man, 5 = Batman, 6 = Joker, 7 = "we wear white". Read the characters for a laugh: Spider-Man asks permission and protects people. Batman means well but has no permission, and the police still want him (grey). The Joker breaks things for fun (black). Then: Stress: grey hat is still a crime in Sri Lanka (Computer Crimes Act No. 24 of 2007). Full detail in Module 4.</aside>
-    </section>
-
-    <section class="slide" data-id="daily" data-title="Everyday attacks">
-      <div class="wrap center">
-        <p class="kick">This week, somewhere in Matara</p>
-        <h2 class="split-words">Everyday <span class="red">attacks</span></h2>
-        <div class="chips">
-          <span class="chip b">Phishing links</span>
-          <span class="chip b">Fake prize SMS</span>
-          <span class="chip b">"Hi Mum, new number"</span>
-          <span class="chip b">Cracked apps</span>
-          <span class="chip b">Weak passwords</span>
-          <span class="chip b">Public Wi-Fi</span>
-          <span class="chip b hot">Fake QR codes</span>
+        <div class="labhead"><h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">The 3-way <span class="red">handshake</span></h2><span class="tag r">Act it out</span></div>
+        <div class="hs">
+          <div class="ends"><div class="end"><i class="ic" data-ic="laptop"></i>You</div><div class="end">Server<i class="ic" data-ic="server"></i></div></div>
+          <div class="hrow b"><span class="lab">SYN<small>"Can we talk?"</small></span><span class="ln"></span></div>
+          <div class="hrow back b"><span class="lab">SYN-ACK<small>"Yes. Can you hear me?"</small></span><span class="ln"></span></div>
+          <div class="hrow b"><span class="lab">ACK<small>"Yes. Let's go."</small></span><span class="ln"></span></div>
+          <div class="okbadge b">Connected</div>
         </div>
       </div>
-      <aside class="nt">Ask: "Who has received one of these?" Hands up. Public Wi-Fi comes back after the break and in next week's Wireshark lab.</aside>
+      <aside class="nt">Call two students up. One is "You", one is "Server". They say the three lines while you click. Every website visit starts with this. We will catch it in Wireshark: <code>tcp.flags.syn==1</code>.</aside>
     </section>
 
-    <section class="slide" data-id="layers" data-title="Security is layers">
+    <section class="slide" data-id="osi" data-title="OSI layers">
       <div class="wrap">
-        <div class="split">
-          <div class="rings" aria-hidden="true">
-            <div class="rg b" style="--d:100%"><span>People</span></div>
-            <div class="rg b" style="--d:80%"><span>Network</span></div>
-            <div class="rg b" style="--d:60%"><span>Device</span></div>
-            <div class="rg b" style="--d:40%"><span>Apps</span></div>
-            <div class="rg b core" style="--d:22%"><span>Data</span></div>
+        <div class="split" style="align-items:center">
+          <div style="flex:0 1 420px;display:grid;gap:1rem;min-width:min(100%,300px)">
+            <p class="kick">The OSI model</p>
+            <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">7 layers. <span class="red">One parcel.</span></h2>
+            <p class="sub small">Please Do Not Throw Sausage Pizza Away</p>
           </div>
-          <div style="flex:1;min-width:min(100%,320px);display:grid;gap:1.2rem">
-            <h2 class="split-words" style="font-size:clamp(2.4rem,5.6vw,5.6rem)">Security is <span class="red">layers.</span></h2>
-            <p class="sub">Like an onion. Or a fort with many gates.</p>
-            <p class="sub">One fails, the next one holds.</p>
+          <div class="osi">
+            <div class="ly b"><span class="n">1</span><b>Physical</b><span>cables, Wi-Fi radio</span></div>
+            <div class="ly b"><span class="n">2</span><b>Data Link</b><span>MAC, switches</span></div>
+            <div class="ly b"><span class="n">3</span><b>Network</b><span>IP, routers</span></div>
+            <div class="ly b"><span class="n">4</span><b>Transport</b><span>TCP / UDP, ports</span></div>
+            <div class="ly b"><span class="n">5</span><b>Session</b><span>keeps the chat open</span></div>
+            <div class="ly b"><span class="n">6</span><b>Presentation</b><span>encryption, formats</span></div>
+            <div class="ly b"><span class="n">7</span><b>Application</b><span>browser, WhatsApp</span></div>
           </div>
         </div>
       </div>
-      <aside class="nt">"Defense in depth". Today's topic is the Network layer.</aside>
+      <aside class="nt">Builds bottom-up. Map it to today: MAC = layer 2, IP = layer 3, ports = layer 4, HTTP = layer 7. Wireshark shows exactly these layers.</aside>
     </section>
 
-    <section class="slide" data-id="careers" data-title="Careers">
+    <section class="slide" data-id="encap" data-title="Encapsulation">
       <div class="wrap center">
-        <p class="kick">Where this can take you</p>
-        <h2 class="split-words">Real <span class="red">jobs.</span></h2>
-        <div class="chips">
-          <span class="chip b">SOC Analyst</span>
-          <span class="chip b">Penetration Tester</span>
-          <span class="chip b">Network Engineer</span>
-          <span class="chip b">Digital Forensics</span>
-          <span class="chip b">Cloud Security</span>
-          <span class="chip b hot">Bug Bounty Hunter</span>
-        </div>
-        <p class="sub b" style="max-width:none">Every one of them starts with <span class="hl">networks.</span></p>
-      </div>
-    </section>
-
-    <!-- ===================== 02 INTERNET & NETWORK BASICS ===================== -->
-    <section class="slide" data-id="s-net" data-title="02 Network Basics" data-sec="02 · Network Basics">
-      <div class="wrap">
-        <div class="sect">
-          <div class="num">02</div>
-          <div class="txt">
-            <span class="time">0:45 &middot; 30 min</span>
-            <p class="kick">Module 2 &middot; Internet &amp; Network Basics</p>
-            <h2 class="split-words">How does a message <span class="red">travel?</span></h2>
+        <p class="kick">How a packet is wrapped</p>
+        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Envelope in an <span class="red">envelope.</span></h2>
+        <div class="enc" aria-hidden="true">
+          <div class="eb e3"><span class="el">MAC &middot; next device</span>
+            <div class="eb e2"><span class="el">IP &middot; which computer</span>
+              <div class="eb e1"><span class="el">TCP &middot; which port</span>
+                <div class="eb core">"Hi"</div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-id="binary" data-title="0s and 1s">
-      <div class="wrap center">
-        <p class="kick">Computers only know two things</p>
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5.4vw,5.4rem)">Everything is <span class="red">0</span> and <span class="red">1.</span></h2>
-        <input class="bin-in" id="binIn" value="Hi" maxlength="10" aria-label="Type a word" spellcheck="false" autocomplete="off">
-        <div class="bins" id="bins"></div>
-        <p class="sub small">Type your name. 8 bits = 1 byte = 1 letter.</p>
-      </div>
-      <aside class="nt">Invite a student to type their name. Each letter becomes 8 bits (ASCII). Electricity on/off, light on/off, radio wave up/down.</aside>
-    </section>
-
-    <section class="slide" data-id="packets" data-title="Packets">
-      <div class="wrap center">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5.4vw,5.4rem)">Data travels in <span class="red">pieces.</span></h2>
-        <div class="pkts" aria-hidden="true">
-          <span class="pt" style="--dx:0;--dy:-70px;--r:-6deg"><em>1</em>HEL</span><span class="pt" style="--dx:30px;--dy:60px;--r:5deg"><em>2</em>LO </span><span class="pt" style="--dx:-20px;--dy:-40px;--r:8deg"><em>3</em>MAT</span><span class="pt" style="--dx:10px;--dy:80px;--r:-4deg"><em>4</em>ARA</span>
         </div>
         <div class="steps">
-          <p class="sub b"><b>1</b>Cut into packets.</p>
-          <p class="sub b"><b>2</b>Each finds its own road.</p>
-          <p class="sub b"><b>3</b>Rebuilt in order.</p>
+          <p class="sub b"><b>+</b>port</p>
+          <p class="sub b"><b>+</b>IP</p>
+          <p class="sub b"><b>+</b>MAC</p>
         </div>
       </div>
-      <aside class="nt">Analogy: sending a big puzzle by post, one piece per envelope, numbered. A packet is usually up to ~1500 bytes. Next week we will see real packets in Wireshark.</aside>
     </section>
 
-    <section class="slide" data-id="lanwan" data-title="LAN, WAN, Internet">
+    <section class="slide" data-id="services" data-title="Services">
       <div class="wrap">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Small, big, <span class="red">huge.</span></h2>
-        <div class="cards" style="--cw:280px">
-          <div class="card b"><i class="ic" data-ic="laptop"></i><div class="big">LAN</div><p>This room. Your home.</p></div>
-          <div class="card b"><i class="ic" data-ic="tower"></i><div class="big">WAN</div><p>Matara office to Colombo office.</p></div>
-          <div class="card b ink"><i class="ic" data-ic="globe"></i><div class="big">Internet</div><p>A network of networks.</p></div>
+        <p class="kick">Service</p>
+        <h2 class="split-words" style="font-size:clamp(2.2rem,5.4vw,5.4rem)">A program waiting <span class="red">behind a door.</span></h2>
+        <div class="cards" style="--cw:260px">
+          <div class="card b"><div class="big">Web server</div><p>waits on 443</p></div>
+          <div class="card b"><div class="big">Remote Desktop</div><p>waits on 3389</p></div>
+          <div class="card b"><div class="big">File sharing</div><p>waits on 445</p></div>
+          <div class="card b ink"><div class="big">You don't use it?</div><p>Close it.</p></div>
         </div>
       </div>
+      <aside class="nt">Fewer running services = smaller "attack surface". Next lab: find which doors YOUR computer has open.</aside>
     </section>
 
-    <section class="slide" data-id="devices" data-title="Network devices">
+    <!-- ===================== LAB 2 ===================== -->
+    <section class="slide" data-id="lab2" data-title="Lab 1 · netstat" data-sec="Lab 1 · netstat">
       <div class="wrap">
-        <div class="labhead"><h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Meet the <span class="red">boxes.</span></h2><span class="tag bl">Deep dive: Module 5</span></div>
-        <div class="cards" style="--cw:240px">
-          <div class="card b"><i class="ic" data-ic="router"></i><div class="big">Router</div><p>Joins networks. Picks the road.</p></div>
-          <div class="card b"><i class="ic" data-ic="switch"></i><div class="big">Switch</div><p>Joins devices in one LAN.</p></div>
-          <div class="card b"><i class="ic" data-ic="wifi"></i><div class="big">Access point</div><p>Turns cable into Wi-Fi.</p></div>
-          <div class="card b"><i class="ic" data-ic="modem"></i><div class="big">Modem</div><p>Talks to your ISP.</p></div>
+        <div class="labhead">
+          <div style="display:grid;gap:.6rem"><span class="time">0:50 &middot; 25 min &middot; Lab 1</span><h2 class="split-words" style="font-size:clamp(2rem,4.4vw,4.4rem)">Which doors are <span class="red">open?</span></h2></div>
+          <div class="row"><div class="os"><button type="button" data-os="win">Windows</button><button type="button" data-os="lin">Linux</button></div><button class="btn ghost lt" data-min="20" type="button">Start 20 min</button><span class="ltc"></span></div>
         </div>
-        <p class="sub b" style="max-width:none">Your home Wi-Fi box? All four in one.</p>
-      </div>
-    </section>
-
-    <section class="slide" data-id="ip" data-title="IP address">
-      <div class="wrap center">
-        <p class="kick">IP address</p>
-        <div class="addr"><span class="oc">192</span><span class="dt">.</span><span class="oc">168</span><span class="dt">.</span><span class="oc">1</span><span class="dt">.</span><span class="oc">25</span></div>
-        <p class="sub b" style="max-width:none">Your device's <span class="hl">postal address</span> on a network.</p>
-        <p class="sub b" style="max-width:none">4 numbers. Each one 0 to 255.</p>
-      </div>
-      <aside class="nt">IP = Internet Protocol. This is IPv4. Ask: "Can two houses on one street have the same number?" No. Same for IPs on one network.</aside>
-    </section>
-
-    <section class="slide" data-id="privpub" data-title="Private vs public IP">
-      <div class="wrap">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Inside vs <span class="red">outside.</span></h2>
-        <div class="nat">
-          <div class="room">
-            <p class="kick">Private &middot; this room</p>
-            <div class="dv"><i class="ic" data-ic="laptop"></i>192.168.1.10</div>
-            <div class="dv"><i class="ic" data-ic="phone"></i>192.168.1.11</div>
-            <div class="dv"><i class="ic" data-ic="laptop"></i>192.168.1.12</div>
-          </div>
-          <div class="natbox b"><i class="ic" data-ic="router"></i><b>Router</b><span class="muted small">NAT translates</span></div>
-          <div class="pub b"><p class="kick">Public &middot; the world sees</p><div class="ip" id="pubIp">203.0.113.7</div><button class="nb" id="pubBtn" type="button">Show this room's real one</button></div>
-        </div>
-        <p class="sub b small" style="max-width:none">Private ranges: <b class="mono">10.x.x.x</b> &middot; <b class="mono">172.16&ndash;31.x.x</b> &middot; <b class="mono">192.168.x.x</b></p>
-      </div>
-      <aside class="nt">Like an apartment block: flat numbers inside (private), one street address outside (public). 203.0.113.7 is an example address. The button asks api.ipify.org for the real public IP; if it is blocked, run <code>curl ifconfig.me</code> in the lab.</aside>
-    </section>
-
-    <section class="slide" data-id="ipv6" data-title="IPv6">
-      <div class="wrap center">
-        <p class="kick">Problem: we ran out</p>
-        <div class="split" style="gap:clamp(2rem,6vw,6rem)">
-          <div><p class="kick" style="--kw:var(--c-blue)">IPv4 addresses</p><div class="bignum" id="v4n">0</div></div>
-          <div class="b"><p class="kick">IPv6 addresses</p><div class="bignum r">340 undecillion</div><p class="sub small" style="max-width:none">340,282,366,920,938,463,463,374,607,431,768,211,456</p></div>
-        </div>
-        <p class="sub b mono" style="max-width:none;font-size:clamp(1.2rem,2.6vw,2.6rem)">2001:db8:85a3::8a2e:370:7334</p>
-        <p class="sub b small" style="max-width:none">Enough for every grain of sand on Earth. Many times over.</p>
-      </div>
-      <aside class="nt">4.3 billion IPv4 addresses vs 8+ billion people with several devices each. NAT (previous slide) kept IPv4 alive. You will see IPv6 lines in ipconfig too.</aside>
-    </section>
-
-    <section class="slide" data-id="mac" data-title="MAC address">
-      <div class="wrap center">
-        <p class="kick">MAC address</p>
-        <div class="addr mac mono"><span class="oc oui">3C:84:6A</span><span class="dt">:</span><span class="oc dev">1F:9B:20</span></div>
-        <div class="lbls">
-          <p class="sub b"><span class="blue">Maker</span> (who built the card)</p>
-          <p class="sub b"><span class="hl">Device</span> (this one card)</p>
-        </div>
-        <p class="sub b" style="max-width:none">Your network card's <span class="hl">name tag.</span> Set at the factory.</p>
-      </div>
-      <aside class="nt">MAC = Media Access Control. 48 bits, written in hex (0-9, A-F). The first half is the manufacturer ID (OUI). Phones now randomise their Wi-Fi MAC for privacy.</aside>
-    </section>
-
-    <section class="slide" data-id="ipvsmac" data-title="IP vs MAC">
-      <div class="wrap">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">IP vs <span class="red">MAC</span></h2>
-        <div class="cmp">
-          <span></span><span class="h a">IP</span><span class="h m">MAC</span>
-          <span class="rl b">Like</span><span class="b">Home address</span><span class="b">Your name</span>
-          <span class="rl b">Changes?</span><span class="b">Yes, per network</span><span class="b">Usually no</span>
-          <span class="rl b">Works</span><span class="b">Across the world</span><span class="b">Inside one LAN</span>
-          <span class="rl b">Looks like</span><span class="b mono">192.168.1.25</span><span class="b mono">3C:84:6A:1F:9B:20</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-id="arp" data-title="ARP">
-      <div class="wrap">
-        <p class="kick">ARP &middot; how IP meets MAC</p>
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">A shout across the <span class="red">room.</span></h2>
-        <div class="cards" style="--cw:420px">
-          <div class="card b"><p class="kick" style="--kw:var(--c-blue)">To everyone</p><div class="big">"Who has 192.168.1.1?"</div><p>Tell 192.168.1.25.</p></div>
-          <div class="card b"><p class="kick">Only the router replies</p><div class="big">"That's me."</div><p class="mono">A4:2B:B0:7C:11:02</p></div>
-        </div>
-        <p class="sub b" style="max-width:none">Anyone can shout back. That's an <span class="hl">ARP spoofing</span> attack.</p>
-      </div>
-      <aside class="nt">Act it out: one student shouts "Who is Kasun?", Kasun answers. Then a prankster answers "Me!" first: that's spoofing. Next week we will spot ARP in Wireshark with the filter <code>arp</code>. Windows/Linux: <code>arp -a</code> shows the table.</aside>
-    </section>
-
-    <section class="slide" data-id="dns" data-title="DNS">
-      <div class="wrap">
-        <p class="kick">DNS &middot; the internet's phonebook</p>
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Names for humans. <span class="red">Numbers</span> for machines.</h2>
-        <div class="flow" data-at="3">
-          <div class="node b"><i class="ic" data-ic="laptop"></i><b class="mono">google.com</b><small>"what's the number?"</small></div>
-          <div class="node b"><i class="ic" data-ic="book"></i><b>DNS server</b><small>looks it up</small></div>
-          <div class="node b hot"><i class="ic" data-ic="server"></i><b class="mono">142.250.x.x</b><small>"call this"</small></div>
-          <div class="pkt"></div>
-        </div>
-      </div>
-      <aside class="nt">Fake DNS answers send you to fake sites (DNS spoofing). Lab: <code>nslookup google.com</code>.</aside>
-    </section>
-
-    <!-- ===================== LAB 1 ===================== -->
-    <section class="slide" data-id="lab1" data-title="Lab 1 · Find yourself" data-sec="Lab 1 · Find yourself">
-      <div class="wrap">
-        <div class="sect">
-          <div class="num">L1</div>
-          <div class="txt">
-            <span class="time">1:15 &middot; 30 min</span>
-            <p class="kick">Hands-on</p>
-            <h2 class="split-words">Who am I on the <span class="red">network?</span></h2>
-            <div class="row"><button class="btn ghost lt" data-min="30" type="button">Start 30 min</button><span class="ltc"></span></div>
-          </div>
-        </div>
-        <div class="ticks" id="ticks1">
-          <button class="tick" type="button">My IP</button>
-          <button class="tick" type="button">My gateway</button>
-          <button class="tick" type="button">My MAC</button>
-          <button class="tick" type="button">My DNS server</button>
-          <button class="tick" type="button">My public IP</button>
-        </div>
-      </div>
-      <aside class="nt"><h4>Set up</h4><ul><li>Pairs at each PC. No PC? Phone: Settings &gt; About phone &gt; Status (Android) or Settings &gt; Wi-Fi &gt; (i) (iPhone) shows IP and router.</li><li>Windows: press <b>Win</b>, type <b>cmd</b>, Enter.</li><li>Linux: <b>Ctrl+Alt+T</b>.</li><li>Click each target on screen as the room finds it. All five = confetti.</li></ul></aside>
-    </section>
-
-    <section class="slide" data-id="lab1cmd" data-title="Lab 1 · Commands">
-      <div class="wrap">
-        <div class="labhead"><h2 class="split-words" style="font-size:clamp(2rem,4.4vw,4.4rem)">Type <span class="red">these.</span></h2><div class="os"><button type="button" data-os="win">Windows</button><button type="button" data-os="lin">Linux</button></div></div>
         <div class="term">
-          <div class="bchrome"><i></i><i></i><i></i><span class="win">Command Prompt</span><span class="lin">Terminal</span></div>
+          <div class="bchrome"><i></i><i></i><i></i><span class="win">Command Prompt (Run as administrator)</span><span class="lin">Terminal</span></div>
           <div class="tb">
-            <div class="cmd b win"><span class="p">&gt;</span><code>ipconfig</code><em>IPv4 Address &middot; Default Gateway</em></div>
-            <div class="cmd b win"><span class="p">&gt;</span><code>ipconfig /all</code><em>Physical Address = MAC &middot; DNS Servers</em></div>
-            <div class="cmd b win"><span class="p">&gt;</span><code>getmac /v</code><em>MAC of every card</em></div>
-            <div class="cmd b win"><span class="p">&gt;</span><code>arp -a</code><em>who else is in the room</em></div>
-            <div class="cmd b win"><span class="p">&gt;</span><code>curl ifconfig.me</code><em>your public IP</em></div>
-            <div class="cmd b lin"><span class="p">$</span><code>ip a</code><em>inet = IP &middot; link/ether = MAC</em></div>
-            <div class="cmd b lin"><span class="p">$</span><code>ip route</code><em>"default via" = gateway</em></div>
-            <div class="cmd b lin"><span class="p">$</span><code>resolvectl status</code><em>DNS servers</em></div>
-            <div class="cmd b lin"><span class="p">$</span><code>ip neigh</code><em>who else is in the room</em></div>
-            <div class="cmd b lin"><span class="p">$</span><code>curl ifconfig.me</code><em>your public IP</em></div>
+            <div class="cmd b win"><span class="p">&gt;</span><code>netstat -an</code><em>all connections, numbers only</em></div>
+            <div class="cmd b win"><span class="p">&gt;</span><code>netstat -ano | findstr LISTENING</code><em>open doors + PID</em></div>
+            <div class="cmd b win"><span class="p">&gt;</span><code>tasklist /fi "PID eq 1234"</code><em>which program is that PID?</em></div>
+            <div class="cmd b win"><span class="p">&gt;</span><code>netstat -b</code><em>program names (admin)</em></div>
+            <div class="cmd b win"><span class="p">&gt;</span><code>services.msc</code><em>see every service</em></div>
+            <div class="cmd b lin"><span class="p">$</span><code>ss -tuln</code><em>open doors (TCP + UDP)</em></div>
+            <div class="cmd b lin"><span class="p">$</span><code>sudo ss -tulpn</code><em>+ which program</em></div>
+            <div class="cmd b lin"><span class="p">$</span><code>ss -tn state established</code><em>who you talk to now</em></div>
+            <div class="cmd b lin"><span class="p">$</span><code>systemctl list-units --type=service --state=running</code><em>running services</em></div>
           </div>
         </div>
       </div>
-      <aside class="nt"><h4>What to look for</h4><ul><li><b>Windows</b>: in <code>ipconfig</code> find the "Wireless LAN adapter Wi-Fi" or "Ethernet adapter" block. Ignore "Media disconnected" ones.</li><li>IPv4 like 192.168.x.x = private. Default Gateway = the router.</li><li><code>ipconfig /all</code>: Physical Address (e.g. 3C-84-6A-...) is the MAC.</li><li><b>Linux</b>: <code>ip a</code> look under wlan0/wlp*/eth0/enp*. If <code>resolvectl</code> is missing use <code>cat /etc/resolv.conf</code>.</li><li><code>curl</code> is built into Windows 10/11. Or browse to ifconfig.me.</li><li>Click a command on screen to copy it.</li></ul></aside>
+      <aside class="nt"><h4>Run it</h4><ul><li><b>Windows</b>: Start, type cmd, right-click &gt; Run as administrator (needed for <code>-b</code>).</li><li>Replace 1234 with a real PID from the last column.</li><li>Or open Task Manager &gt; Details tab, add the PID column.</li><li>PowerShell option: <code>Get-NetTCPConnection -State Listen</code>.</li><li><b>Linux</b>: if <code>ss</code> is missing, <code>sudo apt install iproute2</code>; older: <code>netstat -tulpn</code> from net-tools.</li><li>Do not stop random services on lab PCs. Look, don't touch.</li></ul></aside>
     </section>
 
-    <section class="slide" data-id="ping" data-title="Lab 1 · ping & tracert">
+    <section class="slide" data-id="readnet" data-title="Reading netstat">
       <div class="wrap">
-        <div class="split">
-          <div class="sonar" aria-hidden="true"><i class="r"></i><i class="r"></i><i class="r"></i><i class="ic" data-ic="laptop"></i></div>
-          <div style="flex:1;min-width:min(100%,380px);display:grid;gap:1rem">
-            <div class="labhead"><h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Are you <span class="red">there?</span></h2><div class="os"><button type="button" data-os="win">Windows</button><button type="button" data-os="lin">Linux</button></div></div>
-            <div class="term"><div class="tb">
-              <div class="cmd b win"><span class="p">&gt;</span><code>ping 8.8.8.8</code><em>time = ms</em></div>
-              <div class="cmd b win"><span class="p">&gt;</span><code>ping google.com</code><em>DNS + ping</em></div>
-              <div class="cmd b win"><span class="p">&gt;</span><code>tracert google.com</code><em>count the hops</em></div>
-              <div class="cmd b win"><span class="p">&gt;</span><code>nslookup google.com</code><em>ask DNS</em></div>
-              <div class="cmd b lin"><span class="p">$</span><code>ping -c 4 8.8.8.8</code><em>time = ms</em></div>
-              <div class="cmd b lin"><span class="p">$</span><code>ping -c 4 google.com</code><em>DNS + ping</em></div>
-              <div class="cmd b lin"><span class="p">$</span><code>traceroute google.com</code><em>count the hops</em></div>
-              <div class="cmd b lin"><span class="p">$</span><code>nslookup google.com</code><em>ask DNS</em></div>
-            </div></div>
-            <p class="sub b small" style="max-width:none">Who in the room gets the <span class="hl">lowest ms?</span></p>
-          </div>
+        <h2 class="split-words" style="font-size:clamp(2rem,4.4vw,4.4rem)">Read the <span class="red">output.</span></h2>
+        <div class="term"><div class="tb">
+<div class="tout"><span class="h">Proto  Local Address          Foreign Address        State          PID</span>
+TCP    0.0.0.0:<mark>135</mark>           0.0.0.0:0              <mark>LISTENING</mark>      1052
+TCP    0.0.0.0:<mark>445</mark>           0.0.0.0:0              <mark>LISTENING</mark>      4
+TCP    192.168.1.25:52114     <mark class="r">142.250.193.14:443</mark>     <mark class="r">ESTABLISHED</mark>    8840
+TCP    192.168.1.25:52120     157.240.1.60:443       TIME_WAIT      0</div>
+        </div></div>
+        <div class="cards" style="--cw:280px">
+          <div class="card b"><div class="big">LISTENING</div><p>Door open. Waiting.</p></div>
+          <div class="card b"><div class="big">ESTABLISHED</div><p>Talking right now.</p></div>
+          <div class="card b ink"><div class="big">TIME_WAIT</div><p>Just hung up.</p></div>
         </div>
       </div>
-      <aside class="nt"><ul><li>ping = sonar: send an "echo request", wait for "echo reply". Time in milliseconds.</li><li>8.8.8.8 is Google's public DNS server.</li><li>tracert / traceroute lists every router (hop) on the road. Rows of <code>* * *</code> are routers that don't answer: normal.</li><li>Linux: if traceroute is missing, use <code>tracepath google.com</code>. Ctrl+C stops a running ping.</li><li>Some networks block ping. If 8.8.8.8 times out, try the gateway IP.</li></ul></aside>
+      <aside class="nt">Challenge: open YouTube, run <code>netstat -an</code> again. New ESTABLISHED lines to :443 appear. Bonus: <code>nslookup 142.250.193.14</code> to see who owns it.</aside>
     </section>
 
-    <section class="slide" data-id="lab1q" data-title="Lab 1 · What did you find?">
-      <div class="wrap">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">What did you <span class="red">notice?</span></h2>
-        <div class="qcs" style="--qw:440px">
-          <button class="qc" type="button"><span class="q">Why do we all have 192.168&hellip;?</span><span class="ans b">Private IPs. Every LAN reuses them.</span></button>
-          <button class="qc" type="button"><span class="q">Why is everyone's public IP the same?</span><span class="ans b">One router. NAT shares it.</span></button>
-          <button class="qc" type="button"><span class="q">Why is your gateway &hellip;.1?</span><span class="ans b">The router usually takes .1</span></button>
-          <button class="qc" type="button"><span class="q">Why do some tracert lines show * * *?</span><span class="ans b">Routers that stay silent.</span></button>
-        </div>
-      </div>
-    </section>
-
+    <!-- ===================== LAB 3 WIRESHARK ===================== -->
     <!-- ===================== BREAK ===================== -->
-    <section class="slide" data-id="break" data-title="Break" data-sec="Break">
+    <section class="slide" data-id="break" data-min="20" data-title="Break" data-sec="Break">
       <div class="wrap">
         <div class="brkwrap">
           <div class="clock">
             <svg viewBox="0 0 240 240" aria-hidden="true"><circle class="trk" cx="120" cy="120" r="108"/><circle class="arc" id="brkArc" cx="120" cy="120" r="108"/></svg>
-            <div class="mid"><div><p class="kick">Break</p><div class="tt" id="brkT">25:00</div><p class="kick" id="brkBack" style="--kw:var(--c-blue)">25 minutes</p></div></div>
+            <div class="mid"><div><p class="kick">Break</p><div class="tt" id="brkT">20:00</div><p class="kick" id="brkBack" style="--kw:var(--c-blue)">20 minutes</p></div></div>
           </div>
           <div style="display:grid;gap:1.4rem;min-width:min(100%,320px)">
             <h2 class="split-words" style="font-size:clamp(2.4rem,6vw,6rem)">Stretch. <span class="red">Water.</span></h2>
@@ -1271,579 +1065,196 @@ body:not(.os-lin) .lin{display:none!important}
           </div>
         </div>
       </div>
-      <aside class="nt">1:45 &middot; 25 min. Press Start. The clock keeps running if you move to other slides. "Back at" shows the real time to return.</aside>
+      <aside class="nt">1:15 &middot; 20 min. Press Start. The clock keeps running if you move to other slides. "Back at" shows the real time to return.</aside>
     </section>
 
-
-    <!-- ===================== 03 WORDS DECODED ===================== -->
-    <section class="slide" data-id="s-words" data-title="03 Words decoded" data-sec="03 · Words decoded">
-      <div class="wrap">
-        <div class="sect">
-          <div class="num">03</div>
-          <div class="txt">
-            <span class="time">2:10 &middot; 35 min</span>
-            <p class="kick">Welcome back</p>
-            <h2 class="split-words">Words, <span class="red">decoded.</span></h2>
-          </div>
-        </div>
-      </div>
-      <aside class="nt">Before the break we heard a lot of new words. Now: one word, one picture, one everyday example. No commands, just understanding. Ask the room to shout out any word they did not get.</aside>
-    </section>
-    <section class="slide" data-id="cloud" data-title="Words we heard">
-      <div class="wrap center">
-        <p class="kick">Before the break you heard&hellip;</p>
-        <div class="cloud" aria-hidden="true"><span class="cw" style="--s:1.5;--d:0.00s">DNS</span><span class="cw" style="--s:1.2;--d:0.12s">IP address</span><span class="cw" style="--s:1.4;--d:0.24s">Gateway</span><span class="cw" style="--s:1;--d:0.36s">MAC</span><span class="cw" style="--s:1.3;--d:0.48s">Router</span><span class="cw" style="--s:1.1;--d:0.60s">ISP</span><span class="cw" style="--s:0.9;--d:0.72s">NAT</span><span class="cw" style="--s:1.2;--d:0.84s">Ping</span><span class="cw" style="--s:1;--d:0.96s">Server</span><span class="cw" style="--s:0.9;--d:1.08s">ARP</span><span class="cw" style="--s:1.1;--d:1.20s">Packet</span><span class="cw" style="--s:1;--d:1.32s">Wi-Fi</span><span class="cw" style="--s:0.9;--d:1.44s">Bandwidth</span><span class="cw" style="--s:0.8;--d:1.56s">ms</span></div>
-        <p class="sub b" style="max-width:none">Sounds hard? Each one is <span class="hl">something you already know.</span></p>
-      </div>
-      <aside class="nt">Let the words float in. Ask: "Which word was the most confusing?" Tick them off as we go. Every next slide = one word + one real-life picture.</aside>
-    </section>
-    <section class="slide" data-id="w-ip" data-title="IP address">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Internet Protocol address</p>
-            <h2 class="split-words">IP <span class="red">address</span></h2>
-            <p class="sub jsay">Your device's address on the network.</p>
-            <p class="like b"><b>Like</b><span>A house number. No number, no letters.</span></p>
-            <p class="like cy b"><b>Cyber</b><span>Attackers scan addresses to find targets. Don't share yours.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="A letter is delivered to house number 14, like data to IP 192.168.1.14"><path class="zl" d="M10 262H590"/><g transform="translate(100 250)"><path class="zo" d="M-55 0V-70L0-115L55-70V0Z"/><rect class="zo" x="-14" y="-40" width="28" height="40" rx="3"/></g><text class="zt zc" x="100" y="196">No. 12</text><text class="zm zc" x="100" y="292">192.168.1.12</text><g class="a-h14" transform="translate(300 250)"><path class="zo" d="M-55 0V-70L0-115L55-70V0Z"/><rect class="zo" x="-14" y="-40" width="28" height="40" rx="3"/></g><text class="zt zc" x="300" y="196">No. 14</text><text class="zm zc zr2" x="300" y="292">192.168.1.14</text><g transform="translate(500 250)"><path class="zo" d="M-55 0V-70L0-115L55-70V0Z"/><rect class="zo" x="-14" y="-40" width="28" height="40" rx="3"/></g><text class="zt zc" x="500" y="196">No. 16</text><text class="zm zc" x="500" y="292">192.168.1.16</text><text class="zt zc zred a-done" x="300" y="104">Delivered!</text><g class="a-env"><g transform="translate(40 60)"><rect class="zfr" x="-22" y="-15" width="44" height="30" rx="5"/><path d="M-22-12 0 4 22-12" fill="none" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/><text class="zs zc" x="0" y="38">No. 14</text></g></g></svg></div>
-        </div>
-      </div>
-      <aside class="nt">Ask: what is your house number? Without it, the postman cannot deliver. Same for data. 192.168.1.14 is a private address inside this room. In Lab 1 this was the "IPv4 Address".</aside>
-    </section>
-    <section class="slide" data-id="w-mac" data-title="MAC address">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Media Access Control address</p>
-            <h2 class="split-words">MAC <span class="red">address</span></h2>
-            <p class="sub jsay">A name tag burned into the network card at the factory.</p>
-            <p class="like b"><b>Like</b><span>Your NIC number. Move house: the address changes, the NIC stays.</span></p>
-            <p class="like cy b"><b>Cyber</b><span>Phones now show a random MAC on public Wi-Fi, so shops cannot track you.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="A person moves house: the IP address changes, the MAC address stays"><path class="zl" d="M10 300H590"/><g transform="translate(80 300)"><path class="zo" d="M-55 0V-70L0-115L55-70V0Z"/><rect class="zo" x="-14" y="-40" width="28" height="40" rx="3"/></g><g transform="translate(520 300)"><path class="zo" d="M-55 0V-70L0-115L55-70V0Z"/><rect class="zo" x="-14" y="-40" width="28" height="40" rx="3"/></g><text class="zs zc" x="80" y="324">Home Wi-Fi</text><text class="zs zc" x="520" y="324">Library Wi-Fi</text><g class="a-walk"><g transform="translate(235 266)"><circle class="zo" cy="-50" r="15"/><path class="zo" d="M-26 0C-26-24-13-33 0-33S26-24 26 0Z"/><rect class="zo" x="-13" y="-24" width="26" height="17" rx="3"/><path class="zr" d="M-8-15h16"/><text class="zm zc a-ipA" x="0" y="-96">IP 192.168.1.12</text><text class="zm zc zred a-ipB" x="0" y="-96">IP 10.0.0.30</text><text class="zm zc zsm" x="0" y="26">MAC A4:5E:60:E1:9C:2B</text></g></g></svg></div>
-        </div>
-      </div>
-      <aside class="nt">Watch the person move from home Wi-Fi to library Wi-Fi: the IP changes, the MAC does not. In Lab 1 it was the "Physical Address". Nothing to do with an Apple Mac.</aside>
-    </section>
-    <section class="slide" data-id="w-arp" data-title="ARP">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Address Resolution Protocol</p>
-            <h2 class="split-words">A<span class="red">R</span>P</h2>
-            <p class="sub jsay">Finds the MAC address that belongs to an IP.</p>
-            <p class="like b"><b>Like</b><span>Shouting in class: "Who is Kasun?" Kasun puts a hand up.</span></p>
-            <p class="like cy b"><b>Cyber</b><span>A liar can shout "Me!" first. That is ARP spoofing.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="A laptop asks the whole room who has the router IP; the router answers with its MAC"><circle class="zring a-ring" cx="110" cy="210" r="260"/><circle class="zring a-ring a-ring2" cx="110" cy="210" r="260"/><g transform="translate(110 210)"><rect class="zo" x="-34" y="-28" width="68" height="44" rx="5"/><path class="zo" d="M-46 22H46"/></g><g transform="translate(300 285) scale(0.9)"><rect class="zo" x="-17" y="-30" width="34" height="60" rx="7"/><path class="zb" d="M-5 21h10"/></g><g transform="translate(500 270) scale(0.8)"><rect class="zo" x="-34" y="-28" width="68" height="44" rx="5"/><path class="zo" d="M-46 22H46"/></g><g class="a-rt" transform="translate(480 120) scale(1.1)"><rect class="zo" x="-40" y="-8" width="80" height="26" rx="7"/><path class="zb" d="M-24 -8-30-32M24-8 30-32"/><circle class="zfb zled" cx="-24" cy="5" r="3"/><circle class="zfb zled zl2" cx="-12" cy="5" r="3"/><circle class="zfr zled zl3" cx="0" cy="5" r="3"/></g><text class="zs zc" x="480" y="162">Router</text><g class="a-ask"><rect class="zo" x="20" y="30" width="270" height="48" rx="24"/><text class="zm zc zsm" x="155" y="61">Who has 192.168.1.1?</text></g><g class="a-me"><rect class="zfr" x="300" y="30" width="290" height="48" rx="24"/><text class="zm zc zsm zwhite" x="445" y="61">Me! MAC 3C:84:6A:1F:22:0B</text></g></svg></div>
-        </div>
-      </div>
-      <aside class="nt">Act it out: one student shouts "Who has 192.168.1.1?" The "router" student answers with a MAC. Then a prankster answers first: spoofing. Only works inside one network.</aside>
-    </section>
-    <section class="slide" data-id="w-router" data-title="Router">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">The traffic police</p>
-            <h2 class="split-words"><span class="red">Router</span></h2>
-            <p class="sub jsay">Joins networks and picks the road for every packet.</p>
-            <p class="like b"><b>Like</b><span>Traffic police at a junction. Reads where you go, points the way.</span></p>
-            <p class="like cy b"><b>Cyber</b><span>Change the default admin password. Hackers try admin / admin first.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="Packets arrive at a router and each leaves on a different road"><path class="zroad" d="M20 180H300M300 180 555 70M300 180H555M300 180 555 290"/><circle class="zfr" cx="555" cy="70" r="16"/><text class="zs zc" x="555" y="42">WhatsApp</text><circle class="zfb" cx="555" cy="180" r="16"/><text class="zs zc" x="555" y="152">YouTube</text><circle class="zfk" cx="555" cy="290" r="16"/><text class="zs zc" x="555" y="262">Google</text><g transform="translate(300 172) scale(1.3)"><rect class="zo" x="-40" y="-8" width="80" height="26" rx="7"/><path class="zb" d="M-24 -8-30-32M24-8 30-32"/><circle class="zfb zled" cx="-24" cy="5" r="3"/><circle class="zfb zled zl2" cx="-12" cy="5" r="3"/><circle class="zfr zled zl3" cx="0" cy="5" r="3"/></g><text class="zt zc" x="300" y="228">Router</text><text class="zs zc" x="300" y="252">reads the address, picks the road</text><g class="a-rp a-rp0"><g transform="translate(20 180)"><rect class="zfr" x="-13" y="-10" width="26" height="20" rx="5"/></g></g><g class="a-rp a-rp1"><g transform="translate(20 180)"><rect class="zfb" x="-13" y="-10" width="26" height="20" rx="5"/></g></g><g class="a-rp a-rp2"><g transform="translate(20 180)"><rect class="zfk" x="-13" y="-10" width="26" height="20" rx="5"/></g></g></svg></div>
-        </div>
-      </div>
-      <aside class="nt">The home Wi-Fi box has a router inside. ISP routers do the same job millions of times per second. Each packet can take a different road.</aside>
-    </section>
-    <section class="slide" data-id="w-gw" data-title="Gateway">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Default gateway</p>
-            <h2 class="split-words">Gate<span class="red">way</span></h2>
-            <p class="sub jsay">The door out of your network. At home: your router.</p>
-            <p class="like b"><b>Like</b><span>The gate of your house. Everything going outside passes it.</span></p>
-            <p class="like cy b"><b>Cyber</b><span>Control the gate, control everything. Protect the router.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="Inside a fenced home network, data leaves only through the gate: the router"><path class="zfence" d="M360 132V30H20V310H360V228"/><text class="zs" x="40" y="62">Your home network</text><g transform="translate(110 130)"><rect class="zo" x="-34" y="-28" width="68" height="44" rx="5"/><path class="zo" d="M-46 22H46"/></g><g transform="translate(90 250)"><rect class="zo" x="-17" y="-30" width="34" height="60" rx="7"/><path class="zb" d="M-5 21h10"/></g><g transform="translate(230 250)"><rect class="zo" x="-34" y="-28" width="68" height="44" rx="5"/><path class="zo" d="M-46 22H46"/></g><path class="zroad" d="M400 180H515"/><g class="a-gw" transform="translate(360 172) scale(1.05)"><rect class="zo" x="-40" y="-8" width="80" height="26" rx="7"/><path class="zb" d="M-24 -8-30-32M24-8 30-32"/><circle class="zfb zled" cx="-24" cy="5" r="3"/><circle class="zfb zled zl2" cx="-12" cy="5" r="3"/><circle class="zfr zled zl3" cx="0" cy="5" r="3"/></g><g transform="translate(550 180) scale(0.8)"><circle class="zo" r="40"/><ellipse class="zb zspin" rx="16" ry="40"/><path class="zb" d="M-40 0H40M-35-19H35M-35 19H35"/></g><text class="zs zc" x="550" y="236">Internet</text><text class="zt zc" x="470" y="290">Default gateway</text><text class="zm zc zred" x="470" y="316">192.168.1.1</text><g class="a-gp"><g transform="translate(90 250)"><rect class="zfr" x="-13" y="-10" width="26" height="20" rx="5"/></g></g></svg></div>
-        </div>
-      </div>
-      <aside class="nt">In Lab 1 "Default Gateway" was something like 192.168.1.1. It is not a new box: it is the router, seen from inside. In Lab 2 we ping it.</aside>
-    </section>
-    <section class="slide" data-id="w-nat" data-title="NAT">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Network Address Translation</p>
-            <h2 class="split-words">N<span class="red">A</span>T</h2>
-            <p class="sub jsay">Many devices share one public IP. The router remembers who asked.</p>
-            <p class="like b"><b>Like</b><span>An office receptionist. One phone number outside, extension 13 inside.</span></p>
-            <p class="like cy b"><b>Cyber</b><span>Outsiders cannot call your inside devices directly. A free shield.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="Many private devices share one public IP; the router swaps addresses and returns the reply to the right device"><g transform="translate(70 70) scale(0.75)"><rect class="zo" x="-34" y="-28" width="68" height="44" rx="5"/><path class="zo" d="M-46 22H46"/></g><text class="zm zc zsm" x="70" y="112">192.168.1.12</text><path class="zl" d="M110 70C180 70 200 180 262 180"/><g class="a-n13" transform="translate(70 180) scale(0.75)"><rect class="zo" x="-34" y="-28" width="68" height="44" rx="5"/><path class="zo" d="M-46 22H46"/></g><text class="zm zc zsm" x="70" y="222">192.168.1.13</text><path class="zl" d="M110 180C180 180 200 180 262 180"/><g transform="translate(70 290) scale(0.75)"><rect class="zo" x="-34" y="-28" width="68" height="44" rx="5"/><path class="zo" d="M-46 22H46"/></g><text class="zm zc zsm" x="70" y="332">192.168.1.14</text><path class="zl" d="M110 290C180 290 200 180 262 180"/><g transform="translate(300 172) scale(1.1)"><rect class="zo" x="-40" y="-8" width="80" height="26" rx="7"/><path class="zb" d="M-24 -8-30-32M24-8 30-32"/><circle class="zfb zled" cx="-24" cy="5" r="3"/><circle class="zfb zled zl2" cx="-12" cy="5" r="3"/><circle class="zfr zled zl3" cx="0" cy="5" r="3"/></g><text class="zt zc zred" x="300" y="128">NAT</text><text class="zs zc" x="300" y="230">Router</text><path class="zl" d="M346 180H515"/><text class="zm zc zred zsm" x="420" y="252">public 112.134.5.9</text><g transform="translate(555 182)"><rect class="zo" x="-30" y="-38" width="60" height="34" rx="6"/><rect class="zo" x="-30" y="2" width="60" height="34" rx="6"/><circle class="zfb zled" cx="-16" cy="-21" r="3"/><circle class="zfb zled zl3" cx="-16" cy="19" r="3"/><path class="zb" d="M-2-21h16M-2 19h16"/></g><text class="zs zc" x="555" y="250">Server</text><g class="a-no"><g transform="translate(110 180)"><rect class="zfr" x="-13" y="-10" width="26" height="20" rx="5"/><text class="zm zc zsm a-l1" x="0" y="-20">from 192.168.1.13</text><text class="zm zc zsm zred a-l2" x="0" y="-20">from 112.134.5.9</text></g></g><g class="a-nb"><g transform="translate(500 180)"><rect class="zfb" x="-13" y="-10" width="26" height="20" rx="5"/><text class="zm zc zsm zred a-l3" x="0" y="34">to 112.134.5.9</text><text class="zm zc zsm a-l4" x="0" y="34">to 192.168.1.13</text></g></g></svg></div>
-        </div>
-      </div>
-      <aside class="nt">This is why the whole room had the same public IP in Lab 1. Watch: the packet leaves as .13, the router swaps it to the public IP, the reply comes back and the router hands it to .13.</aside>
-    </section>
-    <section class="slide" data-id="w-isp" data-title="ISP">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Internet Service Provider</p>
-            <h2 class="split-words">I<span class="red">S</span>P</h2>
-            <p class="sub jsay">The company that connects your home to the internet.</p>
-            <p class="like b"><b>Like</b><span>The road company. It builds the road from your gate to the highway.</span></p>
-            <p class="like cy b"><b>Cyber</b><span>Your ISP can see which sites you visit. HTTPS hides what is inside.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="A small road joins your home to the ISP, and the ISP joins a big highway to the internet"><path class="zl" d="M10 262H590"/><g transform="translate(80 250) scale(0.8)"><path class="zo" d="M-55 0V-70L0-115L55-70V0Z"/><rect class="zo" x="-14" y="-40" width="28" height="40" rx="3"/></g><text class="zs zc" x="80" y="290">You</text><path class="zlane" d="M128 228H232"/><rect class="zo" x="236" y="110" width="128" height="140" rx="8"/><path class="zb" d="M300 110V82"/><circle class="zfr" cx="300" cy="78" r="6"/><text class="zt zc zhuge" x="300" y="176">ISP</text><path class="zb" d="M256 210h20M290 210h20M324 210h20M256 228h20M290 228h20M324 228h20"/><text class="zs zc" x="300" y="290">SLT-Mobitel · Dialog · Hutch</text><path class="zhwy" d="M370 190H505"/><path class="zhwyl" d="M370 190H505"/><g transform="translate(545 190) scale(0.9)"><circle class="zo" r="40"/><ellipse class="zb zspin" rx="16" ry="40"/><path class="zb" d="M-40 0H40M-35-19H35M-35 19H35"/></g><text class="zs zc" x="545" y="250">Internet</text><rect class="zfr a-car0" x="128" y="222" width="18" height="12" rx="3"/><rect class="zfb a-hw a-hw0" x="370" y="174" width="20" height="12" rx="3"/><rect class="zfr a-hw a-hw1" x="370" y="190" width="20" height="12" rx="3"/><rect class="zfk a-hw a-hw2" x="370" y="174" width="20" height="12" rx="3"/><rect class="zfb a-hw a-hw3" x="370" y="190" width="20" height="12" rx="3"/></svg></div>
-        </div>
-      </div>
-      <aside class="nt">Ask: who uses SLT-Mobitel? Dialog? Hutch? Your monthly bill pays for the road. Small road from your home, big highway from the ISP to the world.</aside>
-    </section>
-    <section class="slide" data-id="w-dns" data-title="DNS">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Domain Name System</p>
-            <h2 class="split-words">D<span class="red">N</span>S</h2>
-            <p class="sub jsay">Turns names like google.com into numbers computers use.</p>
-            <p class="like b"><b>Like</b><span>A phonebook. You know the name, it finds the number.</span></p>
-            <p class="like cy b"><b>Cyber</b><span>A fake DNS answer can send you to a fake bank site.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="A name typed in the browser is looked up in the DNS phonebook and becomes a number"><rect class="zo" x="20" y="44" width="260" height="56" rx="28"/><text class="zm zbig" x="48" y="80" text-anchor="start">google.com</text><rect class="a-type" x="44" y="54" width="214" height="40" fill="#fff"/><text class="zs zc" x="150" y="30">You type</text><path class="zd a-ar1" d="M150 108C150 150 200 186 238 192"/><g class="a-book"><rect class="zo" x="246" y="152" width="54" height="76" rx="4"/><rect class="zo" x="300" y="152" width="54" height="76" rx="4"/><rect class="zo a-page" x="300" y="152" width="54" height="76" rx="4"/><path class="zb" d="M258 172h30M258 188h30M258 204h22"/></g><text class="zt zc" x="300" y="254">DNS server</text><path class="zd a-ar2" d="M362 192C420 196 460 230 470 262"/><g class="a-ans"><rect class="zfb" x="330" y="270" width="250" height="52" rx="26"/><text class="zm zc zwhite" x="455" y="304">142.250.183.14</text></g></svg></div>
-        </div>
-      </div>
-      <aside class="nt">Humans remember names, computers need numbers. Try: <code>nslookup google.com</code>. 8.8.8.8 (Google) and 1.1.1.1 (Cloudflare) are public DNS servers.</aside>
-    </section>
-    <section class="slide" data-id="w-cs" data-title="Client & server">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Who asks, who answers</p>
-            <h2 class="split-words" style="font-size:clamp(2.4rem,5.6vw,5.8rem)">Client <span class="red">&amp;</span> server</h2>
-            <p class="sub jsay">Your device asks. A server answers.</p>
-            <p class="like b"><b>Like</b><span>A restaurant. You order, the kitchen cooks and serves.</span></p>
-            <p class="like cy b"><b>Cyber</b><span>Servers are always on and always reachable. Attackers love them.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="The client sends an order; the server sends back the page"><g transform="translate(105 230) scale(0.9)"><circle class="zo" cy="-50" r="15"/><path class="zo" d="M-26 0C-26-24-13-33 0-33S26-24 26 0Z"/></g><g transform="translate(170 236) scale(0.7)"><rect class="zo" x="-34" y="-28" width="68" height="44" rx="5"/><path class="zo" d="M-46 22H46"/></g><text class="zt zc" x="130" y="300">Client (you)</text><g transform="translate(490 216) scale(1.2)"><rect class="zo" x="-30" y="-38" width="60" height="34" rx="6"/><rect class="zo" x="-30" y="2" width="60" height="34" rx="6"/><circle class="zfb zled" cx="-16" cy="-21" r="3"/><circle class="zfb zled zl3" cx="-16" cy="19" r="3"/><path class="zb" d="M-2-21h16M-2 19h16"/></g><text class="zt zc" x="490" y="300">Server</text><path class="zd" d="M210 150H430"/><g class="a-ord"><rect class="zfb" x="150" y="76" width="150" height="44" rx="22"/><text class="zm zc zwhite" x="225" y="105">GET /menu</text></g><g class="a-srv"><rect class="zfr" x="330" y="176" width="170" height="44" rx="22"/><text class="zm zc zwhite" x="415" y="205">200 OK + page</text></g></svg></div>
-        </div>
-      </div>
-      <aside class="nt">A server is just a computer that waits for requests, 24/7. WhatsApp, YouTube and Google run on huge rooms of them (data centres).</aside>
-    </section>
-    <section class="slide" data-id="w-ping" data-title="Ping">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Are you there?</p>
-            <h2 class="split-words">Pi<span class="red">ng</span></h2>
-            <p class="sub jsay">Asks "are you there?" and times the answer in ms.</p>
-            <p class="like b"><b>Like</b><span>Shouting "Hello?" across a valley and waiting for the echo.</span></p>
-            <p class="like cy b"><b>Cyber</b><span>Admins ping to test. Attackers ping to find live machines.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="A ping goes to the server and the echo comes back with the time in milliseconds"><g transform="translate(90 200)"><rect class="zo" x="-34" y="-28" width="68" height="44" rx="5"/><path class="zo" d="M-46 22H46"/></g><text class="zs zc" x="90" y="256">You</text><g transform="translate(510 196)"><rect class="zo" x="-30" y="-38" width="60" height="34" rx="6"/><rect class="zo" x="-30" y="2" width="60" height="34" rx="6"/><circle class="zfb zled" cx="-16" cy="-21" r="3"/><circle class="zfb zled zl3" cx="-16" cy="19" r="3"/><path class="zb" d="M-2-21h16M-2 19h16"/></g><text class="zm zc" x="510" y="256">8.8.8.8</text><path class="zd" d="M140 190H460"/><g class="a-pg"><g transform="translate(140 190)"><circle class="zfr" r="11"/></g></g><text class="zt zc a-hi1" x="150" y="140">Hello?</text><text class="zt zc zred a-hi2" x="450" y="140">Hello!</text><g class="a-pres"><rect class="zo" x="90" y="282" width="420" height="44" rx="22"/><text class="zm zc" x="300" y="311">Reply from 8.8.8.8: time=24ms</text></g></svg></div>
-        </div>
-      </div>
-      <aside class="nt">ms = millisecond. 1000 ms = 1 second. Lower is better. In Lab 2 we race pings across different connections.</aside>
-    </section>
-
-    <!-- ===================== 04 HOW YOU GET ONLINE ===================== -->
-    <section class="slide" data-id="s-conn" data-title="04 How you get online" data-sec="04 · How you get online">
-      <div class="wrap">
-        <div class="sect">
-          <div class="num">04</div>
-          <div class="txt">
-            <span class="time">2:45 &middot; 35 min</span>
-            <p class="kick">From your hand to the world</p>
-            <h2 class="split-words">Wire, air, <span class="red">space.</span></h2>
-          </div>
-        </div>
-      </div>
-      <aside class="nt">Now we use the words. First the big picture (the WhatsApp message), then we zoom in on every link.</aside>
-    </section>
-    <section class="slide" data-id="send" data-title="You press Send">
-      <div class="wrap">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5.4vw,5.4rem)">You press <span class="red">Send.</span> Then?</h2>
-        <div class="flow" data-at="5">
-          <div class="node b"><i class="ic" data-ic="phone"></i><b>Your phone</b></div>
-          <div class="node b"><i class="ic" data-ic="wifi"></i><b>Wi-Fi router</b><small>at home</small></div>
-          <div class="node b"><i class="ic" data-ic="tower"></i><b>ISP</b><small>Dialog, SLT, Mobitel</small></div>
-          <div class="node b"><i class="ic" data-ic="globe"></i><b>Internet</b><small>undersea cables</small></div>
-          <div class="node b hot"><i class="ic" data-ic="server"></i><b>WhatsApp server</b></div>
-          <div class="pkt"></div>
-        </div>
-        <p class="sub b" style="max-width:none">All of this in <span class="hl">less than a second.</span></p>
-      </div>
-      <aside class="nt">Ask the room to guess each step before you press Next. Then: "Let us zoom in on every arrow." Three hops: phone to router, router to ISP, ISP to the world.</aside>
-    </section>
-
-    <section class="slide" data-id="hops" data-title="Three hops">
-      <div class="wrap">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Three <span class="red">hops.</span></h2>
-        <div class="flow on">
-          <div class="node"><i class="ic" data-ic="phone"></i><b>Your device</b></div>
-          <div class="node"><i class="ic" data-ic="router"></i><b>Router</b></div>
-          <div class="node"><i class="ic" data-ic="tower"></i><b>ISP</b></div>
-          <div class="node hot"><i class="ic" data-ic="globe"></i><b>Internet</b></div>
-          <div class="pkt"></div>
-        </div>
-        <div class="hops">
-          <div class="hp b"><b>Hop 1</b><span>cable &middot; Wi-Fi &middot; SIM &middot; satellite</span></div>
-          <div class="hp b"><b>Hop 2</b><span>fibre &middot; copper &middot; 4G box</span></div>
-          <div class="hp b"><b>Hop 3</b><span>undersea cables</span></div>
-        </div>
-      </div>
-      <aside class="nt">Every message makes these three hops. Each click shows one hop. Next slides: Hop 1 in detail (four ways), then Hop 2, then Hop 3.</aside>
-    </section>
-    <section class="slide" data-id="hop1" data-title="Hop 1: four ways">
-      <div class="wrap">
-        <div class="labhead"><h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Hop 1: <span class="red">four ways</span></h2><span class="tag bl">device &rarr; network</span></div>
-        <div class="cards" style="--cw:260px">
-          <div class="card b"><i class="ic" data-ic="plug"></i><div class="big">Cable</div><p>A wire to the router. Fastest.</p></div>
-          <div class="card b"><i class="ic" data-ic="wifi"></i><div class="big">Wi-Fi</div><p>Radio waves to the router.</p></div>
-          <div class="card b"><i class="ic" data-ic="sim"></i><div class="big">SIM</div><p>Radio to a cell tower. No router.</p></div>
-          <div class="card b ink"><i class="ic" data-ic="sat"></i><div class="big">Satellite</div><p>A dish talks to space. The newest.</p></div>
-        </div>
-      </div>
-      <aside class="nt">Ask: "How is your phone online right now?" Most say Wi-Fi or mobile data. The lab PCs may be on cable. Satellite is the newest for homes (Starlink and others).</aside>
-    </section>
-    <section class="slide" data-id="cable" data-title="Hop 1 · Cable">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Hop 1 &middot; by wire</p>
-            <h2 class="split-words" style="font-size:clamp(2.4rem,5.4vw,5.6rem)">Ethernet <span class="red">cable</span></h2>
-            <p class="fx b"><i>1</i><span>Electric pulses: on = 1, off = 0.</span></p>
-            <p class="fx b"><i>2</i><span>Fastest and steadiest. Up to 100 m.</span></p>
-            <p class="fx b cy"><i>!</i><span>To spy on it, someone must plug in.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="Electric pulses run along a cable from the laptop to the router"><g transform="translate(90 170)"><rect class="zo" x="-34" y="-28" width="68" height="44" rx="5"/><path class="zo" d="M-46 22H46"/></g><g transform="translate(510 172) scale(1.2)"><rect class="zo" x="-40" y="-8" width="80" height="26" rx="7"/><path class="zb" d="M-24 -8-30-32M24-8 30-32"/><circle class="zfb zled" cx="-24" cy="5" r="3"/><circle class="zfb zled zl2" cx="-12" cy="5" r="3"/><circle class="zfr zled zl3" cx="0" cy="5" r="3"/></g><path class="zcable" d="M136 186C230 300 360 50 466 176"/><path class="zpulse" d="M136 186C230 300 360 50 466 176"/><rect class="zfb" x="128" y="178" width="14" height="18" rx="2"/><rect class="zfb" x="458" y="168" width="14" height="18" rx="2"/><text class="zm zc zred a-bits" x="300" y="70">0 1 1 0 1 0 0 1</text><text class="zs zc" x="90" y="240">Laptop</text><text class="zs zc" x="510" y="240">Router</text><text class="zt zc" x="300" y="300">Ethernet cable · RJ45 plug</text></svg></div>
-        </div>
-      </div>
-      <aside class="nt">Show a real LAN cable and the RJ45 plug if you have one. Offices and these lab PCs often use cable. Cyber: never leave open network sockets in public places.</aside>
-    </section>
-    <section class="slide" data-id="wifi" data-title="Hop 1 · Wi-Fi">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Hop 1 &middot; by air</p>
-            <h2 class="split-words" style="font-size:clamp(2.4rem,5.4vw,5.6rem)">Wi-<span class="red">Fi</span></h2>
-            <p class="fx b"><i>1</i><span>Radio waves, like FM radio, but for data.</span></p>
-            <p class="fx b"><i>2</i><span>Walls and distance make it weaker.</span></p>
-            <p class="fx b cy"><i>!</i><span>Anyone nearby can hear. Lock it: WPA2 or WPA3.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="Radio waves spread from the router; walls weaken them and neighbours can hear them"><circle class="zring a-wv a-wv0" cx="120" cy="230" r="300"/><circle class="zring a-wv a-wv1" cx="120" cy="230" r="300"/><circle class="zring a-wv a-wv2" cx="120" cy="230" r="300"/><rect x="396" y="196" width="20" height="130" rx="4" fill="#e3e6ee"/><text class="zs zc" x="406" y="186">wall</text><g transform="translate(120 230) scale(1.2)"><rect class="zo" x="-40" y="-8" width="80" height="26" rx="7"/><path class="zb" d="M-24 -8-30-32M24-8 30-32"/><circle class="zfb zled" cx="-24" cy="5" r="3"/><circle class="zfb zled zl2" cx="-12" cy="5" r="3"/><circle class="zfr zled zl3" cx="0" cy="5" r="3"/></g><text class="zs zc" x="120" y="290">Router</text><g transform="translate(300 150)"><rect class="zo" x="-17" y="-30" width="34" height="60" rx="7"/><path class="zb" d="M-5 21h10"/></g><text class="zt zc" x="300" y="205">Strong</text><g transform="translate(500 270) scale(0.85)"><rect class="zo" x="-34" y="-28" width="68" height="44" rx="5"/><path class="zo" d="M-46 22H46"/></g><text class="zt zc" x="500" y="322">Weaker</text><g transform="translate(520 110) scale(0.7)"><circle class="zo" cy="-50" r="15"/><path class="zo" d="M-26 0C-26-24-13-33 0-33S26-24 26 0Z"/></g><text class="zt zc zred" x="520" y="40">Neighbour?</text></svg></div>
-        </div>
-      </div>
-      <aside class="nt">Wi-Fi uses 2.4 GHz (goes further) and 5 GHz (faster, weaker through walls). The neighbour can receive the same waves: that is why encryption and a long password matter.</aside>
-    </section>
-    <section class="slide" data-id="sim" data-title="Hop 1 · SIM">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Hop 1 &middot; by SIM</p>
-            <h2 class="split-words" style="font-size:clamp(2.4rem,5.4vw,5.6rem)">Mobile <span class="red">data</span></h2>
-            <p class="fx b"><i>1</i><span>No home router: the cell tower is your door.</span></p>
-            <p class="fx b"><i>2</i><span>4G, 5G: G = generation. Higher = faster.</span></p>
-            <p class="fx b cy"><i>!</i><span>SIM swap scams steal your number to get your OTPs.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="The phone talks by radio to a cell tower, then the mobile network carries data to the internet"><g transform="translate(70 200)"><rect class="zo" x="-17" y="-30" width="34" height="60" rx="7"/><path class="zb" d="M-5 21h10"/></g><g transform="translate(70 278) scale(0.9)"><path class="zo" d="M-14-20H6L14-12V20H-14Z"/><rect class="zfr" x="-7" y="-6" width="14" height="16" rx="2"/></g><text class="zs zc" x="70" y="326">SIM</text><path class="zr a-air a-air0" d="M108 170q14 30 0 60"/><path class="zr a-air a-air1" d="M108 170q14 30 0 60"/><path class="zr a-air a-air2" d="M108 170q14 30 0 60"/><g transform="translate(230 200)"><path class="zb" d="M0-52V44M-24 44 0-40 24 44M-13 12H13M-8-4H8"/><circle class="zfb" cy="-54" r="6"/><path class="zr zwave" d="M-16-70a24 24 0 0 0 0 32M16-70a24 24 0 0 1 0 32"/><path class="zr zwave zw2" d="M-27-79a38 38 0 0 0 0 50M27-79a38 38 0 0 1 0 50"/></g><text class="zs zc" x="230" y="270">Cell tower</text><text class="zt zc zred" x="160" y="130">4G / 5G</text><path class="zd" d="M262 200H330"/><rect class="zo" x="334" y="168" width="120" height="64" rx="10"/><text class="zt zc" x="394" y="196">Mobile</text><text class="zt zc" x="394" y="220">network</text><text class="zs zc" x="394" y="262">Dialog · Mobitel</text><text class="zs zc" x="394" y="284">Hutch</text><path class="zd" d="M458 200H500"/><g transform="translate(545 200) scale(0.9)"><circle class="zo" r="40"/><ellipse class="zb zspin" rx="16" ry="40"/><path class="zb" d="M-40 0H40M-35-19H35M-35 19H35"/></g><text class="zs zc" x="545" y="262">Internet</text></svg></div>
-        </div>
-      </div>
-      <aside class="nt">The SIM is your ID card for the mobile network. Phone to tower is radio, tower to the operator is mostly fibre. SIM swap: a criminal convinces the operator to move your number to their SIM, then receives your bank OTPs. Never share OTPs.</aside>
-    </section>
-    <section class="slide" data-id="sat" data-title="Hop 1 · Satellite">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Hop 1 &middot; from space &middot; the newest</p>
-            <h2 class="split-words" style="font-size:clamp(2.4rem,5.4vw,5.6rem)">Satel<span class="red">lite</span></h2>
-            <p class="fx b"><i>1</i><span>A dish on the roof talks to space.</span></p>
-            <p class="fx b"><i>2</i><span>Works on ships, mountains, after floods.</span></p>
-            <p class="fx b"><i>3</i><span>The new trend: Starlink. Next slides.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="A dish on the house talks to a satellite, which talks to a ground station connected to the internet"><path class="zl" d="M10 306H590"/><path class="zorbit" d="M10 110Q300-20 590 110"/><g transform="translate(90 306) scale(0.75)"><path class="zo" d="M-55 0V-70L0-115L55-70V0Z"/><rect class="zo" x="-14" y="-40" width="28" height="40" rx="3"/></g><g transform="translate(118 210) scale(0.8)"><path class="zo" d="M-30-26Q-24 22 26 22Z"/><path class="zb" d="M-2-2 14-18"/><circle class="zfr zled" cx="14" cy="-18" r="5"/><path class="zb" d="M-4 22V42M-18 42H10"/></g><text class="zs zc" x="90" y="330">Your house</text><path class="zbeam" d="M130 196 290 76"/><path class="zbeam" d="M312 76 470 238"/><g class="a-sat"><g transform="translate(300 62) scale(0.9)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g></g><text class="zt zc" x="150" y="30">~550 km up</text><text class="zs zc" x="150" y="52">Starlink · low orbit</text><g transform="translate(490 270) scale(1.2)"><path class="zo" d="M-30-26Q-24 22 26 22Z"/><path class="zb" d="M-2-2 14-18"/><circle class="zfr zled" cx="14" cy="-18" r="5"/><path class="zb" d="M-4 22V42M-18 42H10"/></g><text class="zs zc" x="555" y="252">Ground</text><text class="zs zc" x="555" y="274">station</text></svg></div>
-        </div>
-      </div>
-      <aside class="nt">Old satellites sit very high (36,000 km): a round trip takes about 600 ms. New low-orbit fleets (Starlink, OneWeb) fly at about 550 km, so delay drops to tens of ms. Some new phones can send messages straight to satellites when there is no tower.</aside>
-    </section>
-    <section class="slide" data-id="starlink" data-title="Starlink">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">The new trend &middot; SpaceX</p>
-            <h2 class="split-words" style="font-size:clamp(2.4rem,5.4vw,5.6rem)">Star<span class="red">link</span></h2>
-            <p class="fx b"><i>1</i><span>Thousands of small satellites, not one big one.</span></p>
-            <p class="fx b"><i>2</i><span>Only ~550 km up. One lap of Earth in ~95 min.</span></p>
-            <p class="fx b"><i>3</i><span>Lasers pass your data from satellite to satellite.</span></p>
-            <p class="fx b"><i>4</i><span>A ground station joins it to the internet.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="A train of Starlink satellites circles the Earth; your dish beams up, lasers pass data between satellites, a ground station joins the internet"><circle cx="300" cy="900" r="640" fill="#eef2f9" stroke="#002868" stroke-width="3"/><circle class="zorbit" cx="300" cy="900" r="760"/><path class="zbeam" d="M190 220 222 156"/><path class="zbeam" d="M400 159 462 243"/><path class="zlaser" d="M220 144A760 760 0 0 1 400 147"/><g class="a-orb a-orb0"><g transform="translate(300 140) scale(0.42)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g></g><g class="a-orb a-orb1"><g transform="translate(300 140) scale(0.42)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g></g><g class="a-orb a-orb2"><g transform="translate(300 140) scale(0.42)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g></g><g class="a-orb a-orb3"><g transform="translate(300 140) scale(0.42)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g></g><g class="a-orb a-orb4"><g transform="translate(300 140) scale(0.42)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g></g><g class="a-orb a-orb5"><g transform="translate(300 140) scale(0.42)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g></g><g class="a-orb a-orb6"><g transform="translate(300 140) scale(0.42)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g></g><g transform="translate(170 277.342198644268) scale(0.5)"><path class="zo" d="M-55 0V-70L0-115L55-70V0Z"/><rect class="zo" x="-14" y="-40" width="28" height="40" rx="3"/></g><g transform="translate(190 219.34219864426802) scale(0.55)"><path class="zo" d="M-30-26Q-24 22 26 22Z"/><path class="zb" d="M-2-2 14-18"/><circle class="zfr zled" cx="14" cy="-18" r="5"/><path class="zb" d="M-4 22V42M-18 42H10"/></g><text class="zs zc" x="170" y="323.342198644268">Your dish</text><g transform="translate(470 268.991085963906) scale(0.9)"><path class="zo" d="M-30-26Q-24 22 26 22Z"/><path class="zb" d="M-2-2 14-18"/><circle class="zfr zled" cx="14" cy="-18" r="5"/><path class="zb" d="M-4 22V42M-18 42H10"/></g><text class="zs zc" x="470" y="338.991085963906">Ground station</text><path class="zd" d="M505 273H590"/><text class="zs zc" x="555" y="260.991085963906">Internet</text><text class="zt zc zred" x="310" y="92">Laser links in space</text><path class="zb" d="M50 186V307M42 194 50 186 58 194M42 299 50 307 58 299"/><text class="zs" x="62" y="252.57169624692898" text-anchor="start">550 km</text></svg></div>
-        </div>
-      </div>
-      <aside class="nt">Starlink is run by SpaceX. Instead of one big satellite very far away, it uses a huge "constellation" of small ones close to Earth, launched dozens at a time on reusable Falcon 9 rockets. Each one zooms past in minutes, so your dish keeps handing over to the next. Ask: who has seen a "train" of lights in the night sky? That was Starlink, right after a launch.</aside>
-    </section>
-    <section class="slide" data-id="dishy" data-title="Starlink · the dish">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Starlink &middot; the dish</p>
-            <h2 class="split-words" style="font-size:clamp(2.4rem,5.4vw,5.6rem)">A smart <span class="red">dish</span></h2>
-            <p class="fx b"><i>1</i><span>Flat, about the size of a laptop bag lid.</span></p>
-            <p class="fx b"><i>2</i><span>No moving parts: it steers its beam with electronics.</span></p>
-            <p class="fx b"><i>3</i><span>A new satellite overhead every few minutes. Handover!</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="A flat Starlink dish stays still while its beam follows each satellite across the sky and hands over to the next"><path class="zorbit" d="M40 230A260 260 0 0 1 560 230"/><g class="a-sweep a-sweep0"><path d="M300 296 284 70H316Z" fill="rgba(191,10,48,.10)" stroke="none"/><path class="zbeam" d="M300 296V78"/><g transform="translate(300 58) scale(0.4)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g></g><g class="a-sweep a-sweep1"><path d="M300 296 284 70H316Z" fill="rgba(191,10,48,.10)" stroke="none"/><path class="zbeam" d="M300 296V78"/><g transform="translate(300 58) scale(0.4)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g></g><rect class="zo" x="250" y="280" width="100" height="16" rx="4" transform="rotate(-6 300 288)"/><path class="zb" d="M300 296V322M276 322H324"/><g transform="translate(80 322) scale(0.5)"><path class="zo" d="M-55 0V-70L0-115L55-70V0Z"/><rect class="zo" x="-14" y="-40" width="28" height="40" rx="3"/></g><path class="zl" d="M10 322H590"/><text class="zt" x="24" y="40" text-anchor="start">The dish does not move.</text><text class="zt zred" x="24" y="68" text-anchor="start">The beam does.</text></svg></div>
-        </div>
-      </div>
-      <aside class="nt">The dish is a "phased array": hundreds of tiny antennas whose timing bends the beam towards the satellite, like a stadium wave. When one satellite leaves the sky, the beam jumps to the next (handover) without you noticing. Trees and roofs block it: it needs open sky.</aside>
-    </section>
-    <section class="slide" data-id="orbits" data-title="Starlink · why so fast?">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Starlink &middot; why so fast?</p>
-            <h2 class="split-words" style="font-size:clamp(2.4rem,5.4vw,5.6rem)">Close is <span class="red">fast.</span></h2>
-            <p class="fx b"><i>1</i><span>Drawn to scale: Starlink is just above Earth.</span></p>
-            <p class="fx b"><i>2</i><span>The old satellite is 65 times further away.</span></p>
-            <p class="fx b"><i>3</i><span>Shorter trip = lower ms = video calls and games work.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="Drawn to scale: Starlink flies just above the Earth, the old satellite is 65 times further, so a ping takes far longer"><path d="M0 30A170 170 0 0 1 0 310" fill="#eef2f9" stroke="#002868" stroke-width="3"/><text class="zt" x="16" y="176" text-anchor="start">Earth</text><path class="zl" d="M92 110H580"/><path class="zl" d="M150 240H580"/><g transform="translate(122 82) scale(0.3)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g><text class="zt zred" x="160" y="70" text-anchor="start">Starlink · 550 km</text><text class="zs" x="160" y="140" text-anchor="start">~30 ms there and back</text><g transform="translate(556 212) scale(0.3)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g><text class="zt" x="540" y="284" text-anchor="end">Old satellite · 36,000 km</text><text class="zs" x="540" y="308" text-anchor="end">~600 ms there and back</text><circle class="zfr a-leo" cx="96" cy="110" r="8"/><circle class="zfb a-geo" cx="152" cy="240" r="8"/></svg></div>
-        </div>
-      </div>
-      <aside class="nt">Light is fast but not instant. 36,000 km up and down twice (there and back) takes about 600 ms: video calls stutter. At 550 km the trip is tiny, so Starlink feels like normal home internet (about 25 to 60 ms).</aside>
-    </section>
-    <section class="slide" data-id="sluses" data-title="Starlink · where it helps">
-      <div class="wrap">
-        <div class="labhead"><h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Where Starlink <span class="red">shines.</span></h2><span class="tag bl">Starlink</span></div>
-        <div class="cards" style="--cw:250px">
-          <div class="card b"><i class="ic sli" data-ic="ship"></i><div class="big">Oceans</div><p>Ships and planes get Wi-Fi far from land.</p></div>
-          <div class="card b"><i class="ic sli" data-ic="bolt"></i><div class="big">Disasters</div><p>Floods break towers. A dish brings help online.</p></div>
-          <div class="card b"><i class="ic sli" data-ic="house"></i><div class="big">Villages</div><p>No cables? Just open sky.</p></div>
-          <div class="card b ink"><i class="ic sli" data-ic="phone"></i><div class="big">Phones</div><p>The newest: texts straight from space.</p></div>
-        </div>
-      </div>
-      <aside class="nt">Direct to Cell: some new phones can send texts straight to Starlink satellites where there is no tower. Ask: where in Sri Lanka would this help? (Hill country estates, fishing boats, flood areas.) Check Starlink's current availability in Sri Lanka before class.</aside>
-    </section>
-    <section class="slide" data-id="slcyber" data-title="Starlink · cyber side">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Starlink &middot; the cyber side</p>
-            <h2 class="split-words" style="font-size:clamp(2.4rem,5.4vw,5.6rem)">Space can be <span class="red">hacked.</span></h2>
-            <p class="fx b"><i>1</i><span>Jamming: blast noise so the dish cannot hear.</span></p>
-            <p class="fx b"><i>2</i><span>2022: a researcher broke into a dish with a home-made $25 chip.</span></p>
-            <p class="fx b"><i>3</i><span>A dish can reveal where you are.</span></p>
-            <p class="fx b cy"><i>!</i><span>Every new link is a new target.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="A jammer sends noise that drowns the signal between the dish and the satellite"><path class="zl" d="M10 312H590"/><g transform="translate(300 60) scale(0.7)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g><g transform="translate(110 270) scale(1.1)"><path class="zo" d="M-30-26Q-24 22 26 22Z"/><path class="zb" d="M-2-2 14-18"/><circle class="zfr zled" cx="14" cy="-18" r="5"/><path class="zb" d="M-4 22V42M-18 42H10"/></g><text class="zs zc" x="190" y="330">Your dish</text><path class="zbeam a-flick" d="M128 238 290 84"/><rect class="zor" x="440" y="252" width="90" height="56" rx="8"/><path class="zr" d="M485 252V214"/><circle class="zfr" cx="485" cy="210" r="6"/><text class="zm zc zred zsm" x="485" y="288">JAMMER</text><path class="zr a-noise a-noise0" d="M430 200l-14 10 14 10-14 10 14 10-14 10"/><path class="zr a-noise a-noise1" d="M430 200l-14 10 14 10-14 10 14 10-14 10"/><path class="zr a-noise a-noise2" d="M430 200l-14 10 14 10-14 10 14 10-14 10"/><text class="zs zc zred a-flick2" x="300" y="150">noise drowns the signal</text></svg></div>
-        </div>
-      </div>
-      <aside class="nt">Jamming has been used against satellite internet in wars. In 2022 security researcher Lennert Wouters showed at the Black Hat conference how he glitched a Starlink dish with a cheap custom board; SpaceX fixed it and thanked him (bug bounty). That is ethical hacking: find it, report it, get it fixed.</aside>
-    </section>
-    <section class="slide" data-id="hop2" data-title="Hop 2 · Router to ISP">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Hop 2 &middot; router &rarr; ISP</p>
-            <h2 class="split-words" style="font-size:clamp(2.4rem,5.4vw,5.6rem)">From your <span class="red">gate</span></h2>
-            <p class="fx b"><i>1</i><span>Fibre: light inside glass. Fastest.</span></p>
-            <p class="fx b"><i>2</i><span>Copper phone line: old ADSL. Slower.</span></p>
-            <p class="fx b"><i>3</i><span>4G / 5G router: a SIM inside the box.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="Light pulses bounce inside a glass fibre from the home router to the ISP exchange"><g transform="translate(70 250) scale(0.8)"><path class="zo" d="M-55 0V-70L0-115L55-70V0Z"/><rect class="zo" x="-14" y="-40" width="28" height="40" rx="3"/></g><text class="zs zc" x="70" y="290">Your router</text><rect x="130" y="166" width="330" height="40" rx="20" fill="#f5f6f9"/><path class="zb" d="M140 166H450M140 206H450"/><path class="zlight" d="M140 186L162 170L184 202L206 170L228 202L250 170L272 202L294 170L316 202L338 170L360 202L382 170L404 202L426 170L448 202L450 186"/><text class="zt zc" x="295" y="140">Fibre: light bouncing inside glass</text><rect class="zo" x="470" y="130" width="110" height="120" rx="8"/><text class="zt zc zhuge" x="525" y="196">ISP</text><text class="zs zc" x="525" y="290">Exchange</text></svg></div>
-        </div>
-      </div>
-      <aside class="nt">Ask: what do you have at home? SLT Fibre = fibre. An old phone-line router = copper (ADSL). A Dialog / Mobitel / Hutch home router = 4G inside. Light in glass carries far more data than electricity in copper.</aside>
-    </section>
-    <section class="slide" data-id="hop3" data-title="Hop 3 · ISP to the world">
-      <div class="wrap">
-        <div class="jg">
-          <div class="jt">
-            <p class="kick">Hop 3 &middot; ISP &rarr; the world</p>
-            <h2 class="split-words" style="font-size:clamp(2.4rem,5.4vw,5.6rem)">Under the <span class="red">sea</span></h2>
-            <p class="fx b"><i>1</i><span>ISPs join each other, then undersea cables.</span></p>
-            <p class="fx b"><i>2</i><span>About 99% of data between countries goes under the sea.</span></p>
-            <p class="fx b"><i>3</i><span>One of them, SEA-ME-WE 5, lands here in Matara.</span></p>
-            <p class="fx b cy"><i>!</i><span>Ship anchors can cut a cable. Whole countries slow down.</span></p>
-          </div>
-          <div class="scn"><svg viewBox="0 0 600 340" role="img" aria-label="Undersea cables leave Sri Lanka from Colombo and Matara to India, the Middle East, Europe and Singapore"><rect x="0" y="0" width="600" height="340" rx="20" fill="#f3f6fb"/><path d="M0 0H250C238 26 214 40 186 44C140 50 90 40 0 64Z" fill="#fff" stroke="#e3e6ee" stroke-width="2"/><text class="zs zc" x="60" y="32">India</text><path class="zsea" d="M315 284C220 330 90 310 0 262"/><path class="zsea" d="M315 284C420 330 520 310 600 250"/><path class="zsea" d="M258 215C180 200 90 170 0 150"/><path class="zsea" d="M258 215C224 160 196 110 176 48"/><text class="zs zc" x="52" y="250">Europe</text><text class="zs zc" x="548" y="238">Singapore</text><text class="zs zc" x="56" y="138">Middle East</text><g transform="translate(225 50)"><path d="M80 10C95 10 100 40 110 60C135 100 160 150 150 190C140 225 100 240 70 230C40 220 30 190 30 160C30 110 55 60 70 30C73 18 75 10 80 10Z" fill="#fff" stroke="#002868" stroke-width="3"/></g><circle class="zfr a-pin" cx="315" cy="282" r="8"/><circle class="zfb a-pin" cx="258" cy="215" r="8"/><text class="zt" x="352" y="300" text-anchor="start">Matara</text><text class="zt" x="250" y="240" text-anchor="end">Colombo</text></svg></div>
-        </div>
-      </div>
-      <aside class="nt">Sri Lanka is linked by several submarine cables landing in Colombo and Matara (SEA-ME-WE 5 lands at Matara). A cable is about as thick as a garden hose. In 2024 cables in the Red Sea were cut and internet slowed in many countries.</aside>
-    </section>
-    <section class="slide" data-id="bigmap" data-title="The whole picture">
-      <div class="wrap">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">The whole <span class="red">picture.</span></h2>
-        <div class="scn wide"><svg viewBox="0 0 1000 400" role="img" aria-label="Every way to get online: cable or Wi-Fi to a router, a SIM to a tower, a dish to a satellite; all reach the ISP and then the internet"><g class="b" data-o="0"><g transform="translate(60 80) scale(0.9)"><rect class="zo" x="-34" y="-28" width="68" height="44" rx="5"/><path class="zo" d="M-46 22H46"/></g><path class="zd" d="M110 80H190"/><text class="zs zc" x="150" y="64">Cable / Wi-Fi</text><g transform="translate(240 80) scale(1.1)"><rect class="zo" x="-40" y="-8" width="80" height="26" rx="7"/><path class="zb" d="M-24 -8-30-32M24-8 30-32"/><circle class="zfb zled" cx="-24" cy="5" r="3"/><circle class="zfb zled zl2" cx="-12" cy="5" r="3"/><circle class="zfr zled zl3" cx="0" cy="5" r="3"/></g><path class="zd" d="M290 80C450 80 520 200 600 200"/><text class="zs zc" x="430" y="96">fibre</text></g><g class="b" data-o="1"><g transform="translate(60 200) scale(0.9)"><rect class="zo" x="-17" y="-30" width="34" height="60" rx="7"/><path class="zb" d="M-5 21h10"/></g><path class="zdr" d="M90 200H200"/><text class="zs zc" x="150" y="186">4G / 5G</text><g transform="translate(240 210) scale(0.8)"><path class="zb" d="M0-52V44M-24 44 0-40 24 44M-13 12H13M-8-4H8"/><circle class="zfb" cy="-54" r="6"/><path class="zr zwave" d="M-16-70a24 24 0 0 0 0 32M16-70a24 24 0 0 1 0 32"/><path class="zr zwave zw2" d="M-27-79a38 38 0 0 0 0 50M27-79a38 38 0 0 1 0 50"/></g><path class="zd" d="M270 200H600"/><text class="zs zc" x="430" y="190">mobile network</text></g><g class="b" data-o="2"><g transform="translate(60 330) scale(0.9)"><path class="zo" d="M-30-26Q-24 22 26 22Z"/><path class="zb" d="M-2-2 14-18"/><circle class="zfr zled" cx="14" cy="-18" r="5"/><path class="zb" d="M-4 22V42M-18 42H10"/></g><path class="zdr" d="M86 312 186 300"/><g transform="translate(240 300) scale(0.7)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g><path class="zdr" d="M290 304 380 322"/><g transform="translate(420 330) scale(0.9)"><path class="zo" d="M-30-26Q-24 22 26 22Z"/><path class="zb" d="M-2-2 14-18"/><circle class="zfr zled" cx="14" cy="-18" r="5"/><path class="zb" d="M-4 22V42M-18 42H10"/></g><path class="zd" d="M450 330C530 330 540 200 600 200"/><text class="zs zc zred" x="240" y="350">Starlink</text></g><g class="b" data-o="3"><rect class="zo" x="600" y="160" width="110" height="80" rx="10"/><text class="zt zc zhuge" x="655" y="210">ISP</text><path class="zsea" d="M712 200H790"/><text class="zs zc" x="751" y="186">undersea</text><g transform="translate(830 200) scale(0.9)"><circle class="zo" r="40"/><ellipse class="zb zspin" rx="16" ry="40"/><path class="zb" d="M-40 0H40M-35-19H35M-35 19H35"/></g><path class="zd" d="M870 200H905"/><g transform="translate(950 204) scale(0.9)"><rect class="zo" x="-30" y="-38" width="60" height="34" rx="6"/><rect class="zo" x="-30" y="2" width="60" height="34" rx="6"/><circle class="zfb zled" cx="-16" cy="-21" r="3"/><circle class="zfb zled zl3" cx="-16" cy="19" r="3"/><path class="zb" d="M-2-21h16M-2 19h16"/></g><text class="zs zc" x="950" y="262">WhatsApp</text></g></svg></div>
-      </div>
-      <aside class="nt">Click 1: home (cable / Wi-Fi to the router, fibre to the ISP). Click 2: mobile (SIM to tower). Click 3: satellite (dish, satellite, ground station). Click 4: every road meets at the ISP and goes under the sea to the server. Ask a student to trace their own path.</aside>
-    </section>
-    <section class="slide" data-id="speed" data-title="Speed is two things">
-      <div class="wrap">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Speed is <span class="red">two things.</span></h2>
-        <div class="duo">
-          <div class="scn"><svg viewBox="0 0 450 210" role="img" aria-label="A narrow pipe carries few dots, a wide pipe carries many"><text class="zt" x="20" y="34" text-anchor="start">Bandwidth</text><text class="zs" x="20" y="58" text-anchor="start">how WIDE the road</text><rect class="zo" x="20" y="80" width="360" height="22" rx="11"/><path class="zdots" d="M30 91H370"/><rect class="zo" x="20" y="124" width="360" height="74" rx="20"/><path class="zdots" d="M30 140H370"/><path class="zdots" d="M30 154H370"/><path class="zdots" d="M30 168H370"/><path class="zdots" d="M30 182H370"/><text class="zs" x="390" y="96" text-anchor="start">slow</text><text class="zt zred" x="390" y="166" text-anchor="start">fast</text></svg></div>
-          <div class="scn"><svg viewBox="0 0 450 210" role="img" aria-label="A short trip comes back fast, a trip to a far satellite comes back slow"><text class="zt" x="20" y="34" text-anchor="start">Latency (ms)</text><text class="zs" x="20" y="58" text-anchor="start">how LONG the trip</text><path class="zl" d="M40 100H170"/><circle class="zfb a-lt1" cx="40" cy="100" r="9"/><text class="zs zc" x="105" y="128">Matara → Colombo</text><text class="zt zc" x="105" y="150">~10 ms</text><path class="zl" d="M280 196V76"/><circle class="zfr a-lt2" cx="280" cy="196" r="9"/><g transform="translate(280 60) scale(0.45)"><rect class="zo" x="-15" y="-15" width="30" height="30" rx="5"/><rect class="zo" x="-66" y="-11" width="42" height="22"/><rect class="zo" x="24" y="-11" width="42" height="22"/><path class="zb" d="M-24 0h9M15 0h9M-45-11v22M45-11v22M0 15v12"/><circle class="zfr zled zl2" cx="0" cy="30" r="4"/></g><text class="zs zc" x="370" y="130">to space</text><text class="zt zc zred" x="370" y="154">~600 ms</text></svg></div>
-        </div>
-        <p class="sub b" style="max-width:none">Wide road <span class="hl">and</span> short trip = fast internet.</p>
-      </div>
-      <aside class="nt">Bandwidth (Mbps) = how much data per second: a wide road carries more cars. Latency (ms) = how long one trip takes: games and video calls care about this. Satellite can have high bandwidth but, if far away, high latency.</aside>
-    </section>
-    <section class="slide" data-id="compare" data-title="Which is best?">
-      <div class="wrap">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Which is <span class="red">best?</span></h2>
-        <div class="cmpx">
-          <div class="ch"><span></span><span>Speed</span><span>Delay</span><span>Works</span></div>
-          <div class="cr b"><b><i class="ic" data-ic="plug"></i>Cable</b><span class="mtr"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="dl">~5 ms</span><span>One desk</span></div>
-          <div class="cr b"><b><i class="ic" data-ic="wifi"></i>Wi-Fi</b><span class="mtr"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i></span><span class="dl">~10 ms</span><span>One building</span></div>
-          <div class="cr b"><b><i class="ic" data-ic="sim"></i>4G / 5G</b><span class="mtr"><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i></span><span class="dl">20&ndash;50 ms</span><span>Near a tower</span></div>
-          <div class="cr b"><b><i class="ic" data-ic="sat"></i>Starlink</b><span class="mtr"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i></span><span class="dl">25&ndash;60 ms</span><span>Anywhere, open sky</span></div>
-          <div class="cr b"><b><i class="ic" data-ic="sat"></i>Old satellite</b><span class="mtr"><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i><i class=""></i></span><span class="dl">~600 ms</span><span>Anywhere, slow</span></div>
-        </div>
-        <p class="sub b" style="max-width:none">No winner. <span class="hl">Each fits a place.</span></p>
-      </div>
-      <aside class="nt">Numbers are typical, not exact. Cable wins at a desk, Wi-Fi in a house, 4G/5G on the move, satellite where nothing else reaches (ships, mountains, after a disaster).</aside>
-    </section>
-    <section class="slide" data-id="risks" data-title="Every link can be attacked">
-      <div class="wrap">
-        <div class="labhead"><h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Every link is a <span class="red">target.</span></h2><span class="tag r">Cyber</span></div>
-        <div class="cards" style="--cw:300px">
-          <div class="card b"><div class="big">Cable</div><p>A stranger plugs into a free socket.</p></div>
-          <div class="card b"><div class="big">Wi-Fi</div><p>Fake "Free_WiFi" hotspots. Weak passwords.</p></div>
-          <div class="card b"><div class="big">SIM</div><p>SIM swap steals your number and OTPs.</p></div>
-          <div class="card b"><div class="big">Satellite</div><p>Jamming blocks the signal.</p></div>
-          <div class="card b"><div class="big">ISP</div><p>Sees every site you look up.</p></div>
-          <div class="card b ink"><div class="big">Undersea</div><p>Cut cables slow whole countries.</p></div>
-        </div>
-      </div>
-      <aside class="nt">This is why security people must understand networks: you cannot protect a road you do not know. Each of these returns later in the course (Wireshark next week, Malicious Applications, Ethical Hacking).</aside>
-    </section>
-
-    <!-- ===================== LAB 2 RACE ===================== -->
-    <section class="slide" data-id="lab2r" data-title="Lab 2 · Race the connections" data-sec="Lab 2 · Race the connections">
+    <section class="slide" data-id="ws" data-title="Wireshark" data-sec="Lab 2 · Wireshark">
       <div class="wrap">
         <div class="sect">
           <div class="num">L2</div>
           <div class="txt">
-            <span class="time">3:20 &middot; 25 min</span>
-            <p class="kick">Hands-on</p>
-            <h2 class="split-words">Race the <span class="red">connections.</span></h2>
-            <div class="row"><button class="btn ghost lt" data-min="25" type="button">Start 25 min</button><span class="ltc"></span></div>
-          </div>
-        </div>
-        <div class="ticks" id="ticks2">
-          <button class="tick" type="button">Find my gateway</button>
-          <button class="tick" type="button">Ping my gateway</button>
-          <button class="tick" type="button">Ping 8.8.8.8</button>
-          <button class="tick" type="button">Ping on a hotspot</button>
-          <button class="tick" type="button">My Wi-Fi signal</button>
-        </div>
-      </div>
-      <aside class="nt"><h4>Set up</h4><ul><li>Pairs at each PC. One phone per pair can share a hotspot (mobile data) for step 4.</li><li>Write the class's numbers on the board: gateway ms, Wi-Fi/cable ms to 8.8.8.8, hotspot ms.</li><li>Click each target as the room finishes. All five = confetti.</li></ul></aside>
-    </section>
-    <section class="slide" data-id="lab2c" data-title="Lab 2 · Commands">
-      <div class="wrap">
-        <div class="labhead"><h2 class="split-words" style="font-size:clamp(2rem,4.4vw,4.4rem)">Ready, set, <span class="red">ping.</span></h2><div class="os"><button type="button" data-os="win">Windows</button><button type="button" data-os="lin">Linux</button></div></div>
-        <div class="term">
-          <div class="bchrome"><i></i><i></i><i></i><span class="win">Command Prompt</span><span class="lin">Terminal</span></div>
-          <div class="tb">
-            <div class="cmd b win"><span class="p">&gt;</span><code>ipconfig</code><em>1 &middot; Default Gateway = your router</em></div>
-            <div class="cmd b win"><span class="p">&gt;</span><code>ping 192.168.1.1</code><em>2 &middot; Hop 1 only (use your gateway)</em></div>
-            <div class="cmd b win"><span class="p">&gt;</span><code>ping 8.8.8.8</code><em>3 &middot; all hops, to Google</em></div>
-            <div class="cmd b win"><span class="p">&gt;</span><code>ping 8.8.8.8</code><em>4 &middot; again, on a phone hotspot</em></div>
-            <div class="cmd b win"><span class="p">&gt;</span><code>netsh wlan show interfaces</code><em>5 &middot; Signal % &middot; Radio type</em></div>
-            <div class="cmd b lin"><span class="p">$</span><code>ip route</code><em>1 &middot; "default via" = your router</em></div>
-            <div class="cmd b lin"><span class="p">$</span><code>ping -c 4 192.168.1.1</code><em>2 &middot; Hop 1 only (use your gateway)</em></div>
-            <div class="cmd b lin"><span class="p">$</span><code>ping -c 4 8.8.8.8</code><em>3 &middot; all hops, to Google</em></div>
-            <div class="cmd b lin"><span class="p">$</span><code>ping -c 4 8.8.8.8</code><em>4 &middot; again, on a phone hotspot</em></div>
-            <div class="cmd b lin"><span class="p">$</span><code>nmcli dev wifi</code><em>5 &middot; SIGNAL &middot; the * row is you</em></div>
+            <span class="time">1:35 &middot; 45 min</span>
+            <p class="kick">Wireshark</p>
+            <h2 class="split-words">See the <span class="red">invisible.</span></h2>
+            <p class="sub b">Every packet. Every layer. Live.</p>
+            <p class="sub b small" style="color:var(--c-red);font-weight:600">Only on your own network, or with permission.</p>
           </div>
         </div>
       </div>
-      <aside class="nt"><h4>Tips</h4><ul><li>Replace 192.168.1.1 with the gateway from step 1.</li><li>Look at the <b>time=</b> part (Windows also prints an Average at the end).</li><li>Step 4: connect the PC to a phone hotspot (mobile data), run the same ping, then switch back.</li><li>A PC on cable has no Wi-Fi signal: <code>netsh</code> says "no wireless interface". That is an answer too.</li><li>Linux: if <code>nmcli</code> is missing, try <code>iw dev</code> then <code>iw dev wlan0 link</code>.</li><li>Phones: Android Settings &gt; Network &gt; SIM shows 4G/5G at the top of the screen.</li></ul></aside>
+      <aside class="nt">Capturing other people's traffic without permission is a crime. Here we capture only our own lab PCs. Ties to Module 4.</aside>
     </section>
-    <section class="slide" data-id="race" data-title="Lab 2 · Packet race">
+
+    <section class="slide" data-id="wssteps" data-title="Wireshark · Capture">
       <div class="wrap">
-        <div class="labhead"><h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Packet <span class="red">race.</span></h2><button class="btn" id="raceGo" type="button">Race!</button></div>
-        <div class="race" id="race">
-          <div class="lane"><label><b>Hop 1 &middot; my gateway</b><span><input class="rin" type="number" min="1" max="2000" value="2" aria-label="ms"> ms</span></label><div class="trk"><i class="car"></i></div><em class="pl"></em></div>
-          <div class="lane"><label><b>Wi-Fi / cable &rarr; Google</b><span><input class="rin" type="number" min="1" max="2000" value="30" aria-label="ms"> ms</span></label><div class="trk"><i class="car"></i></div><em class="pl"></em></div>
-          <div class="lane"><label><b>Phone hotspot &rarr; Google</b><span><input class="rin" type="number" min="1" max="2000" value="60" aria-label="ms"> ms</span></label><div class="trk"><i class="car"></i></div><em class="pl"></em></div>
-          <div class="lane"><label><b>Starlink (typical)</b><span><input class="rin" type="number" min="1" max="2000" value="40" aria-label="ms"> ms</span></label><div class="trk"><i class="car"></i></div><em class="pl"></em></div>
-          <div class="lane"><label><b>Old satellite (36,000 km)</b><span><input class="rin" type="number" min="1" max="2000" value="600" aria-label="ms"> ms</span></label><div class="trk"><i class="car"></i></div><em class="pl"></em></div>
-        </div>
-        <p class="sub small" style="max-width:none">Type the room's real numbers. Each packet goes there and back.</p>
-      </div>
-      <aside class="nt">Replace the first three numbers with what the class measured (click a box and type). The last two are typical values for satellite. Press Race: each packet travels at its real speed, slowed down 12 times so we can see it. Ask: why does the old satellite lose so badly? (36,000 km up and down, twice.)</aside>
-    </section>
-    <section class="slide" data-id="lab2q" data-title="Lab 2 · What did you find?">
-      <div class="wrap">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">What did you <span class="red">notice?</span></h2>
-        <div class="qcs" style="--qw:440px">
-          <button class="qc" type="button"><span class="q">Why is the gateway the fastest?</span><span class="ans b">One hop. It is in the room.</span></button>
-          <button class="qc" type="button"><span class="q">Why is the hotspot slower?</span><span class="ans b">Extra trip: phone, tower, operator.</span></button>
-          <button class="qc" type="button"><span class="q">Why is old satellite so slow?</span><span class="ans b">36,000 km up and back.</span></button>
-          <button class="qc" type="button"><span class="q">Low Wi-Fi signal %?</span><span class="ans b">Walls, distance, crowds.</span></button>
+        <div class="labhead"><h2 class="split-words" style="font-size:clamp(2rem,4.4vw,4.4rem)">Your first <span class="red">capture</span></h2><div class="row"><button class="btn ghost lt" data-min="35" type="button">Start 35 min</button><span class="ltc"></span></div></div>
+        <div class="nsteps">
+          <div class="ns b"><b>Open Wireshark</b><span>Run as admin on Windows</span></div>
+          <div class="ns b"><b>Double-click Wi-Fi</b><span>the line with the moving graph</span></div>
+          <div class="ns b"><b>Browse 30 s</b><span>open any website</span></div>
+          <div class="ns b"><b>Stop</b><span>the red square</span></div>
+          <div class="ns b"><b>Filter</b><span>type in the green bar</span></div>
         </div>
       </div>
+      <aside class="nt"><h4>Install</h4><ul><li><b>Windows</b>: wireshark.org installer, tick <b>Npcap</b>. No interfaces listed = Npcap missing or not admin.</li><li><b>Linux</b>: <code>sudo apt install wireshark</code>, answer Yes to non-root capture, then <code>sudo usermod -aG wireshark $USER</code> and log out/in. Quick way: <code>sudo wireshark</code>.</li><li>Interface: "Wi-Fi"/"wlan0" or "Ethernet"/"eth0". Pick the one with the moving sparkline.</li><li>Project your own screen. Students follow.</li></ul></aside>
+    </section>
+
+    <section class="slide" data-id="wsfilter" data-title="Wireshark · Filters">
+      <div class="wrap">
+        <h2 class="split-words" style="font-size:clamp(2rem,4.4vw,4.4rem)">Magic <span class="red">filters</span></h2>
+        <div class="ft">
+          <div class="flt b"><code>dns</code><span>every name your PC looked up</span></div>
+          <div class="flt b"><code>icmp</code><span>run a ping, watch it here</span></div>
+          <div class="flt b"><code>arp</code><span>"who has 192.168.1.1?"</span></div>
+          <div class="flt b"><code>tcp.flags.syn==1 &amp;&amp; tcp.flags.ack==0</code><span>every handshake start</span></div>
+          <div class="flt b"><code>ip.addr==192.168.1.25</code><span>only your PC (use your IP)</span></div>
+          <div class="flt b"><code>tls.handshake.extensions_server_name</code><span>site names, even on HTTPS</span></div>
+        </div>
+      </div>
+      <aside class="nt"><ul><li>Bar turns green = valid filter, red = typo. Press Enter.</li><li>Click a packet: the middle pane shows the OSI layers. Expand Ethernet (MAC), Internet Protocol (IP), TCP (ports).</li><li>For TLS: add the column via right-click on Server Name &gt; Apply as Column. Lesson: HTTPS hides content, not which site.</li><li>Click a filter on screen to copy it.</li></ul></aside>
+    </section>
+
+    <section class="slide" data-id="wspass" data-title="Catch the password">
+      <div class="wrap">
+        <div class="labhead"><h2 class="split-words" style="font-size:clamp(2rem,4.4vw,4.4rem)">Catch the <span class="red">password.</span></h2><span class="tag r">Challenge</span></div>
+        <div class="nsteps">
+          <div class="ns b"><b>Start capture</b><span>Wi-Fi interface</span></div>
+          <div class="ns b"><b>Open</b><span class="mono">testphp.vulnweb.com/login.php</span></div>
+          <div class="ns b"><b>Log in</b><span>user <b class="mono">test</b> &middot; pass <b class="mono">test</b></span></div>
+          <div class="ns b"><b>Filter</b><span class="mono">http.request.method=="POST"</span></div>
+          <div class="ns b"><b>Follow</b><span>right-click &gt; Follow &gt; HTTP Stream</span></div>
+        </div>
+        <p class="sub b" style="max-width:none">There it is: <b class="mono hl">uname=test&amp;pass=test</b></p>
+      </div>
+      <aside class="nt">testphp.vulnweb.com is a deliberately vulnerable demo site run by Acunetix for practice. It uses plain HTTP. Type the address with <b>http://</b>. Then try any HTTPS login page: the POST is encrypted. This is why public Wi-Fi + HTTP is dangerous.</aside>
+    </section>
+
+    <section class="slide" data-id="https" data-title="HTTP vs HTTPS">
+      <div class="wrap">
+        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Postcard vs <span class="red">sealed envelope</span></h2>
+        <div class="cards" style="--cw:400px">
+          <div class="card b"><div class="big">HTTP</div><p>Anyone on the road can read it.</p><div class="env clear mono">user=kasun&amp;<mark>pass=Matara123</mark></div></div>
+          <div class="card b"><i class="ic" data-ic="lock"></i><div class="big">HTTPS</div><p>Only the website can open it.</p><div class="env sealed mono" id="scram">user=kasun&amp;pass=Matara123</div></div>
+        </div>
+        <p class="sub b" style="max-width:none">Look for <span class="hl">https://</span> before you type anything.</p>
+      </div>
+    </section>
+
+    <!-- ===================== LAB 4 HTTP & POSTMAN ===================== -->
+    <section class="slide" data-id="http" data-title="How the web talks" data-sec="Lab 3 · Postman">
+      <div class="wrap">
+        <div class="labhead"><div style="display:grid;gap:.6rem"><span class="time">2:20 &middot; 30 min</span><h2 class="split-words" style="font-size:clamp(2rem,4.4vw,4.4rem)">Ask. <span class="red">Answer.</span></h2></div>
+          <div class="chips" style="justify-content:flex-end;gap:.6rem"><span class="chip" style="font-size:clamp(1rem,1.8vw,1.8rem)">GET read</span><span class="chip" style="font-size:clamp(1rem,1.8vw,1.8rem)">POST send</span><span class="chip" style="font-size:clamp(1rem,1.8vw,1.8rem)">PUT update</span><span class="chip" style="font-size:clamp(1rem,1.8vw,1.8rem)">DELETE remove</span></div></div>
+        <div class="rr">
+          <div class="term b"><p class="kick" style="--kw:var(--c-blue)">Request</p><div class="tb"><div class="tout"><mark>GET</mark> /users/1 HTTP/1.1
+Host: jsonplaceholder.typicode.com
+User-Agent: Postman</div></div></div>
+          <div class="term b"><p class="kick">Response</p><div class="tb"><div class="tout">HTTP/1.1 <mark class="r">200 OK</mark>
+Content-Type: application/json
+
+{ "name": "Leanne Graham",
+  "username": "Bret" }</div></div></div>
+        </div>
+      </div>
+      <aside class="nt">HTTP = the language of the web. Every page, every app update, every Instagram scroll is a request and a response.</aside>
+    </section>
+
+    <section class="slide" data-id="codes" data-title="Status codes">
+      <div class="wrap">
+        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">The server <span class="red">replies</span> with a number</h2>
+        <div class="codes">
+          <div class="code b"><span class="n">200</span><b>OK</b><span>Here you go.</span></div>
+          <div class="code b mid"><span class="n">301</span><b>Moved</b><span>Go over there.</span></div>
+          <div class="code b bad"><span class="n">403</span><b>Forbidden</b><span>Not for you.</span></div>
+          <div class="code b bad"><span class="n">404</span><b>Not found</b><span>No such page.</span></div>
+          <div class="code b bad"><span class="n">500</span><b>Server error</b><span>The server broke.</span></div>
+        </div>
+      </div>
+      <aside class="nt">2xx good, 3xx redirect, 4xx your fault, 5xx server's fault.</aside>
+    </section>
+
+    <section class="slide" data-id="api" data-title="API">
+      <div class="wrap">
+        <p class="kick">API</p>
+        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">The <span class="red">waiter</span> of the internet.</h2>
+        <div class="flow" data-at="3">
+          <div class="node b"><i class="ic" data-ic="person"></i><b>You</b><small>"One kottu, please"</small></div>
+          <div class="node b"><i class="ic" data-ic="api"></i><b>API</b><small>takes the order</small></div>
+          <div class="node b hot"><i class="ic" data-ic="server"></i><b>Kitchen</b><small>the server</small></div>
+          <div class="pkt"></div>
+        </div>
+        <p class="sub b" style="max-width:none">Postman lets you talk to the waiter <span class="hl">directly.</span></p>
+      </div>
+      <aside class="nt">Apps like PickMe, weather apps, Daraz all talk to APIs. Attackers test APIs for missing checks. Postman is the tool testers and developers use.</aside>
+    </section>
+
+    <section class="slide" data-id="postman" data-title="Lab 3 · Postman">
+      <div class="wrap">
+        <div class="labhead"><h2 class="split-words" style="font-size:clamp(2rem,4.4vw,4.4rem)">Lab 3: <span class="red">Postman</span></h2><div class="row"><button class="btn ghost lt" data-min="15" type="button">Start 15 min</button><span class="ltc"></span></div></div>
+        <div class="ft" style="--fw:560px">
+          <div class="flt b"><code><span class="meth">GET</span>jsonplaceholder.typicode.com/users/1</code><span>read a user. Status? 200.</span></div>
+          <div class="flt b"><code><span class="meth">GET</span>api.ipify.org?format=json</code><span>your public IP. Same as last week?</span></div>
+          <div class="flt b"><code><span class="meth">GET</span>httpbin.org/headers</code><span>what your app tells every server</span></div>
+          <div class="flt b"><code><span class="meth post">POST</span>httpbin.org/post</code><span>Body &gt; raw &gt; JSON: {"city":"Matara"}</span></div>
+          <div class="flt b"><code><span class="meth">GET</span>httpbin.org/status/404</code><span>make a 404 on purpose</span></div>
+          <div class="flt b"><code><span class="meth">GET</span>jsonplaceholder.typicode.com/users/999</code><span>what if it doesn't exist?</span></div>
+        </div>
+      </div>
+      <aside class="nt"><h4>Run it</h4><ul><li>Postman desktop app or web.postman.co (free account). New &gt; HTTP request, paste URL with <b>https://</b>, Send.</li><li>Look at: Status (top right), Time, Headers tab, Body.</li><li>POST: Body tab &gt; raw &gt; JSON, then Send. httpbin echoes it back under "json".</li><li>No Postman? Terminal: Windows <code>curl.exe https://httpbin.org/headers</code>, Linux <code>curl https://httpbin.org/headers</code>. POST: <code>curl -X POST -H "Content-Type: application/json" -d "{\"city\":\"Matara\"}" https://httpbin.org/post</code></li><li>Question for the room: what did the server learn about you from /headers? (User-Agent, language, your IP.)</li></ul></aside>
     </section>
 
     <!-- ===================== RECAP ===================== -->
     <section class="slide" data-id="journey" data-title="The full journey" data-sec="Recap">
       <div class="wrap">
-        <div class="labhead"><div style="display:grid;gap:.6rem"><span class="time">3:45 &middot; 15 min</span><h2 class="split-words" style="font-size:clamp(2rem,4.4vw,4.4rem)">You press <span class="red">Send.</span> Now you know.</h2></div></div>
+        <div class="labhead"><div style="display:grid;gap:.6rem"><span class="time">2:50 &middot; 10 min</span><h2 class="split-words" style="font-size:clamp(2rem,4.4vw,4.4rem)">You type <span class="red mono" style="font-weight:500">google.com</span> &amp; press Enter</h2></div></div>
         <div class="jr">
-          <div class="jx b"><b>DNS</b><span>name &rarr; number</span></div>
-          <div class="jx b"><b>Hop 1</b><span>Wi-Fi, cable, SIM or satellite</span></div>
-          <div class="jx b"><b>Gateway</b><span>the router: the way out</span></div>
-          <div class="jx b"><b>NAT</b><span>swap to the public IP</span></div>
-          <div class="jx b"><b>ISP</b><span>fibre to the world</span></div>
-          <div class="jx b"><b>Undersea cable</b><span>out of Sri Lanka</span></div>
-          <div class="jx b"><b>Server</b><span>WhatsApp receives it</span></div>
+          <div class="jx b"><b>DNS</b><span>name &rarr; IP address</span></div>
+          <div class="jx b"><b>ARP</b><span>find the router's MAC</span></div>
+          <div class="jx b"><b>Packets</b><span>cut, wrapped, sent</span></div>
+          <div class="jx b"><b>TCP handshake</b><span>SYN, SYN-ACK, ACK to port 443</span></div>
+          <div class="jx b"><b>TLS lock</b><span>the sealed envelope</span></div>
+          <div class="jx b"><b>GET /</b><span>"send me the page"</span></div>
+          <div class="jx b"><b>200 OK</b><span>the page arrives</span></div>
           <div class="jx b" style="border-color:var(--c-red)"><b class="hl">Under 1 second</b><span>every single time</span></div>
         </div>
       </div>
-      <aside class="nt">Ask a student to narrate each step before you click. Everything from today in one slide.</aside>
+      <aside class="nt">This slide joins everything from today. Ask a student to narrate each step before you click.</aside>
     </section>
+
     <section class="slide" data-id="quiz" data-title="Quick fire">
       <div class="wrap">
-        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Name the <span class="red">word.</span></h2>
-        <div class="qcs" style="--qw:250px">
-          <button class="qc" type="button"><span class="q">Home address?</span><span class="ans b">IP address</span></button>
-          <button class="qc" type="button"><span class="q">ID that never changes?</span><span class="ans b">MAC address</span></button>
-          <button class="qc" type="button"><span class="q">Phonebook?</span><span class="ans b">DNS</span></button>
-          <button class="qc" type="button"><span class="q">Gate of your house?</span><span class="ans b">Gateway</span></button>
-          <button class="qc" type="button"><span class="q">One number, many extensions?</span><span class="ans b">NAT</span></button>
-          <button class="qc" type="button"><span class="q">Echo in a valley?</span><span class="ans b">Ping</span></button>
-          <button class="qc" type="button"><span class="q">The road company?</span><span class="ans b">ISP</span></button>
-          <button class="qc" type="button"><span class="q">Fastest link?</span><span class="ans b">Cable</span></button>
+        <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Quick <span class="red">fire.</span></h2>
+        <div class="qcs" style="--qw:300px">
+          <button class="qc" type="button"><span class="q">Command to see my IP?</span><span class="ans b">ipconfig &middot; ip a</span></button>
+          <button class="qc" type="button"><span class="q">Port for HTTPS?</span><span class="ans b">443</span></button>
+          <button class="qc" type="button"><span class="q">Fast but no checks?</span><span class="ans b">UDP</span></button>
+          <button class="qc" type="button"><span class="q">See open doors on my PC?</span><span class="ans b">netstat &middot; ss</span></button>
+          <button class="qc" type="button"><span class="q">Tool that sees packets?</span><span class="ans b">Wireshark</span></button>
+          <button class="qc" type="button"><span class="q">404 means?</span><span class="ans b">Not found</span></button>
         </div>
       </div>
-      <aside class="nt">Read the clue, let the room shout, then click Next to show the answer (or click a card to peek).</aside>
     </section>
+
     <section class="slide" data-id="safe" data-title="Stay safe">
       <div class="wrap center">
         <p class="kick">Take home</p>
         <h2 class="split-words">Stay <span class="red">safe.</span></h2>
         <div class="chips">
-          <span class="chip b">Change the router's admin password</span>
-          <span class="chip b">Wi-Fi: WPA2 / WPA3, long password</span>
-          <span class="chip b">Free Wi-Fi? No banking.</span>
-          <span class="chip b">Never share an OTP</span>
-          <span class="chip b">Update the router</span>
-          <span class="chip b hot">Know your network, protect your network</span>
+          <span class="chip b">Public Wi-Fi: assume someone is watching</span>
+          <span class="chip b">No https? No password.</span>
+          <span class="chip b">Close what you don't use</span>
+          <span class="chip b">Update everything</span>
+          <span class="chip b hot">Tools are for learning, never harm</span>
         </div>
       </div>
     </section>
+
     <section class="slide" data-id="homework" data-title="Homework">
       <div class="wrap">
         <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Try at <span class="red">home.</span></h2>
         <div class="cards" style="--cw:300px">
-          <div class="card b"><div class="big">Find</div><p>Your home gateway IP and Wi-Fi signal %.</p></div>
-          <div class="card b"><div class="big">Race</div><p>Ping 8.8.8.8 on Wi-Fi, then on mobile data. Bring both.</p></div>
-          <div class="card b ink"><div class="big">Ask</div><p>At home: fibre, phone line or 4G box? Which ISP?</p></div>
+          <div class="card b"><div class="big">Compare</div><p>Your IP at home vs here. Why different?</p></div>
+          <div class="card b"><div class="big">Count</div><p>1 minute of home Wi-Fi in Wireshark. How many DNS lookups?</p></div>
+          <div class="card b ink"><div class="big">Call</div><p>One API in Postman. Screenshot it for the group.</p></div>
         </div>
       </div>
     </section>
@@ -1851,8 +1262,7 @@ body:not(.os-lin) .lin{display:none!important}
     <section class="slide" data-id="end" data-title="Thank you">
       <div class="wrap center">
         <h1 class="split-words">Thank <span class="red">you.</span></h1>
-        <p class="sub b">Next week: <b style="color:var(--c-blue);font-weight:600">Network Traffic Analysis</b></p>
-        <p class="sub b small">Ports, Wireshark &amp; Postman</p>
+        <p class="sub b">Next week: <b style="color:var(--c-blue);font-weight:600">Legal &amp; Ethics</b></p>
         <p class="sub b">Stay curious. Stay ethical. Stay safe.</p>
       </div>
     </section>
