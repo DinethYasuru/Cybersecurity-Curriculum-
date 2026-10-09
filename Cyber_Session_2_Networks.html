@@ -553,6 +553,8 @@ body:not(.os-lin) .lin{display:none!important}
 @keyframes taunt{0%{opacity:0;transform:translateY(12px) scale(.8)}15%{opacity:1;transform:none}75%{opacity:1}100%{opacity:0;transform:translateY(-16px)}}
 .dgline{min-height:1.5em;display:grid;gap:.2rem;justify-items:center}
 #dgCount{font-weight:600;letter-spacing:.2em;text-transform:uppercase;font-size:clamp(.75rem,1.1vw,1rem);color:var(--c-red)}
+.card .hero{margin-top:.3rem;padding-top:.7rem;border-top:1.5px dashed var(--line);color:var(--text);font-size:clamp(1rem,1.6vw,1.55rem);font-style:italic;font-weight:300;line-height:1.3}
+.card .hero b{display:block;font-style:normal;font-family:var(--display);font-weight:500;letter-spacing:-.01em;color:var(--cc,var(--c-blue));margin-bottom:.15rem}
 </style>
 </head>
 <body>
@@ -711,13 +713,13 @@ body:not(.os-lin) .lin{display:none!important}
       <div class="wrap">
         <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Pick your <span class="red">hat.</span></h2>
         <div class="cards" style="--cw:280px">
-          <div class="card b hat"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#fff"/></svg><div class="big">White</div><p>Permission. Report. Fix.</p></div>
-          <div class="card b hat"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#9aa1b0"/></svg><div class="big">Grey</div><p>No permission. "Good" intent. Still illegal.</p></div>
-          <div class="card b hat ink"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#15171e"/></svg><div class="big">Black</div><p>Harm. Steal. Prison.</p></div>
+          <div class="card b hat"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#fff"/></svg><div class="big">White</div><p>Permission. Report. Fix.</p><p class="hero"><b>Spider-Man</b>"With great power comes great responsibility."</p></div>
+          <div class="card b hat"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#9aa1b0"/></svg><div class="big">Grey</div><p>No permission. "Good" intent. Still illegal.</p><p class="hero"><b>Batman</b>"I'm Batman." Fights crime, breaks every law doing it.</p></div>
+          <div class="card b hat ink"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#15171e"/></svg><div class="big">Black</div><p>Harm. Steal. Prison.</p><p class="hero"><b>The Joker</b>"Why so serious?" Just wants to watch the world burn.</p></div>
         </div>
         <p class="sub b" style="max-width:none">In this room, we wear <span class="hl">white.</span></p>
       </div>
-      <aside class="nt">Stress: grey hat is still a crime in Sri Lanka (Computer Crimes Act No. 24 of 2007). Full detail in Module 4.</aside>
+      <aside class="nt">Read the characters for a laugh: Spider-Man asks permission and protects people. Batman means well but has no permission, and the police still want him (grey). The Joker breaks things for fun (black). Then: Stress: grey hat is still a crime in Sri Lanka (Computer Crimes Act No. 24 of 2007). Full detail in Module 4.</aside>
     </section>
 
     <section class="slide" data-id="daily" data-title="Everyday attacks">
