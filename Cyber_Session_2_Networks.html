@@ -555,6 +555,15 @@ body:not(.os-lin) .lin{display:none!important}
 #dgCount{font-weight:600;letter-spacing:.2em;text-transform:uppercase;font-size:clamp(.75rem,1.1vw,1rem);color:var(--c-red)}
 .card .hero{margin-top:.3rem;padding-top:.7rem;border-top:1.5px dashed var(--line);color:var(--text);font-size:clamp(1rem,1.6vw,1.55rem);font-style:italic;font-weight:300;line-height:1.3}
 .card .hero b{display:block;font-style:normal;font-family:var(--display);font-weight:500;letter-spacing:-.01em;color:var(--cc,var(--c-blue));margin-bottom:.15rem}
+.card .hero.b.in{transition-delay:var(--hd,0s)}
+.fxl{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.fxl svg,.fxl canvas{position:absolute;inset:0;width:100%;height:100%}
+.fxl.night{background:#000;pointer-events:auto}
+.fxpow{position:absolute;font-family:var(--display);font-weight:600;font-size:clamp(2.4rem,5vw,5rem);color:var(--c-red);letter-spacing:-.02em;-webkit-text-stroke:2px #15171e;paint-order:stroke fill}
+.fxbat{position:absolute;left:7%;right:30%;top:16%;text-align:left;color:#fff;font-family:var(--display);font-weight:200;font-size:clamp(3rem,8vw,8rem);letter-spacing:.04em}
+.fxflash{position:absolute;inset:0}
+.fxring{position:absolute;border:10px solid var(--c-red);border-radius:50%;translate:-50% -50%}
+.fxha{position:absolute;font-family:var(--display);font-weight:600;color:var(--c-red);letter-spacing:-.02em;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -713,13 +722,13 @@ body:not(.os-lin) .lin{display:none!important}
       <div class="wrap">
         <h2 class="split-words" style="font-size:clamp(2.2rem,5vw,5rem)">Pick your <span class="red">hat.</span></h2>
         <div class="cards" style="--cw:280px">
-          <div class="card b hat"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#fff"/></svg><div class="big">White</div><p>Permission. Report. Fix.</p><p class="hero"><b>Spider-Man</b>"With great power comes great responsibility."</p></div>
-          <div class="card b hat"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#9aa1b0"/></svg><div class="big">Grey</div><p>No permission. "Good" intent. Still illegal.</p><p class="hero"><b>Batman</b>"I'm Batman." Fights crime, breaks every law doing it.</p></div>
-          <div class="card b hat ink"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#15171e"/></svg><div class="big">Black</div><p>Harm. Steal. Prison.</p><p class="hero"><b>The Joker</b>"Why so serious?" Just wants to watch the world burn.</p></div>
+          <div class="card b hat" data-o="1"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#fff"/></svg><div class="big">White</div><p>Permission. Report. Fix.</p><p class="hero b" data-o="4" style="--hd:.75s"><b>Spider-Man</b>"With great power comes great responsibility."</p></div>
+          <div class="card b hat" data-o="2"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#9aa1b0"/></svg><div class="big">Grey</div><p>No permission. "Good" intent. Still illegal.</p><p class="hero b" data-o="5" style="--hd:4.4s"><b>Batman</b>"I'm Batman." Fights crime, breaks every law doing it.</p></div>
+          <div class="card b hat ink" data-o="3"><svg viewBox="0 0 100 60"><path d="M6 46c14 9 74 9 88 0M24 44l6-30c1.5-6 8-7 12-3l8 6 8-6c4-4 10.5-3 12 3l6 30" fill="#15171e"/></svg><div class="big">Black</div><p>Harm. Steal. Prison.</p><p class="hero b" data-o="6" style="--hd:.9s"><b>The Joker</b>"Why so serious?" Just wants to watch the world burn.</p></div>
         </div>
-        <p class="sub b" style="max-width:none">In this room, we wear <span class="hl">white.</span></p>
+        <p class="sub b" data-o="7" style="max-width:none">In this room, we wear <span class="hl">white.</span></p>
       </div>
-      <aside class="nt">Read the characters for a laugh: Spider-Man asks permission and protects people. Batman means well but has no permission, and the police still want him (grey). The Joker breaks things for fun (black). Then: Stress: grey hat is still a crime in Sri Lanka (Computer Crimes Act No. 24 of 2007). Full detail in Module 4.</aside>
+      <aside class="nt"><b>Clicks:</b> 1-3 show the hats. Click 4 = Spider-Man (web shot), 5 = Batman (lights out, rooftop run, about 5 s, wait for it), 6 = Joker (explosion). Next is ignored while a scene plays. 7 = "we wear white". Read the characters for a laugh: Spider-Man asks permission and protects people. Batman means well but has no permission, and the police still want him (grey). The Joker breaks things for fun (black). Then: Stress: grey hat is still a crime in Sri Lanka (Computer Crimes Act No. 24 of 2007). Full detail in Module 4.</aside>
     </section>
 
     <section class="slide" data-id="daily" data-title="Everyday attacks">
@@ -1693,7 +1702,8 @@ function countUp(el,to,ms){
 }
 
 /* ---- builds + navigation ---- */
-const bs=slides.map(s=>$$('.b',s));
+function blist(s,skip){return $$('.b',s).map((el,k)=>[el,el.dataset.o!==undefined?Number(el.dataset.o):k]).filter(([el])=>!(skip&&el.classList.contains(skip))).sort((a,b)=>a[1]-b[1]).map(p=>p[0]);}
+const bs=slides.map(s=>blist(s));
 const shown=slides.map(()=>0);
 function applyBuilds(i){
   const s=slides[i],n=shown[i];
@@ -1701,6 +1711,7 @@ function applyBuilds(i){
   for(let k=1;k<=Math.max(bs[i].length,1);k++)s.classList.toggle('st'+k,n>=k);
   $$('[data-at]',s).forEach(el=>el.classList.toggle('on',n>=Number(el.dataset.at)));
   if(typeof PV!=='undefined'&&PV.w)pvUpdate();
+  if(s.dataset.id==='hats'&&typeof FX!=='undefined'){if(i===cur&&n===FX.last+1&&n>=4&&n<=6)fxHats(n,s);FX.last=n;}
 }
 const ENTER={
   ipv6:()=>countUp($('#v4n'),4294967296,2200),
@@ -1767,6 +1778,7 @@ function show(i,fromEnd){
   try{history.replaceState(null,'','#'+slides[i].dataset.id);}catch(e){}
 }
 function next(){
+  if(typeof FX!=='undefined'&&FX.busy)return;
   if(shown[cur]<bs[cur].length){shown[cur]++;applyBuilds(cur);$('#next').disabled=cur===slides.length-1&&shown[cur]>=bs[cur].length;}
   else show(cur+1);
 }
@@ -1849,7 +1861,7 @@ $('#menuBtn').onclick=openMenu;
 $('#menu').addEventListener('click',e=>{const b=e.target.closest('button[data-k]');if(b)show(Number(b.dataset.k));$('#menu').hidden=true;});
 
 /* ---- Windows / Linux toggle (remembered) ---- */
-function setOS(o){document.body.classList.toggle('os-lin',o==='lin');ls('s2-os',o);bs.forEach((arr,k)=>{bs[k]=$$('.b',slides[k]).filter(el=>!(o==='lin'?el.classList.contains('win'):el.classList.contains('lin')));});shown[cur]=Math.min(shown[cur],bs[cur].length);applyBuilds(cur);$('#next').disabled=cur===slides.length-1&&shown[cur]>=bs[cur].length;}
+function setOS(o){document.body.classList.toggle('os-lin',o==='lin');ls('s2-os',o);bs.forEach((arr,k)=>{bs[k]=blist(slides[k],o==='lin'?'win':'lin');});shown[cur]=Math.min(shown[cur],bs[cur].length);applyBuilds(cur);$('#next').disabled=cur===slides.length-1&&shown[cur]>=bs[cur].length;}
 $$('.os button').forEach(b=>b.addEventListener('click',()=>setOS(b.dataset.os)));
 
 /* ---- click a command or filter to copy it ---- */
@@ -2006,6 +2018,112 @@ DG.btn.onclick=e=>{
   else dgDodge(e.clientX,e.clientY);
 };
 dgMsg();
+
+/* ---- cinematic hero entrances on the hats slide ---- */
+const FX={busy:false,last:-1};
+function fxLayer(z){const d=document.createElement('div');d.className='fxl';d.style.zIndex=z||47;document.body.appendChild(d);return d;}
+function fxDone(ms,...els){setTimeout(()=>{els.forEach(e=>e.remove());FX.busy=false;},ms);}
+const SVGNS='http://www.w3.org/2000/svg';
+function sv(tag,attrs,parent){const e=document.createElementNS(SVGNS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function fxDraw(el,ms,delay){const L=el.getTotalLength?el.getTotalLength():400;el.style.strokeDasharray=L;el.style.strokeDashoffset=L;el.animate([{strokeDashoffset:L},{strokeDashoffset:0}],{duration:ms,delay:delay||0,easing:'cubic-bezier(.3,.7,.2,1)',fill:'forwards'});}
+
+/* Spider-Man: web shoots in from off-screen and splats on the white card */
+function fxSpider(target){
+  const W=innerWidth,H=innerHeight,r=target.getBoundingClientRect();
+  const tx=r.left+r.width*.5,ty=r.top+r.height*.62;
+  const lay=fxLayer(),s=sv('svg',{width:W,height:H,viewBox:'0 0 '+W+' '+H},lay);
+  const g=sv('g',{fill:'none',stroke:'#15171e','stroke-linecap':'round'},s);
+  const ox=-40,oy=H+40;
+  const shot=sv('path',{d:'M'+ox+' '+oy+' Q'+(tx*.45)+' '+(ty+H*.12)+' '+tx+' '+ty,'stroke-width':3},g);
+  const shot2=sv('path',{d:'M'+(ox+14)+' '+(oy+6)+' Q'+(tx*.47)+' '+(ty+H*.13)+' '+(tx+3)+' '+(ty+2),'stroke-width':1.2,opacity:.6},g);
+  fxDraw(shot,260);fxDraw(shot2,280);
+  const R=Math.min(W,H)*.2,N=12,sp=[];
+  for(let k=0;k<N;k++){const a=k/N*Math.PI*2+Math.random()*.2,l=R*(.75+Math.random()*.4);sp.push([a,l]);
+    fxDraw(sv('path',{d:'M'+tx+' '+ty+' L'+(tx+Math.cos(a)*l)+' '+(ty+Math.sin(a)*l),'stroke-width':1.8},g),200,250+k*12);}
+  for(let ring=1;ring<=4;ring++){const f=ring/4.4;let d='';
+    sp.forEach(([a,l],k)=>{const [a2,l2]=sp[(k+1)%N];const x1=tx+Math.cos(a)*l*f,y1=ty+Math.sin(a)*l*f,x2=tx+Math.cos(a2)*l2*f,y2=ty+Math.sin(a2)*l2*f,mid=(a+a2+(k===N-1?Math.PI*2:0))/2,mf=f*.78;
+      d+=(k?'':'M'+x1+' '+y1)+' Q'+(tx+Math.cos(mid)*((l+l2)/2)*mf)+' '+(ty+Math.sin(mid)*((l+l2)/2)*mf)+' '+x2+' '+y2;});
+    fxDraw(sv('path',{d,'stroke-width':1.3,opacity:.85},g),260,420+ring*70);}
+  const t=document.createElement('div');t.className='fxpow';t.textContent='THWIP!';t.style.left=(tx+R*.55)+'px';t.style.top=(ty-R*.9)+'px';lay.appendChild(t);
+  t.animate([{opacity:0,transform:'scale(.3) rotate(-14deg)'},{opacity:1,transform:'scale(1.15) rotate(-8deg)',offset:.6},{opacity:1,transform:'scale(1) rotate(-8deg)'}],{duration:420,delay:280,fill:'both',easing:'cubic-bezier(.34,1.56,.64,1)'});
+  target.animate([{transform:'none'},{transform:'translateY(-6px) rotate(-1deg)'},{transform:'none'}],{duration:380,delay:260});
+  lay.animate([{opacity:1},{opacity:0}],{duration:700,delay:1900,fill:'forwards'});
+  fxDone(2700,lay);
+}
+
+/* Batman: lights out, Gotham skyline, a caped figure runs the rooftops */
+function fxBat(){
+  const lay=fxLayer(48);lay.classList.add('night');
+  lay.animate([{opacity:0},{opacity:1}],{duration:500,fill:'forwards'});
+  const VW=1600,VH=900,s=sv('svg',{viewBox:'0 0 '+VW+' '+VH,preserveAspectRatio:'xMidYMax slice',width:'100%',height:'100%'},lay);
+  const df=sv('defs',{},s);
+  const lg=sv('linearGradient',{id:'gsky',x1:0,y1:0,x2:0,y2:1},df);sv('stop',{offset:0,'stop-color':'#000'},lg);sv('stop',{offset:1,'stop-color':'#18203a'},lg);
+  const fl=sv('filter',{id:'gglow',x:'-50%',y:'-50%',width:'200%',height:'200%'},df);sv('feGaussianBlur',{stdDeviation:18},fl);
+  sv('rect',{width:VW,height:VH,fill:'url(#gsky)'},s);
+  sv('circle',{cx:1180,cy:250,r:110,fill:'#e9e6dc',opacity:.35,filter:'url(#gglow)'},s);
+  sv('circle',{cx:1180,cy:250,r:92,fill:'#e9e6dc'},s);
+  // far skyline
+  let x=0;while(x<VW){const w=50+Math.random()*90,h=230+Math.random()*260;sv('rect',{x,y:VH-h,width:w,height:h,fill:'#121729'},s);if(Math.random()<.35)sv('rect',{x:x+w/2-3,y:VH-h-40,width:6,height:40,fill:'#121729'},s);x+=w+4;}
+  // near rooftops the runner uses
+  const roofs=[];x=-60;
+  while(x<VW+120){const w=170+Math.random()*170,h=150+Math.random()*190;roofs.push({x,w,y:VH-h});sv('rect',{x,y:VH-h,width:w,height:h,fill:'#05060b'},s);
+    for(let wy=VH-h+24;wy<VH-10;wy+=34)for(let wx=x+16;wx<x+w-16;wx+=30)if(Math.random()<.22){const win=sv('rect',{x:wx,y:wy,width:12,height:16,fill:'#3d4d72',opacity:.55},s);if(Math.random()<.3)win.animate([{opacity:.55},{opacity:.1},{opacity:.55}],{duration:900+Math.random()*1400,iterations:Infinity});}
+    x+=w+40+Math.random()*50;}
+  // runner
+  const rn=sv('g',{},s);
+  const cape=sv('path',{fill:'#000'},rn);
+  sv('path',{d:'M-11 -60 l3 -13 l4 9 h8 l4 -9 l3 13 a13 13 0 1 1 -22 0z',fill:'#000'},rn);
+  sv('rect',{x:-10,y:-50,width:20,height:30,rx:6,fill:'#000'},rn);
+  const legA=sv('rect',{x:-4,y:-22,width:8,height:24,rx:4,fill:'#000'},rn),legB=sv('rect',{x:-4,y:-22,width:8,height:24,rx:4,fill:'#000'},rn);
+  const roofY=px=>{for(const r of roofs)if(px>=r.x&&px<=r.x+r.w)return r.y;return null;};
+  const t0=performance.now()+450,dur=2600,X0=-80,X1=VW+80;let lastY=roofs[0].y,jumpFrom=null;
+  (function step(now){
+    if(!lay.isConnected)return;
+    const k=Math.max(0,Math.min(1,(now-t0)/dur)),px=X0+(X1-X0)*k;
+    let y=roofY(px);
+    if(y===null){ // gap: arc between rooftops
+      if(!jumpFrom){const nx=roofs.find(r=>r.x>px);jumpFrom={x:px,y:lastY,tx:nx?nx.x:px+80,ty:nx?nx.y:lastY};}
+      const f=Math.min(1,(px-jumpFrom.x)/Math.max(1,jumpFrom.tx-jumpFrom.x));y=jumpFrom.y+(jumpFrom.ty-jumpFrom.y)*f-Math.sin(f*Math.PI)*70;
+    }else{jumpFrom=null;lastY=y;}
+    const air=!roofY(px),ph=now/70;
+    legA.setAttribute('transform','rotate('+(air?-35:Math.sin(ph)*38)+' 0 -20)');legB.setAttribute('transform','rotate('+(air?40:-Math.sin(ph)*38)+' 0 -20)');
+    const fl=Math.sin(now/90)*10;
+    cape.setAttribute('d','M-8 -52 C-40 -46 -70 -'+(30+fl)+' -95 -'+(14-fl/2)+' C-70 -10 -40 -16 -10 -22 Z');
+    rn.setAttribute('transform','translate('+px+' '+(y-2)+') scale(1.7)');
+    if(k<1)requestAnimationFrame(step);
+  })(performance.now());
+  const q=document.createElement('div');q.className='fxbat';q.textContent='"I\'m Batman."';lay.appendChild(q);
+  q.animate([{opacity:0,letterSpacing:'.3em'},{opacity:1,letterSpacing:'.04em'}],{duration:900,delay:3000,fill:'both',easing:'cubic-bezier(.22,1,.36,1)'});
+  lay.animate([{opacity:1},{opacity:0}],{duration:800,delay:4300,fill:'forwards'});
+  fxDone(5150,lay);
+}
+
+/* Joker: blast, shock wave, laughter, the black card slams in */
+function fxJoker(card){
+  const r=card.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+  const lay=fxLayer(),cv=document.createElement('canvas');cv.width=innerWidth;cv.height=innerHeight;lay.appendChild(cv);
+  const fl=document.createElement('div');fl.className='fxflash';fl.style.background='radial-gradient(circle at '+cx+'px '+cy+'px,rgba(191,10,48,.55),rgba(191,10,48,.12) 35%,transparent 65%)';lay.appendChild(fl);
+  fl.animate([{opacity:0},{opacity:1,offset:.15},{opacity:0}],{duration:900,fill:'forwards'});
+  const ring=document.createElement('div');ring.className='fxring';ring.style.left=cx+'px';ring.style.top=cy+'px';lay.appendChild(ring);
+  ring.animate([{width:'0px',height:'0px',opacity:1,borderWidth:'18px'},{width:'170vmax',height:'170vmax',opacity:0,borderWidth:'1px'}],{duration:1000,easing:'cubic-bezier(.1,.7,.3,1)',fill:'forwards'});
+  const x=cv.getContext('2d'),cols=['#BF0A30','#15171e','#15171e','#6a7080','#BF0A30','#002868'];
+  const ps=Array.from({length:240},()=>{const a=Math.random()*Math.PI*2,v=4+Math.random()*20;return{x:cx,y:cy,vx:Math.cos(a)*v,vy:Math.sin(a)*v-3,s:2+Math.random()*7,c:cols[Math.floor(Math.random()*cols.length)],r:Math.random()*6,vr:(Math.random()-.5)*.5,l:1};});
+  (function tick(){if(!lay.isConnected)return;x.clearRect(0,0,cv.width,cv.height);let alive=0;
+    ps.forEach(p=>{p.vx*=.965;p.vy=p.vy*.965+.28;p.x+=p.vx;p.y+=p.vy;p.r+=p.vr;p.l-=.011;if(p.l<=0)return;alive++;x.globalAlpha=Math.max(0,p.l);x.save();x.translate(p.x,p.y);x.rotate(p.r);x.fillStyle=p.c;x.fillRect(-p.s/2,-p.s/2,p.s,p.s*.6);x.restore();});
+    x.globalAlpha=1;if(alive)requestAnimationFrame(tick);})();
+  $('#app').animate([{transform:'none'},{transform:'translate(-16px,10px) rotate(-.5deg)'},{transform:'translate(14px,-8px) rotate(.4deg)'},{transform:'translate(-8px,5px)'},{transform:'translate(5px,-2px)'},{transform:'none'}],{duration:520,easing:'ease-out'});
+  for(let k=0;k<7;k++){const h=document.createElement('div');h.className='fxha';h.textContent=k%3?'HA':'HA HA';
+    h.style.left=(8+Math.random()*80)+'vw';h.style.top=(12+Math.random()*70)+'vh';h.style.fontSize=(2+Math.random()*4)+'rem';lay.appendChild(h);
+    const rot=(Math.random()-.5)*40;h.animate([{opacity:0,transform:'scale(.2) rotate('+rot+'deg)'},{opacity:1,transform:'scale(1.1) rotate('+rot+'deg)',offset:.3},{opacity:0,transform:'scale(1.4) rotate('+rot+'deg)'}],{duration:1300,delay:350+k*120,fill:'both',easing:'cubic-bezier(.2,.8,.2,1)'});}
+  card.animate([{transform:'scale(.2) rotate(-25deg)',opacity:0,filter:'blur(10px)'},{transform:'scale(1.18) rotate(4deg)',opacity:1,filter:'none',offset:.55},{transform:'scale(.96) rotate(-1deg)',offset:.8},{transform:'none'}],{duration:900,delay:250,easing:'cubic-bezier(.22,1,.36,1)',fill:'backwards'});
+  fxDone(2600,lay);
+}
+function fxHats(n,s){
+  if(REDUCED)return;
+  const cards=$$('.card',s);
+  FX.busy=true;
+  if(n===4)fxSpider(cards[0]);else if(n===5)fxBat();else if(n===6)fxJoker(cards[2]);else FX.busy=false;
+}
 
 /* ---- presenter window (P): notes, current + next, timers; drives this deck ---- */
 const PV={w:null,t0:0,paused:0,pauseAt:0,tick:0,fs:ls('s2-pv-fs')||'22'};
