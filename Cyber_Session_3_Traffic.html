@@ -799,6 +799,19 @@ body:not(.os-lin) .lin{display:none!important}
 @keyframes flick{0%,30%{opacity:1}32%{opacity:.1}36%{opacity:.9}40%,60%{opacity:.1}64%,100%{opacity:1}}
 .a-flick2{opacity:0}.slide.active .a-flick2{animation:fl2 3s infinite}
 @keyframes fl2{0%,30%{opacity:0}40%,60%{opacity:1}70%,100%{opacity:0}}
+
+/* keep content clear of the corner stripes and stars */
+.slide{padding-left:max(16px,9vw);padding-right:max(16px,9vw)}
+.starc{--sw:clamp(60px,6.5vw,115px)}
+@media (max-height:820px){
+.slide{padding-top:.7rem;padding-bottom:.7rem}
+.wrap{gap:clamp(.7rem,2.2vh,1.5rem)}
+.slide h2{font-size:min(4.2rem,var(--h2max,4.2rem))!important}
+.card{padding:clamp(.8rem,1.4vw,1.3rem)}
+.ticks{gap:.5rem}
+}
+@media (min-width:900px){.brkwrap{flex-wrap:nowrap}.ft[style*="560px"]{grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr))}.nsteps{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))}}
+@media (max-height:820px){.fx,.like{font-size:clamp(1rem,1.6vw,1.6rem)}}
 </style>
 </head>
 <body data-total="180">
@@ -1411,7 +1424,7 @@ const WC={cv:$('#wcv'),home:null,sets:[],raf:0,key:'',dpr:1,v:0,big:false};
 const REDUCE=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STEP=1;
 const COLS=['#BF0A30',null,'#002868'];
-function wsize(big){const vw=innerWidth;return Math.round(big?Math.max(130,Math.min(300,vw*.19)):Math.max(80,Math.min(170,vw*.105)));}
+function wsize(big){const vw=innerWidth;return Math.round(big?Math.max(130,Math.min(300,vw*.19)):Math.max(80,Math.min(170,vw*.09)));}
 function wbuild(v,big){
   const W=Math.round(WC.cv.clientWidth),H=Math.round(WC.cv.clientHeight),ws=wsize(big);
   const x0=(v===0||v===2)?W-ws:0,y0=(v===0||v===1)?H-ws:0;
