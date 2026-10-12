@@ -165,6 +165,23 @@ td.name{white-space:normal;min-width:140px;font-weight:600}
 .bar i{display:block;height:100%;background:var(--navy);border-radius:4px;transition:width .9s var(--ease)}
 .bar.low i{background:var(--red)}
 .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
+.split.wideleft{grid-template-columns:minmax(0,1.9fr) minmax(300px,1fr)}
+@media (max-width:900px){.split.wideleft{grid-template-columns:1fr}}
+.reg td.cell{padding:4px;text-align:center;min-width:60px}
+.reg td.cell button{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;min-height:42px;border-radius:9px;font-family:'Outfit';font-weight:700;font-size:1.2rem;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .2s,color .2s,transform .15s}
+.reg td.cell button:active{transform:scale(.92)}
+.reg td.cell button:focus-visible{outline:3px solid var(--navy);outline-offset:-3px}
+.reg td.cell button.v1{background:var(--navy);color:#fff}
+.reg td.cell button.v0{color:var(--red)}
+.reg td.cell button.vE{color:var(--navy);background:#eef2f8}
+.reg td.cell button.vP{color:#b8c1d1}
+.reg td.cell button.vX{color:#d5dbe6;cursor:default}
+.reg td.cell button.saving{opacity:.55}
+.reg td.tot{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.reg th.today{color:var(--red)}
+.row>.legend{flex:1 1 260px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:.95rem}
+.legend b{display:inline-flex;align-items:center;justify-content:center;width:30px;height:26px;border-radius:6px;font-family:'Outfit';margin-right:4px}
 .mt{margin-top:18px}.mb{margin-bottom:14px}
 .steps{padding-left:22px;line-height:1.6;font-size:1.02rem}
 .steps li{margin-bottom:8px}
@@ -372,9 +389,9 @@ function msgBox(msg){return '<div id="ciMsg">'+(msg?'<div class="msg err">'+esc(
 
 function renderPhone(msg){
   const me=getMe()||{},c=$('#stCard');
-  if(!SID){c.innerHTML='<h2>Not set up yet</h2><p class="lead">Your instructor has not connected the attendance server. Scan the QR on the classroom screen when it shows.</p>';return}
   c.innerHTML=`<h2>${me.name?'Hi '+esc(me.name.split(' ')[0])+'!':'Check in'}</h2>
     <p class="lead">${CODE?'Code scanned. Type your mobile number.':needCode()?'Scan the QR on the classroom screen, or type the 6-letter code you see under it.':'Type your mobile number.'}</p>
+    ${SID?'':'<div class="msg err">Not connected to the attendance server yet, so check-in will not save. Instructor: <a href="#setup">connect it or try the demo</a>.</div>'}
     <form id="ciForm" novalidate>
       <div class="field"><label for="sphone">Mobile number</label><input id="sphone" type="tel" inputmode="tel" autocomplete="tel" maxlength="16" placeholder="07X XXX XXXX" value="${esc(showPhone(me.phone||''))}"><div class="hint">First time? You register with this number and get your student ID.</div></div>
       ${codeField()}
@@ -491,7 +508,7 @@ $('#toSetup').onclick=()=>{location.hash='#setup'};
 $('#toStudent').onclick=()=>{location.hash=''};
 $('#toAdmin').onclick=()=>{location.hash='#admin'};
 
-const TABS=[['live','Live QR'],['reports','Reports'],['students','Students'],['excuses','Excuses'],['days','Class days'],['log','Log'],['settings','Settings']];
+const TABS=[['live','Live QR'],['register','Register'],['reports','Reports'],['students','Students'],['excuses','Excuses'],['days','Class days'],['log','Log'],['settings','Settings']];
 async function loadData(show){
   const r=await adminCall({action:'data'});
   if(!r.ok){if(r.reason!=='auth')toast(r.message,true);return false}
@@ -520,7 +537,7 @@ function stopLive(){clearInterval(liveTimer);clearInterval(pollTimer);liveTimer=
 function renderPane(){
   stopLive();if(!DATA)return;
   const box=$('#paneBox');
-  ({live:paneLive,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,log:paneLog,settings:paneSettings})[TAB](box);
+  ({live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,log:paneLog,settings:paneSettings})[TAB](box);
 }
 
 /* Live QR */
@@ -578,7 +595,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')document.body.classL
 
 /* Reports */
 function compute(){
-  const D=DATA,today=D.today;
+  const D=DATA,today=D.today,done=!!(D.status&&D.status.todayDone);
   const held=D.days.filter(d=>d.status==='held'&&d.date<=today).map(d=>d.date).sort();
   const att={},exc={},first={};
   D.attendance.forEach(r=>{att[r.id+'|'+r.date]=r;if(!first[r.id]||r.date<first[r.id])first[r.id]=r.date});
@@ -586,10 +603,13 @@ function compute(){
   const th=RPT.th/100;
   const rows=D.students.map(s=>{
     const f=[first[s.id],s.added].filter(Boolean).sort()[0]||today,start=D.settings.fromFirst?f:'';
-    const days=held.filter(d=>d>=start);
-    let P=0,E=0;const cells={};
-    held.forEach(d=>{const a=att[s.id+'|'+d],e=exc[s.id+'|'+d];cells[d]=d<start?'-':a?'P':e?'E':'A';if(d>=start){if(a)P++;else if(e)E++}});
-    const n=days.length,raw=n?P/n:null,adj=n?(P+E)/n:null;
+    let P=0,E=0,n=0;const cells={};
+    held.forEach(d=>{const a=att[s.id+'|'+d],e=exc[s.id+'|'+d];
+      // today stays open until the class window ends; then a missing check-in becomes 0
+      const pending=d===today&&!done&&!a&&!e;
+      cells[d]=d<start?'-':a?'P':e?'E':pending?'?':'A';
+      if(d>=start&&!pending){n++;if(a)P++;else if(e)E++}});
+    const raw=n?P/n:null,adj=n?(P+E)/n:null;
     const res=n===0?'none':raw>=th-1e-9?'pass':(RPT.useExc&&adj>=th-1e-9)?'excused':'below';
     return {s,P,E,A:n-P-E,n,raw,adj,res,cells};
   }).sort((a,b)=>a.s.name.localeCompare(b.s.name));
@@ -647,7 +667,7 @@ function studentHTML(rb,C){
    <p class="mb">With excuses: <b>${pct(r.adj)}</b> · Result at ${RPT.th}%: <span class="chip ${RES[r.res][0]}">${RES[r.res][1]}</span></p>
    <div class="tblwrap"><table><thead><tr><th>Day</th><th>Status</th><th>Time</th><th>How</th><th class="noprint">Change</th></tr></thead><tbody>
    ${C.held.slice().reverse().map(d=>{const a=C.att[r.s.id+'|'+d],e=C.exc[r.s.id+'|'+d],c=r.cells[d];
-     return `<tr><td>${esc(niceDate(d))}</td><td>${c==='P'?'<span class="chip p">Present</span>':c==='E'?'<span class="chip e">Excused</span>':c==='-'?'<span class="chip g">Before start</span>':'<span class="chip a">Absent</span>'}${e?' <span class="hint">'+esc(e.reason||'')+'</span>':''}</td><td>${a?esc(a.time):''}</td><td>${a?esc(a.method==='admin'?'Marked by you':a.method==='qr'?'QR':a.method):''}</td>
+     return `<tr><td>${esc(niceDate(d))}</td><td>${c==='P'?'<span class="chip p">Present</span>':c==='E'?'<span class="chip e">Excused</span>':c==='-'?'<span class="chip g">Before start</span>':c==='?'?'<span class="chip g">Class not over</span>':'<span class="chip a">Absent</span>'}${e?' <span class="hint">'+esc(e.reason||'')+'</span>':''}</td><td>${a?esc(a.time):''}</td><td>${a?esc(a.method==='admin'?'Marked by you':a.method==='qr'?'QR':a.method):''}</td>
      <td class="noprint"><div class="row">${a?`<button class="btn small ghost" data-act="absent" data-d="${d}">Mark absent</button>`:`<button class="btn small ghost" data-act="present" data-d="${d}">Mark present</button>`}${!a?(e?`<button class="btn small ghost" data-act="unexcuse" data-d="${d}">Remove excuse</button>`:`<button class="btn small ghost" data-act="excuse" data-d="${d}">Excuse</button>`):''}</div></td></tr>`}).join('')||'<tr><td colspan="5" class="hint">No class days yet.</td></tr>'}
    </tbody></table></div>${extra.length?`<p class="hint mt">Upcoming excused: ${extra.map(e=>esc(niceDate(e.date))+(e.reason?' ('+esc(e.reason)+')':'')).join(', ')}</p>`:''}</div>`;
   $('#stSel').onchange=e=>{RPT.student=e.target.value;renderPane()};
@@ -679,10 +699,10 @@ function dayHTML(rb,C){
 function gridHTML(C){
   if(!C.rows.length)return '<p class="hint">No students yet.</p>';
   return `<p class="hint mb">P present · E excused · A absent</p><div class="tblwrap grid"><table><thead><tr><th>Student</th>${C.held.map(d=>`<th class="num">${esc(niceDate(d,false))}</th>`).join('')}<th class="num">%</th><th class="num">+Exc</th></tr></thead><tbody>
-  ${C.rows.map(r=>`<tr><td class="name">${esc(r.s.name)}</td>${C.held.map(d=>`<td class="c ${r.cells[d]}">${r.cells[d]==='-'?'·':r.cells[d]}</td>`).join('')}<td class="num"><b>${pct(r.raw)}</b></td><td class="num">${pct(r.adj)}</td></tr>`).join('')}</tbody></table></div>`;
+  ${C.rows.map(r=>`<tr><td class="name">${esc(r.s.name)}</td>${C.held.map(d=>`<td class="c ${r.cells[d]}">${r.cells[d]==='-'?'·':r.cells[d]==='?'?'…':r.cells[d]}</td>`).join('')}<td class="num"><b>${pct(r.raw)}</b></td><td class="num">${pct(r.adj)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function summaryTable(C){return [['ID','Name','Mobile','Active','Class days','Present','Excused','Absent','Attendance %','With excuses %','Result at '+RPT.th+'%']].concat(C.rows.map(r=>[r.s.id,r.s.name,r.s.phone||'',r.s.active,r.n,r.P,r.E,r.A,r.raw==null?'':(r.raw*100).toFixed(1),r.adj==null?'':(r.adj*100).toFixed(1),RES[r.res][1]]))}
-function gridTable(C){return [['ID','Name','Mobile'].concat(C.held,['Attendance %','With excuses %'])].concat(C.rows.map(r=>[r.s.id,r.s.name,r.s.phone||''].concat(C.held.map(d=>{const c=r.cells[d],a=C.att[r.s.id+'|'+d],e=C.exc[r.s.id+'|'+d];return c==='P'?'P '+a.time:c==='E'?'E '+(e.reason||''):c==='-'?'':'A'}),[r.raw==null?'':(r.raw*100).toFixed(1),r.adj==null?'':(r.adj*100).toFixed(1)])))}
+function gridTable(C){return [['ID','Name','Mobile'].concat(C.held,['Attendance %','With excuses %'])].concat(C.rows.map(r=>[r.s.id,r.s.name,r.s.phone||''].concat(C.held.map(d=>{const c=r.cells[d],a=C.att[r.s.id+'|'+d],e=C.exc[r.s.id+'|'+d];return c==='P'?'P '+a.time:c==='E'?'E '+(e.reason||''):c==='-'||c==='?'?'':'A'}),[r.raw==null?'':(r.raw*100).toFixed(1),r.adj==null?'':(r.adj*100).toFixed(1)])))}
 function toCsv(t){return '﻿'+t.map(r=>r.map(v=>{v=String(v==null?'':v);if(/^[=+\-@\t\r]/.test(v))v="'"+v;return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(',')).join('\r\n')}
 function propEsc(v,key){let s='';for(const ch of String(v==null?'':v)){const c=ch.codePointAt(0);
   if(ch==='\\')s+='\\\\';else if(ch==='\n')s+='\\n';else if(ch==='\r')s+='\\r';else if(ch==='\t')s+='\\t';else if(key&&/[=: #!]/.test(ch))s+='\\'+ch;
@@ -702,10 +722,51 @@ function toProps(C){
 }
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type+';charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast('Downloaded '+name)}
 
+/* Register: a class sheet, names down, class days across. Click = 1, double click = 0. */
+let regQueue={},regTimer=null,regBusy=false,regScroll=null;
+function paneRegister(box){
+  const C=compute(),today=DATA.today,done=!!DATA.status.todayDone;
+  const rows=C.rows.filter(r=>r.s.active!=='no'||C.held.some(d=>r.cells[d]==='P'));
+  const days=C.held.slice();
+  // during class, today's column shows even before anyone checks in
+  if(DATA.status.open&&!days.includes(today))days.push(today);
+  box.innerHTML=`<div class="pane">
+    <div class="row mb" style="justify-content:space-between"><div class="legend"><span><b class="v1" style="background:var(--navy);color:#fff">1</b>Present</span><span><b style="color:var(--red);border:1px solid var(--line)">0</b>Absent</span><span><b style="color:var(--navy);background:#eef2f8">E</b>Excused</span><span><b style="color:#b8c1d1;border:1px solid var(--line)">…</b>Class not over</span></div>
+      <form id="addDay" class="row noprint"><input type="date" id="newDay" max="${today}" value="${today}" style="width:auto" aria-label="Class day"><button class="btn small ghost">Add day</button></form></div>
+    <p class="hint mb">Tap a cell to mark <b>1</b>, tap again for <b>0</b>. Double tap always sets 0. QR check-ins show here as 1. ${done?'':'Today turns into 0 for anyone missing once the class ends at '+esc(DATA.settings.end)+'.'}</p>
+    ${rows.length&&days.length?`<div class="tblwrap grid reg"><table><thead><tr><th>Student</th>${days.map(d=>`<th class="num${d===today?' today':''}">${esc(niceDate(d,false))}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td class="name">${esc(r.s.name)}<br><span class="hint">${esc(r.s.id)}</span></td>${days.map(d=>{const c=r.cells[d]||'?';
+      const v=c==='P'?'1':c==='E'?'E':c==='?'?'…':c==='-'?'·':'0',cls=c==='P'?'v1':c==='E'?'vE':c==='?'?'vP':c==='-'?'vX':'v0';
+      const a=C.att[r.s.id+'|'+d];
+      return `<td class="cell"><button class="${cls}" data-id="${esc(r.s.id)}" data-d="${d}" title="${esc(r.s.name)}, ${esc(niceDate(d))}${a&&a.time?' · '+esc(a.time)+(a.method==='qr'?' QR':''):''}${c==='E'?' · excused':''}">${v}</button></td>`}).join('')}<td class="tot">${r.P}/${r.n}</td></tr>`).join('')}
+    </tbody></table></div>`:'<p class="hint">'+(rows.length?'No class days yet. Add one above.':'No students yet. Add them under Students.')+'</p>'}
+    <div class="row mt"><span class="hint" id="regState"></span></div></div>`;
+  $('#addDay').onsubmit=async e=>{e.preventDefault();const d=$('#newDay').value;if(!d)return;const r=await adminCall({action:'day',date:d,status:'held'});if(r.ok){toast('Day added');loadData()}else toast(r.message,true)};
+  const tbl=box.querySelector('.reg');if(!tbl)return;
+  tbl.scrollLeft=regScroll==null?tbl.scrollWidth:regScroll;tbl.onscroll=()=>{regScroll=tbl.scrollLeft};
+  // pick up new QR check-ins while the sheet is open
+  pollTimer=setInterval(()=>{if(!regBusy&&!Object.keys(regQueue).length&&!clickT)loadData()},isDemo()?5000:20000);
+  let clickT=null,lastBtn=null;
+  const set=(b,present)=>{if(b.classList.contains('vX'))return;
+    b.className=present?'v1':'v0';b.textContent=present?'1':'0';b.classList.add('saving');
+    regQueue[b.dataset.id+'|'+b.dataset.d]={id:b.dataset.id,date:b.dataset.d,present};
+    $('#regState').textContent='Saving…';clearTimeout(regTimer);regTimer=setTimeout(flushRegister,700)};
+  tbl.addEventListener('click',e=>{const b=e.target.closest('button[data-id]');if(!b||b.classList.contains('vX'))return;
+    if(clickT&&lastBtn===b){clearTimeout(clickT);clickT=null;set(b,false);return}
+    lastBtn=b;clickT=setTimeout(()=>{clickT=null;set(b,!b.classList.contains('v1'))},230)});
+}
+async function flushRegister(){
+  if(regBusy){clearTimeout(regTimer);regTimer=setTimeout(flushRegister,400);return}
+  const list=Object.values(regQueue);if(!list.length)return;regQueue={};regBusy=true;
+  const r=await adminCall({action:'marks',list}).catch(e=>({ok:false,message:e.message}));regBusy=false;
+  if(r.ok){const st=$('#regState');if(st)st.textContent='Saved';if(!Object.keys(regQueue).length)loadData()}
+  else{toast(r.message||'Not saved',true);loadData()}
+}
+
 /* Students */
 function paneStudents(box){
   const C=compute(),byId={};C.rows.forEach(r=>byId[r.s.id]=r);
-  box.innerHTML=`<div class="pane split">
+  box.innerHTML=`<div class="pane split wideleft">
    <div><div class="row mb"><input id="find" class="grow" placeholder="Search name, ID or number" aria-label="Search"></div>
     <div class="tblwrap"><table><thead><tr><th>Student</th><th>ID</th><th>Mobile</th><th class="num">Present</th><th class="num">%</th><th></th></tr></thead><tbody id="stBody"></tbody></table></div></div>
    <div><div class="card" style="animation:none"><h3 id="stFormTitle">Add a student</h3>
