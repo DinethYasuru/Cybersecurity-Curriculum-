@@ -87,6 +87,15 @@ function AttendanceCore(rawEnv) {
     if (extraWindow(now)) return true;
     return s.days.indexOf(t.day) >= 0 && t.time >= s.start && t.time < s.end && !cancelled(t.date);
   }
+  // today's absences count only once the class window is over (13:00 by default)
+  function todayDone(now, s) {
+    var t = local(now, s);
+    return !isOpen(now, s) && (s.days.indexOf(t.day) < 0 || t.time >= s.end);
+  }
+  function counted(date, now, s) {
+    var today = local(now, s).date;
+    return date < today || (date === today && todayDone(now, s));
+  }
   function cancelled(date) {
     return env.read('days').some(function (r) { return r.date === date && r.status === 'cancelled'; });
   }
@@ -168,7 +177,7 @@ function AttendanceCore(rawEnv) {
   }
   function publicStatus(now) {
     var s = settings(), t = local(now, s);
-    return { ok: true, now: now, today: t.date, time: t.time, open: isOpen(now, s),
+    return { ok: true, now: now, today: t.date, time: t.time, open: isOpen(now, s), todayDone: todayDone(now, s),
       extraUntil: extraWindow(now), nextOpen: nextOpen(now, s),
       window: { days: s.days, start: s.start, end: s.end, tzName: s.tzName, tzOffset: s.tzOffset },
       requireCode: s.requireCode, selfRegister: s.selfRegister, configured: !!env.getProp('adminHash'), idExample: formatId(s, Number(s.idStart) || 1) };
@@ -240,7 +249,7 @@ function AttendanceCore(rawEnv) {
     var att = {}, exc = {}, start = st.added || today;
     env.read('attendance').forEach(function (r) { if (r.id === id) { att[r.date] = r.time; if (r.date < start) start = r.date; } });
     if (!s.fromFirst) start = '';
-    var days = env.read('days').filter(function (r) { return r.status !== 'cancelled' && r.date <= today && r.date >= start; }).map(function (r) { return r.date; }).sort();
+    var days = env.read('days').filter(function (r) { return r.status !== 'cancelled' && (counted(r.date, now, s) || att[r.date]) && r.date >= start; }).map(function (r) { return r.date; }).sort();
     env.read('excuses').forEach(function (r) { if (r.id === id) exc[r.date] = r.reason || 'excused'; });
     return { ok: true, id: id, name: st.name, phone: st.phone, records: days.map(function (d) {
       return { date: d, status: att[d] ? 'present' : exc[d] ? 'excused' : 'absent', time: att[d] || '' };
@@ -301,6 +310,25 @@ function AttendanceCore(rawEnv) {
       if (req.present && !env.read('days').some(function (r) { return r.date === req.date; })) env.append('days', { date: req.date, status: 'held', note: '' });
       A((req.present ? 'present ' : 'removed ') + req.date);
       return { ok: true };
+    }
+    if (a === 'marks') {
+      // register sheet: many cells at once, [{id, date, present}]
+      var known = {}, list = (req.list || []).slice(0, 500), changes = 0;
+      env.read('students').forEach(function (r) { known[r.id] = r; });
+      rows = env.read('attendance');
+      var newDays = {};
+      for (var i = 0; i < list.length; i++) {
+        var m = list[i], mid = cleanId(m.id);
+        if (!known[mid] || !validDate(m.date)) return fail('input', 'Unknown student or date.');
+        if (m.date > t.date) return fail('input', 'You cannot mark a future day.');
+        var has = rows.some(function (r) { return r.id === mid && r.date === m.date; });
+        if (m.present && !has) { rows.push({ date: m.date, id: mid, name: known[mid].name, time: m.date === t.date ? t.time : '', device: '', method: 'admin', note: 'register' }); newDays[m.date] = 1; changes++; log(now, s, 'register', mid, known[mid].name, 'admin', 'done', 'present ' + m.date); }
+        if (!m.present && has) { rows = rows.filter(function (r) { return !(r.id === mid && r.date === m.date); }); changes++; log(now, s, 'register', mid, known[mid].name, 'admin', 'done', 'absent ' + m.date); }
+      }
+      if (changes) env.write('attendance', rows);
+      var dd2 = env.read('days');
+      Object.keys(newDays).forEach(function (d) { if (!dd2.some(function (r) { return r.date === d; })) env.append('days', { date: d, status: 'held', note: '' }); });
+      return { ok: true, changes: changes };
     }
     if (a === 'excuse') {
       if (!validId(id) || !validDate(req.date)) return fail('input', 'Pick a student and a date.');
