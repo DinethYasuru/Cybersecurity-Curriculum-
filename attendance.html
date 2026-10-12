@@ -104,6 +104,12 @@ input[type=checkbox]{width:22px;height:22px;min-height:0;accent-color:var(--navy
 .chip.a{background:#fff;color:var(--red);border:1.5px solid var(--red)}
 .chip.x{background:var(--red);color:#fff}
 .chip.g{background:var(--soft);color:var(--muted)}
+.idcard{border:2px solid var(--navy);border-radius:16px;padding:18px 20px;text-align:center;animation:pop .5s var(--ease) both}
+.idk{font-family:'Outfit';font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--red);font-size:.85rem}
+.idv{font-family:'Outfit';font-weight:700;color:var(--navy);font-size:clamp(2.2rem,9vw,3rem);line-height:1.1;margin:4px 0 12px;letter-spacing:.02em;word-break:break-all}
+.idcard dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;text-align:left;border-top:1px solid var(--line);padding-top:12px;font-size:1.1rem}
+.idcard dt{color:var(--muted)}
+.idcard dd{margin:0;font-weight:600;word-break:break-word}
 .msg{padding:12px 14px;border-radius:12px;background:var(--soft);color:var(--ink);margin:12px 0;line-height:1.45;font-size:1rem}
 .msg.err{background:#fff;border:1.5px solid var(--red);color:var(--red)}
 .msg.good{background:#fff;border:1.5px solid var(--navy);color:var(--navy)}
@@ -348,68 +354,102 @@ setInterval(paintPill,15000);
 
 /* ---------- student ---------- */
 let DEVICE=store.get('att-device');if(!DEVICE||!/^[a-f0-9]{24}$/.test(DEVICE)){DEVICE=randHex(12);store.set('att-device',DEVICE)}
-const getMe=()=>{try{return JSON.parse(store.get('att-me')||'null')}catch(e){return null}};
+const getMe=()=>{try{const m=JSON.parse(store.get('att-me')||'null');return m&&m.phone?m:null}catch(e){return null}};
 const setMe=m=>store.set('att-me',JSON.stringify(m));
 let urlCode=(params.get('c')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 if(params.get('c')){const u=new URL(location.href);u.searchParams.delete('c');history.replaceState(null,'',u.pathname+u.search+u.hash)}
-let editing=false;
-
 const OK_SVG='<svg class="mark ok" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48"/><path d="M28 52l15 15 30-32"/></svg>';
 const BAD_SVG='<svg class="mark bad" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48"/><path d="M33 33l34 34M67 33L33 67"/></svg>';
+let CODE=urlCode;
+// Sri Lankan numbers: 0771234567, +94 77 123 4567 and 94771234567 all become 0771234567 (same rule as the server)
+function cleanPhone(v){let d=String(v||'').replace(/\D/g,'');if(d.length===11&&d.startsWith('94'))d='0'+d.slice(2);if(d.length===9&&d[0]!=='0')d='0'+d;return /^0\d{9}$/.test(d)?d:''}
+const showPhone=p=>p&&p.length===10?p.slice(0,3)+' '+p.slice(3,6)+' '+p.slice(6):p||'';
+const needCode=()=>!STATUS||STATUS.requireCode;
+function busy(t){$('#stCard').innerHTML='<div class="result"><div class="spinner"></div><p>'+esc(t)+'</p></div>'}
+function codeField(){return needCode()?`<div class="field"${CODE?' hidden':''}><label for="scode">Code on the screen</label><input id="scode" class="code" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="••••••" value="${esc(CODE)}"></div>`:''}
+function readCode(){const el=$('#scode');if(el)CODE=el.value.toUpperCase().replace(/[^A-Z0-9]/g,'');return CODE}
+function msgBox(msg){return '<div id="ciMsg">'+(msg?'<div class="msg err">'+esc(msg)+'</div>':'')+'</div>'}
 
-function renderForm(msg){
-  const me=getMe()||{},hasMe=me.id&&me.name&&!editing,needCode=!STATUS||STATUS.requireCode;
-  const c=$('#stCard');
+function renderPhone(msg){
+  const me=getMe()||{},c=$('#stCard');
   if(!SID){c.innerHTML='<h2>Not set up yet</h2><p class="lead">Your instructor has not connected the attendance server. Scan the QR on the classroom screen when it shows.</p>';return}
-  c.innerHTML=`<h2>${hasMe?'Hi '+esc(me.name.split(' ')[0])+'!':'Check in'}</h2>
-    <p class="lead">${urlCode?'Code scanned. Tap Check in.':needCode?'Scan the QR on the classroom screen, or type the 6-letter code you see under it.':'Tap Check in during class time.'}</p>
+  c.innerHTML=`<h2>${me.name?'Hi '+esc(me.name.split(' ')[0])+'!':'Check in'}</h2>
+    <p class="lead">${CODE?'Code scanned. Type your mobile number.':needCode()?'Scan the QR on the classroom screen, or type the 6-letter code you see under it.':'Type your mobile number.'}</p>
     <form id="ciForm" novalidate>
-      ${hasMe?`<div class="msg">ID <b>${esc(me.id)}</b> · ${esc(me.name)} <button type="button" class="linkbtn" id="chg">Not you?</button></div>`:`
-      <div class="field"><label for="sid">Student ID</label><input id="sid" autocomplete="off" autocapitalize="characters" inputmode="text" maxlength="20" placeholder="e.g. CS-014" value="${esc(me.id||'')}"><div class="hint">The ID your instructor gave you, or your mobile number. Use the same one every week.</div></div>
-      <div class="field"><label for="sname">Your name</label><input id="sname" autocomplete="name" maxlength="60" placeholder="First and last name" value="${esc(me.name||'')}"></div>`}
-      ${needCode?`<div class="field"${urlCode?' hidden':''}><label for="scode">Code on the screen</label><input id="scode" class="code" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="••••••" value="${esc(urlCode)}"></div>`:''}
-      <button class="btn wide" id="ciBtn">Check in</button>
-    </form><div id="ciMsg">${msg?'<div class="msg err">'+esc(msg)+'</div>':''}</div>`;
-  const chg=$('#chg');if(chg)chg.onclick=()=>{editing=true;renderForm()};
-  $('#ciForm').onsubmit=e=>{e.preventDefault();doCheckin()};
+      <div class="field"><label for="sphone">Mobile number</label><input id="sphone" type="tel" inputmode="tel" autocomplete="tel" maxlength="16" placeholder="07X XXX XXXX" value="${esc(showPhone(me.phone||''))}"><div class="hint">First time? You register with this number and get your student ID.</div></div>
+      ${codeField()}
+      <button class="btn wide" id="ciBtn">Continue</button>
+    </form>${msgBox(msg)}`;
+  $('#ciForm').onsubmit=e=>{e.preventDefault();doLookup($('#sphone').value)};
+  if(!me.phone)setTimeout(()=>{const i=$('#sphone');if(i&&!('ontouchstart' in window))i.focus()},60);
 }
-function fieldVals(){
-  const me=getMe()||{};
-  const id=$('#sid')?$('#sid').value:me.id,name=$('#sname')?$('#sname').value:me.name,code=$('#scode')?$('#scode').value:urlCode;
-  return {id:String(id||'').trim().toUpperCase().replace(/\s+/g,''),name:String(name||'').trim().replace(/\s+/g,' '),code:String(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'')};
+function fail(r,retry){
+  if(r.reason==='code')CODE='';
+  $('#stCard').innerHTML=`<div class="result">${BAD_SVG}<div class="big">${r.reason==='closed'?'Check-in is closed':'Not checked in'}</div><p>${esc(r.message||'Something went wrong.')}${r.nextOpen?'<br>Opens '+esc(niceMs(r.nextOpen))+'.':''}</p><button class="btn mt" id="again">Try again</button></div>`;
+  $('#again').onclick=retry||(()=>renderPhone());
 }
-async function doCheckin(){
-  const v=fieldVals(),needCode=!STATUS||STATUS.requireCode;
-  if(!/^[A-Z0-9][A-Z0-9-]{2,19}$/.test(v.id))return renderForm('Student ID: 3 to 20 letters or numbers.');
-  if(!/^[\p{L}\p{M} .'-]{2,60}$/u.test(v.name))return renderForm('Type your name with letters only.');
-  if(needCode&&v.code.length!==6)return renderForm('Type the 6-letter code from the screen.');
-  setMe({id:v.id,name:v.name});editing=false;
-  $('#stCard').innerHTML='<div class="result"><div class="spinner"></div><p>Checking you in…</p></div>';
-  let r;
-  try{r=await api({action:'checkin',id:v.id,name:v.name,code:v.code,device:DEVICE})}catch(e){r={ok:false,message:e.message,reason:'net'}}
-  if(r.ok){
-    urlCode='';setMe({id:v.id,name:r.name||v.name});
-    $('#stCard').innerHTML=`<div class="result">${OK_SVG}<div class="big">${r.already?'Already checked in':'You’re in, '+esc((r.name||v.name).split(' ')[0])+'!'}</div><p>${esc(niceDate(r.date))} at ${esc(r.time)}${r.already?'. One check-in per day is enough.':''}</p></div>`;
-    if(navigator.vibrate)navigator.vibrate(60);
-    renderMeCard();loadMine(true);
-  }else{
-    if(r.reason==='mismatch'||r.reason==='id'||r.reason==='name'||r.reason==='unknown')editing=true;
-    if(r.reason==='code'){urlCode=''}
-    $('#stCard').innerHTML=`<div class="result">${BAD_SVG}<div class="big">${r.reason==='closed'?'Check-in is closed':'Not checked in'}</div><p>${esc(r.message||'Something went wrong.')}${r.nextOpen?'<br>Opens '+esc(niceMs(r.nextOpen))+'.':''}</p><button class="btn mt" id="again">Try again</button></div>`;
-    $('#again').onclick=()=>renderForm();
+async function doLookup(raw){
+  const phone=cleanPhone(raw);readCode();
+  if(!phone)return renderPhone('Type your mobile number, like 0771234567.');
+  if(needCode()&&CODE.length!==6)return renderPhone('Type the 6-letter code from the screen.');
+  busy('Finding you…');
+  let r;try{r=await api({action:'lookup',phone,code:CODE,device:DEVICE})}catch(e){r={ok:false,message:e.message}}
+  if(!r.ok)return fail(r);
+  if(!r.found){
+    if(!r.canRegister)return fail({message:'This number is not on the class list. Talk to your instructor.'});
+    return renderRegister(phone,null,r.idExample);
   }
+  if(r.already){setMe(r.student);return done({already:true,date:r.date,time:r.already,student:r.student})}
+  renderConfirm(r.student,false);
+}
+function renderRegister(phone,msg,example){
+  const me=getMe()||{};
+  $('#stCard').innerHTML=`<h2>First time here</h2><p class="lead">Register once with your name. You get your own student ID next.</p>
+    <div class="msg">Mobile <b>${esc(showPhone(phone))}</b> <button type="button" class="linkbtn" id="wrongNo">Change</button></div>
+    <form id="regForm" novalidate><div class="field"><label for="sname">Your name</label><input id="sname" autocomplete="name" maxlength="60" placeholder="First and last name" value="${esc(me.phone===phone?me.name||'':'')}"><div class="hint">Your full name, as your instructor should see it${example?'. Your ID will look like '+esc(example):''}.</div></div>
+    <button class="btn wide">Register</button></form>${msgBox(msg)}`;
+  $('#wrongNo').onclick=()=>renderPhone();
+  $('#regForm').onsubmit=async e=>{e.preventDefault();
+    const name=$('#sname').value.trim().replace(/\s+/g,' ');
+    if(!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name))return renderRegister(phone,'Type your name with letters only.',example);
+    busy('Registering…');
+    let r;try{r=await api({action:'register',phone,name,code:CODE,device:DEVICE})}catch(err){r={ok:false,message:err.message}}
+    if(!r.ok)return fail(r,()=>renderRegister(phone,null,example));
+    renderConfirm(r.student,!r.existing)};
+}
+function renderConfirm(st,isNew){
+  $('#stCard').innerHTML=`<h2>${isNew?'You’re registered':'Is this you?'}</h2>
+    <p class="lead">${isNew?'This is your student ID. Check your details, then mark your attendance.':'Check your details before you mark your attendance.'}</p>
+    <div class="idcard"><div class="idk">Student ID</div><div class="idv">${esc(st.id)}</div>
+      <dl><dt>Name</dt><dd>${esc(st.name)}</dd><dt>Mobile</dt><dd>${esc(showPhone(st.phone))}</dd></dl></div>
+    <button class="btn wide mt" id="yes">Yes, mark my attendance</button>
+    <button class="btn ghost wide mt" id="no">No, this is not me</button>`;
+  $('#yes').onclick=()=>doConfirm(st);
+  $('#no').onclick=()=>{const me=getMe();if(me&&me.phone===st.phone)store.del('att-me');renderMeCard();renderPhone('Check your number. If it is right but the name is wrong, tell your instructor.')};
+}
+async function doConfirm(st){
+  busy('Marking your attendance…');
+  let r;try{r=await api({action:'checkin',phone:st.phone,id:st.id,code:CODE,device:DEVICE})}catch(e){r={ok:false,message:e.message}}
+  if(!r.ok)return fail(r);
+  setMe(r.student);done(r);
+}
+function done(r){
+  CODE='';
+  $('#stCard').innerHTML=`<div class="result">${OK_SVG}<div class="big">${r.already?'Already checked in':'You’re in, '+esc(r.student.name.split(' ')[0])+'!'}</div><p>${esc(r.student.id)} · ${esc(niceDate(r.date))} at ${esc(r.time)}${r.already?'<br>One check-in per day is enough.':''}</p></div>`;
+  if(navigator.vibrate)navigator.vibrate(60);
+  renderMeCard();loadMine(true);
 }
 function ringSVG(pct){const r=45,C=2*Math.PI*r,off=C*(1-(pct||0)/100);return `<svg class="ring" viewBox="0 0 110 110"><circle class="bg" cx="55" cy="55" r="${r}"/><circle class="fg" cx="55" cy="55" r="${r}" stroke-dasharray="${C}" stroke-dashoffset="${C}" data-off="${off}"/><text x="55" y="62" text-anchor="middle">${pct==null?'–':Math.round(pct)+'%'}</text></svg>`}
 function renderMeCard(){
   const me=getMe();
   $('#meCard').innerHTML=`<h2>My attendance</h2><p class="lead">See how many classes you attended. Excused absences your instructor approved are shown too.</p>
-    ${me&&me.id?`<button class="btn ghost wide" id="mineBtn">Show my attendance</button>`:'<p class="hint">Check in once and your record shows here.</p>'}<div id="mine"></div>`;
+    ${me&&me.phone?`<button class="btn ghost wide" id="mineBtn">Show my attendance</button>`:'<p class="hint">Check in once and your record shows here.</p>'}<div id="mine"></div>`;
   const b=$('#mineBtn');if(b)b.onclick=()=>loadMine();
 }
 async function loadMine(quiet){
   const me=getMe();if(!me||!SID)return;const box=$('#mine');if(!box)return;
   if(!quiet)box.innerHTML='<div class="spinner"></div>';
-  let r;try{r=await api({action:'me',id:me.id,name:me.name,device:DEVICE})}catch(e){r={ok:false,message:e.message}}
+  let r;try{r=await api({action:'me',phone:me.phone,name:me.name,device:DEVICE})}catch(e){r={ok:false,message:e.message}}
   if(!r.ok){box.innerHTML='<div class="msg">'+esc(r.message)+'</div>';return}
   const P=r.records.filter(x=>x.status==='present').length,E=r.records.filter(x=>x.status==='excused').length,A=r.records.length-P-E,n=r.records.length;
   const pct=n?P/n*100:null,adj=n?(P+E)/n*100:null;
@@ -424,8 +464,8 @@ async function startStudent(){
   $('#stCard').innerHTML='<div class="result"><div class="spinner"></div></div>';
   await refreshStatus();
   const me=getMe();
-  if(urlCode&&me&&me.id&&me.name&&SID){doCheckin();return}
-  renderForm();
+  if(CODE&&me&&me.phone&&SID){doLookup(me.phone);return}
+  renderPhone();
 }
 
 /* ---------- admin ---------- */
@@ -641,8 +681,8 @@ function gridHTML(C){
   return `<p class="hint mb">P present · E excused · A absent</p><div class="tblwrap grid"><table><thead><tr><th>Student</th>${C.held.map(d=>`<th class="num">${esc(niceDate(d,false))}</th>`).join('')}<th class="num">%</th><th class="num">+Exc</th></tr></thead><tbody>
   ${C.rows.map(r=>`<tr><td class="name">${esc(r.s.name)}</td>${C.held.map(d=>`<td class="c ${r.cells[d]}">${r.cells[d]==='-'?'·':r.cells[d]}</td>`).join('')}<td class="num"><b>${pct(r.raw)}</b></td><td class="num">${pct(r.adj)}</td></tr>`).join('')}</tbody></table></div>`;
 }
-function summaryTable(C){return [['ID','Name','Active','Class days','Present','Excused','Absent','Attendance %','With excuses %','Result at '+RPT.th+'%']].concat(C.rows.map(r=>[r.s.id,r.s.name,r.s.active,r.n,r.P,r.E,r.A,r.raw==null?'':(r.raw*100).toFixed(1),r.adj==null?'':(r.adj*100).toFixed(1),RES[r.res][1]]))}
-function gridTable(C){return [['ID','Name'].concat(C.held,['Attendance %','With excuses %'])].concat(C.rows.map(r=>[r.s.id,r.s.name].concat(C.held.map(d=>{const c=r.cells[d],a=C.att[r.s.id+'|'+d],e=C.exc[r.s.id+'|'+d];return c==='P'?'P '+a.time:c==='E'?'E '+(e.reason||''):c==='-'?'':'A'}),[r.raw==null?'':(r.raw*100).toFixed(1),r.adj==null?'':(r.adj*100).toFixed(1)])))}
+function summaryTable(C){return [['ID','Name','Mobile','Active','Class days','Present','Excused','Absent','Attendance %','With excuses %','Result at '+RPT.th+'%']].concat(C.rows.map(r=>[r.s.id,r.s.name,r.s.phone||'',r.s.active,r.n,r.P,r.E,r.A,r.raw==null?'':(r.raw*100).toFixed(1),r.adj==null?'':(r.adj*100).toFixed(1),RES[r.res][1]]))}
+function gridTable(C){return [['ID','Name','Mobile'].concat(C.held,['Attendance %','With excuses %'])].concat(C.rows.map(r=>[r.s.id,r.s.name,r.s.phone||''].concat(C.held.map(d=>{const c=r.cells[d],a=C.att[r.s.id+'|'+d],e=C.exc[r.s.id+'|'+d];return c==='P'?'P '+a.time:c==='E'?'E '+(e.reason||''):c==='-'?'':'A'}),[r.raw==null?'':(r.raw*100).toFixed(1),r.adj==null?'':(r.adj*100).toFixed(1)])))}
 function toCsv(t){return '﻿'+t.map(r=>r.map(v=>{v=String(v==null?'':v);if(/^[=+\-@\t\r]/.test(v))v="'"+v;return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(',')).join('\r\n')}
 function propEsc(v,key){let s='';for(const ch of String(v==null?'':v)){const c=ch.codePointAt(0);
   if(ch==='\\')s+='\\\\';else if(ch==='\n')s+='\\n';else if(ch==='\r')s+='\\r';else if(ch==='\t')s+='\\t';else if(key&&/[=: #!]/.test(ch))s+='\\'+ch;
@@ -654,7 +694,7 @@ function toProps(C){
   L.push('# Cyber Security class attendance, American Corner Matara','# Exported '+DATA.today+' '+p2(t.hh)+':'+p2(t.mm)+' ('+w.tzName+')','');
   P('class.window',windowText(w)+' '+w.tzName);P('class.days',C.held.join(','));P('class.dayCount',C.held.length);
   P('class.passMark',RPT.th);P('class.countExcused',RPT.useExc);P('student.count',C.rows.length);L.push('');
-  C.rows.forEach(r=>{const k='student.'+r.s.id+'.';P(k+'name',r.s.name);P(k+'active',r.s.active||'yes');P(k+'present',r.P);P(k+'excused',r.E);P(k+'absent',r.A);
+  C.rows.forEach(r=>{const k='student.'+r.s.id+'.';P(k+'name',r.s.name);P(k+'mobile',r.s.phone||'');P(k+'active',r.s.active||'yes');P(k+'present',r.P);P(k+'excused',r.E);P(k+'absent',r.A);
     P(k+'percent',r.raw==null?'':(r.raw*100).toFixed(1));P(k+'percentWithExcuses',r.adj==null?'':(r.adj*100).toFixed(1));P(k+'result',r.res);L.push('')});
   C.held.forEach(d=>{let pc=0;C.rows.forEach(r=>{const a=C.att[r.s.id+'|'+d],e=C.exc[r.s.id+'|'+d];if(a){pc++;P('attendance.'+d+'.'+r.s.id,'present '+a.time+(a.method==='admin'?' admin':''))}else if(e)P('attendance.'+d+'.'+r.s.id,'excused '+(e.reason||''));else if(r.cells[d]==='A')P('attendance.'+d+'.'+r.s.id,'absent')});P('day.'+d+'.present',pc);L.push('')});
   DATA.excuses.filter(e=>!C.held.includes(e.date)).forEach(e=>P('excuse.'+e.date+'.'+e.id,e.reason||'excused'));
@@ -666,23 +706,26 @@ function download(name,text,type){const a=document.createElement('a');a.href=URL
 function paneStudents(box){
   const C=compute(),byId={};C.rows.forEach(r=>byId[r.s.id]=r);
   box.innerHTML=`<div class="pane split">
-   <div><div class="row mb"><input id="find" class="grow" placeholder="Search name or ID" aria-label="Search"></div>
-    <div class="tblwrap"><table><thead><tr><th>Student</th><th>ID</th><th class="num">Present</th><th class="num">%</th><th></th></tr></thead><tbody id="stBody"></tbody></table></div></div>
+   <div><div class="row mb"><input id="find" class="grow" placeholder="Search name, ID or number" aria-label="Search"></div>
+    <div class="tblwrap"><table><thead><tr><th>Student</th><th>ID</th><th>Mobile</th><th class="num">Present</th><th class="num">%</th><th></th></tr></thead><tbody id="stBody"></tbody></table></div></div>
    <div><div class="card" style="animation:none"><h3 id="stFormTitle">Add a student</h3>
-     <form id="stForm"><div class="field"><label for="fid">Student ID</label><input id="fid" maxlength="20" autocapitalize="characters" required></div>
+     <form id="stForm"><div class="field"><label for="fid">Student ID</label><input id="fid" readonly value="${esc(DATA.nextIdPreview||'')} (next, given on save)"><div class="hint">Given in order. Change the format under Settings.</div></div>
+     <div class="field"><label for="fphone">Mobile number</label><input id="fphone" type="tel" inputmode="tel" maxlength="16" placeholder="07X XXX XXXX" required></div>
      <div class="field"><label for="fname">Name</label><input id="fname" maxlength="60" required></div>
      <label class="check"><input type="checkbox" id="factive" checked>Active (can check in)</label>
-     <div class="row"><button class="btn">Save</button><button type="button" class="btn ghost" id="fclear">Clear</button><button type="button" class="btn ghost red" id="fdel" hidden style="color:#fff">Remove</button></div></form></div>
-    <div class="card mt" style="animation:none"><h3>Add many</h3><p class="hint mb">One per line: ID, Name</p><textarea id="bulk" placeholder="CS-001, Kamal Perera&#10;CS-002, Nadeesha Silva"></textarea><button class="btn mt" id="bulkBtn">Add all</button></div></div></div>`;
-  const draw=()=>{const q=$('#find').value.trim().toLowerCase();
-    $('#stBody').innerHTML=C.rows.filter(r=>!q||r.s.name.toLowerCase().includes(q)||r.s.id.toLowerCase().includes(q)).map(r=>`<tr><td class="name">${esc(r.s.name)}${r.s.active==='no'?' <span class="chip g">off</span>':''}${r.s.source==='self'?' <span class="hint">self</span>':''}</td><td>${esc(r.s.id)}</td><td class="num">${r.P}</td><td class="num">${pct(r.raw)}</td><td><button class="btn small ghost" data-id="${esc(r.s.id)}">Edit</button></td></tr>`).join('')||'<tr><td colspan="5" class="hint">No students yet. They register on their first check-in, or add them here.</td></tr>';
-    $('#stBody').querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{const s=byId[b.dataset.id].s;$('#fid').value=s.id;$('#fid').readOnly=true;$('#fname').value=s.name;$('#factive').checked=s.active!=='no';$('#stFormTitle').textContent='Edit '+s.name;$('#fdel').hidden=false;$('#fname').focus()})};
+     <div class="row"><button class="btn">Save</button><button type="button" class="btn ghost" id="fclear">Clear</button><button type="button" class="btn red" id="fdel" hidden>Remove</button></div></form></div>
+    <div class="card mt" style="animation:none"><h3>Add many</h3><p class="hint mb">One per line: mobile number, name. Each gets the next ID.</p><textarea id="bulk" placeholder="0771234567, Kamal Perera&#10;0712345678, Nadeesha Silva"></textarea><button class="btn mt" id="bulkBtn">Add all</button></div></div></div>`;
+  let editId='';
+  const draw=()=>{const q=$('#find').value.trim().toLowerCase(),qd=q.replace(/\D/g,'');
+    $('#stBody').innerHTML=C.rows.filter(r=>!q||r.s.name.toLowerCase().includes(q)||r.s.id.toLowerCase().includes(q)||(qd.length>2&&(r.s.phone||'').includes(qd))).map(r=>`<tr><td class="name">${esc(r.s.name)}${r.s.active==='no'?' <span class="chip g">off</span>':''}${r.s.source==='self'?' <span class="hint">self</span>':''}</td><td>${esc(r.s.id)}</td><td>${r.s.phone?esc(showPhone(r.s.phone)):'<span class="chip a">add number</span>'}</td><td class="num">${r.P}</td><td class="num">${pct(r.raw)}</td><td><button class="btn small ghost" data-id="${esc(r.s.id)}">Edit</button></td></tr>`).join('')||'<tr><td colspan="6" class="hint">No students yet. They register on their first check-in, or add them here.</td></tr>';
+    $('#stBody').querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{const s=byId[b.dataset.id].s;editId=s.id;$('#fid').value=s.id;$('#fphone').value=showPhone(s.phone||'');$('#fname').value=s.name;$('#factive').checked=s.active!=='no';$('#stFormTitle').textContent='Edit '+s.name;$('#fdel').hidden=false;$('#fname').focus();$('#stForm').scrollIntoView({behavior:'smooth',block:'center'})})};
   draw();$('#find').oninput=draw;
-  const clear=()=>{$('#stForm').reset();$('#fid').readOnly=false;$('#stFormTitle').textContent='Add a student';$('#fdel').hidden=true};
+  const clear=()=>{editId='';$('#stForm').reset();$('#fid').value=(DATA.nextIdPreview||'')+' (next, given on save)';$('#stFormTitle').textContent='Add a student';$('#fdel').hidden=true};
   $('#fclear').onclick=clear;
-  $('#stForm').onsubmit=async e=>{e.preventDefault();const r=await adminCall({action:'student',id:$('#fid').value,name:$('#fname').value,active:$('#factive').checked});if(r.ok){toast('Saved');clear();loadData()}else toast(r.message,true)};
-  $('#fdel').onclick=async()=>{if(!confirm('Remove '+$('#fname').value+'? Students with attendance can only be switched off.'))return;const r=await adminCall({action:'student',id:$('#fid').value,remove:true});if(r.ok){toast('Removed');clear();loadData()}else toast(r.message,true)};
-  $('#bulkBtn').onclick=async()=>{const list=$('#bulk').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.split(/[,\t;]/);return {id:m[0],name:m.slice(1).join(' ')}});if(!list.length)return;
+  $('#stForm').onsubmit=async e=>{e.preventDefault();const ph=cleanPhone($('#fphone').value);if(!ph)return toast('Type a mobile number like 0771234567',true);
+    const r=await adminCall({action:'student',id:editId,phone:ph,name:$('#fname').value,active:$('#factive').checked});if(r.ok){toast(editId?'Saved':'Added as '+r.id);clear();loadData()}else toast(r.message,true)};
+  $('#fdel').onclick=async()=>{if(!confirm('Remove '+$('#fname').value+'? Students with attendance can only be switched off.'))return;const r=await adminCall({action:'student',id:editId,remove:true});if(r.ok){toast('Removed');clear();loadData()}else toast(r.message,true)};
+  $('#bulkBtn').onclick=async()=>{const list=$('#bulk').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.split(/[,\t;]/);return {phone:m[0],name:m.slice(1).join(' ')}});if(!list.length)return;
     const r=await adminCall({action:'bulk',list});if(r.ok){toast(r.added+' added'+(r.bad.length?', '+r.bad.length+' skipped':''),r.bad.length>0);if(r.bad.length)$('#bulk').value=r.bad.join('\n');else $('#bulk').value='';loadData()}else toast(r.message,true)};
 }
 
@@ -740,8 +783,20 @@ function paneSettings(box){
     <label class="check"><input type="checkbox" id="sReg" ${s.selfRegister?'checked':''}>New students can register on first check-in</label>
     <label class="check"><input type="checkbox" id="sFirst" ${s.fromFirst?'checked':''}>Count each student's classes from the day they joined</label>
     <button class="btn mt">Save settings</button></form></div>
-   <div class="card" style="animation:none"><h3>Server</h3><p class="mb">${isDemo()?'Demo mode on this device.':'Google Apps Script, ID ending <code>…'+esc(SID.slice(-8))+'</code>.'}</p>
-    <button class="btn ghost" onclick="location.hash='#setup'">Setup and demo</button></div></div>`;
+   <div><div class="card" style="animation:none"><h3>Student ID format</h3><p class="hint mb">Set this before students register. IDs are given in order.</p>
+    <form id="idForm"><div class="row"><div class="field grow"><label for="iPre">Prefix</label><input id="iPre" maxlength="10" autocapitalize="characters" value="${esc(s.idPrefix)}"></div><div class="field grow"><label for="iSuf">Suffix</label><input id="iSuf" maxlength="10" autocapitalize="characters" value="${esc(s.idSuffix)}"></div></div>
+    <div class="row"><div class="field grow"><label for="iDig">Digits</label><input id="iDig" type="number" min="1" max="8" value="${s.idDigits}"></div><div class="field grow"><label for="iStart">First number</label><input id="iStart" type="number" min="0" value="${s.idStart}"></div></div>
+    <div class="idcard" style="animation:none"><div class="idk">First ID</div><div class="idv" id="iPrev"></div><div class="hint">Next to be given now: <b>${esc(DATA.nextIdPreview||'')}</b></div></div>
+    ${DATA.students.length?'<p class="hint mt">Students already have IDs. Those stay the same; only new students get the new format.</p>':''}
+    <button class="btn mt">Save ID format</button></form></div>
+   <div class="card mt" style="animation:none"><h3>Server</h3><p class="mb">${isDemo()?'Demo mode on this device.':'Google Apps Script, ID ending <code>…'+esc(SID.slice(-8))+'</code>.'}</p>
+    <button class="btn ghost" onclick="location.hash='#setup'">Setup and demo</button></div></div></div>`;
+  const fmt=()=>{const pre=$('#iPre').value.trim().toUpperCase(),suf=$('#iSuf').value.trim().toUpperCase(),dig=Math.max(1,Math.min(8,+$('#iDig').value||1)),st=Math.max(0,+$('#iStart').value||0);return {idPrefix:pre,idSuffix:suf,idDigits:dig,idStart:st,preview:pre+String(st).padStart(dig,'0')+suf}};
+  const prev=()=>{$('#iPrev').textContent=fmt().preview};prev();
+  ['#iPre','#iSuf','#iDig','#iStart'].forEach(k=>$(k).oninput=prev);
+  $('#idForm').onsubmit=async e=>{e.preventDefault();const f=fmt();delete f.preview;
+    if(DATA.students.length&&!confirm('Save the new ID format? Existing students keep their IDs.'))return;
+    const r=await adminCall({action:'settings',settings:f});if(r.ok){toast('ID format saved');loadData()}else toast(r.message,true)};
   $('#setForm').onsubmit=async e=>{e.preventDefault();
     const settings={days:[...box.querySelectorAll('input[name=day]:checked')].map(x=>+x.value),start:$('#sStart').value,end:$('#sEnd').value,requireCode:$('#sCode').checked,oneDevice:$('#sDev').checked,selfRegister:$('#sReg').checked,fromFirst:$('#sFirst').checked};
     const r=await adminCall({action:'settings',settings});if(r.ok){toast('Settings saved');loadData()}else toast(r.message,true)};
@@ -765,7 +820,7 @@ function renderSetup(){
     ${isDemo()?`<h3 class="mt">Pretend time</h3><div class="row"><button class="btn small ghost" data-shift="sat">Saturday 10:00</button><button class="btn small ghost" data-shift="sun">Sunday 10:00</button><button class="btn small ghost" data-shift="real">Real time</button></div>
     <h3 class="mt">Sample class</h3><p class="hint mb">Adds 14 students and 6 past Saturdays so the reports have something to show.</p><button class="btn small" id="seed">Add sample class</button>
     <p class="hint mt">Demo password: <b>demo1234</b>. To test a student check-in, open <a href="${esc(page)}?s=demo" target="_blank" rel="noopener">the student page</a> in another tab and type the code from Live QR.</p>`:''}
-    <h3 class="mt">What the checks stop</h3><ul class="steps"><li>Check-ins outside ${esc(STATUS?windowText(STATUS.window):'Saturdays, 09:00 to 13:00')} (server clock).</li><li>Checking in from home: the QR code changes every 30 s.</li><li>Two check-ins for one student on one day.</li><li>One phone checking in several friends.</li><li>Someone using another student's ID with a different name.</li><li>Anyone changing records without the admin password.</li></ul></div></div>`;
+    <h3 class="mt">What the checks stop</h3><ul class="steps"><li>Check-ins outside ${esc(STATUS?windowText(STATUS.window):'Saturdays, 09:00 to 13:00')} (server clock).</li><li>Checking in from home: the QR code changes every 30 s.</li><li>Two check-ins for one student on one day.</li><li>One phone checking in several friends.</li><li>One mobile number registered twice, or a student marked without confirming their ID and name.</li><li>Anyone changing records without the admin password.</li></ul></div></div>`;
   $('#copyCode').onclick=async()=>{try{const t=await (await fetch('attendance-server.js',{cache:'no-store'})).text();await navigator.clipboard.writeText(t);toast('Server code copied')}catch(e){toast('Copy failed. Use "view" and copy by hand.',true)}};
   $('#toLogin').onclick=()=>{location.hash='#admin'};
   $('#srvForm').onsubmit=async e=>{e.preventDefault();const id=scriptIdFrom($('#srv').value);if(!id||id==='demo'){$('#srvMsg').innerHTML='<div class="msg err">That does not look like a Web app URL. It ends with /exec.</div>';return}
@@ -785,7 +840,7 @@ function renderSetup(){
     const names=['Kamal Perera','Nadeesha Silva','Tharindu Jayasinghe','Ishara Fernando','Sahan Wickramasinghe','Dilini Gunawardena','Ravindu Senanayake','Hiruni Dissanayake','Chamod Bandara','Sanduni Rathnayake','Pasindu Herath','Amaya Karunaratne','Yasiru Weerasinghe','Kavindi Abeysekara'];
     const now=Date.now()+(d.shift||0),t=localParts(now),back=(t.wd-6+7)%7||7,sats=[];
     for(let i=6;i>=1;i--){const ms=Date.UTC(t.y,t.m,t.d-back-(i-1)*7,4,0);const x=new Date(ms);sats.push(x.getUTCFullYear()+'-'+p2(x.getUTCMonth()+1)+'-'+p2(x.getUTCDate()))}
-    d.T.students=names.map((n,i)=>({id:'CS-'+p2(i+1).padStart(3,'0'),name:n,added:sats[0],source:'admin',active:'yes'}));
+    d.T.students=names.map((n,i)=>({id:'ACM-'+String(i+1).padStart(4,'0'),name:n,added:sats[0],source:'admin',active:'yes',phone:'07'+(i%8)+String(1000000+i*7919).slice(-7)}));d.P=d.P||{};d.P.idNext=String(names.length+1);
     d.T.days=sats.map(x=>({date:x,status:'held',note:''}));d.T.attendance=[];d.T.excuses=[];
     const rate=[1,.95,.9,.85,.8,.75,.7,.68,.6,.5,.9,.83,.66,.4];
     d.T.students.forEach((s,i)=>sats.forEach((x,j)=>{const h=SHA.hash([i,j,7])[0]/255;if(h<rate[i])d.T.attendance.push({date:x,id:s.id,name:s.name,time:'09:'+p2(Math.floor(h*55)),device:randHex(12),method:'qr',note:''});

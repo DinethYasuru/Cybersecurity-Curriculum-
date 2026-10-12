@@ -5,6 +5,9 @@
   - Stores attendance in the Google Sheet this script is attached to
     (tabs: Students, Attendance, Excuses, Days, Log).
   - Uses Google's clock, not the student's phone, to decide if check-in is open.
+  - Students register once with their mobile number and name and get the next
+    student ID (format set by the instructor, e.g. ACM-0001). After that they
+    check in with the mobile number and confirm their ID and name.
   - Checks the rotating code from the classroom QR, one check-in per student
     per day, one student per phone per day, and the admin password.
 
@@ -25,15 +28,19 @@ var DEFAULT_SETTINGS = {
   tzOffset: 330,        // minutes from UTC: Asia/Colombo is +05:30, no daylight saving
   tzName: 'Asia/Colombo',
   requireCode: true,    // must scan the live QR (or type its code) in the room
-  selfRegister: true,   // new student IDs may register themselves on first check-in
+  selfRegister: true,   // new students may register themselves (mobile number + name) on first check-in
   oneDevice: true,      // one student per phone per day
   fromFirst: true,      // count a student's classes from the day they joined, not from week 1
   slotSeconds: 30,      // QR code changes every 30 s
-  codeSlots: 5          // a code stays valid for 5 slots (about 2.5 min)
+  codeSlots: 5,         // a code stays valid for 5 slots (about 2.5 min)
+  idPrefix: 'ACM-',     // student IDs are given in order: prefix + number + suffix, e.g. ACM-0001
+  idSuffix: '',
+  idDigits: 4,
+  idStart: 1
 };
 
 var TABLES = {
-  students:   ['id', 'name', 'added', 'source', 'active'],
+  students:   ['id', 'name', 'added', 'source', 'active', 'phone'],
   attendance: ['date', 'id', 'name', 'time', 'device', 'method', 'note'],
   excuses:    ['date', 'id', 'reason', 'added'],
   days:       ['date', 'status', 'note'],
@@ -115,7 +122,38 @@ function AttendanceCore(rawEnv) {
   function cleanId(v) { return String(v || '').trim().toUpperCase().replace(/\s+/g, ''); }
   function cleanName(v) { return String(v || '').trim().replace(/\s+/g, ' '); }
   function sameName(a, b) { return cleanName(a).toLowerCase() === cleanName(b).toLowerCase(); }
-  function validId(id) { return /^[A-Z0-9][A-Z0-9-]{2,19}$/.test(id); }
+  function validId(id) { return /^[A-Z0-9][A-Z0-9_\/-]{1,29}$/.test(id); }
+  // Sri Lankan numbers: 0771234567, 077 123 4567, +94 77 123 4567, 94771234567 all become 0771234567
+  function cleanPhone(v) {
+    var d = String(v || '').replace(/[^\d]/g, '');
+    if (d.length === 11 && d.slice(0, 2) === '94') d = '0' + d.slice(2);
+    if (d.length === 9 && d.charAt(0) !== '0') d = '0' + d;
+    return /^0\d{9}$/.test(d) ? d : '';
+  }
+  function formatId(s, n) {
+    var num = String(n);
+    while (num.length < s.idDigits) num = '0' + num;
+    return s.idPrefix + num + s.idSuffix;
+  }
+  function nextId(s, students) {
+    var used = {}, n = Math.max(Number(env.getProp('idNext') || 0), Number(s.idStart) || 1);
+    students.forEach(function (r) { used[r.id] = true; });
+    while (used[formatId(s, n)]) n++;
+    env.setProp('idNext', String(n + 1));
+    return formatId(s, n);
+  }
+  function byPhone(phone) { return env.read('students').filter(function (r) { return r.phone && r.phone === phone; })[0] || null; }
+  function studentOut(st) { return { id: st.id, name: st.name, phone: st.phone }; }
+  // shared checks for every student step: real browser, not too many tries, valid number, open now, live code
+  function gate(req, now, s, L) {
+    var device = String(req.device || '').slice(0, 40);
+    if (!/^[a-z0-9]{8,40}$/i.test(device)) { L('rejected', 'no device id'); return fail('device', 'Open this page in a normal browser tab and try again.'); }
+    if (rateLimited('rl:' + device, 20, 600)) { L('rejected', 'too many tries'); return fail('slow', 'Too many tries. Wait 10 minutes.'); }
+    if (!cleanPhone(req.phone)) { L('rejected', 'bad number'); return fail('phone', 'Type your mobile number, like 0771234567.'); }
+    if (!isOpen(now, s)) { L('rejected', 'closed'); return fail('closed', 'Check-in is closed now.', { nextOpen: nextOpen(now, s) }); }
+    if (s.requireCode && !codeOk(req.code, now, s)) { L('rejected', 'bad or old code'); return fail('code', 'That QR code has expired. Scan the screen again.'); }
+    return null;
+  }
   function validName(n) { return n.length >= 2 && n.length <= 60 && /^[\p{L}\p{M} .'-]+$/u.test(n); }
 
   function log(now, s, action, id, name, device, result, detail) {
@@ -133,7 +171,7 @@ function AttendanceCore(rawEnv) {
     return { ok: true, now: now, today: t.date, time: t.time, open: isOpen(now, s),
       extraUntil: extraWindow(now), nextOpen: nextOpen(now, s),
       window: { days: s.days, start: s.start, end: s.end, tzName: s.tzName, tzOffset: s.tzOffset },
-      requireCode: s.requireCode, selfRegister: s.selfRegister, configured: !!env.getProp('adminHash') };
+      requireCode: s.requireCode, selfRegister: s.selfRegister, configured: !!env.getProp('adminHash'), idExample: formatId(s, Number(s.idStart) || 1) };
   }
   function fail(reason, msg, extra) {
     var r = { ok: false, reason: reason, message: msg };
@@ -141,51 +179,70 @@ function AttendanceCore(rawEnv) {
     return r;
   }
 
-  function checkin(req, now) {
-    var s = settings(), t = local(now, s);
-    var id = cleanId(req.id), name = cleanName(req.name), device = String(req.device || '').slice(0, 40);
-    var L = function (result, detail) { log(now, s, 'checkin', id, name, device, result, detail); };
-    if (!/^[a-z0-9]{8,40}$/i.test(device)) { L('rejected', 'no device id'); return fail('device', 'Open this page in a normal browser tab and try again.'); }
-    if (rateLimited('rl:' + device, 12, 600)) { L('rejected', 'too many tries'); return fail('slow', 'Too many tries. Wait 10 minutes.'); }
-    if (!validId(id)) { L('rejected', 'bad id'); return fail('id', 'Student ID: 3 to 20 letters or numbers.'); }
+  // step 1: student types their number; answer who it belongs to so they can confirm
+  function lookup(req, now) {
+    var s = settings(), t = local(now, s), phone = cleanPhone(req.phone);
+    var L = function (result, detail) { log(now, s, 'lookup', phone || String(req.phone || '').slice(0, 20), '', String(req.device || '').slice(0, 40), result, detail); };
+    var bad = gate(req, now, s, L); if (bad) return bad;
+    var st = byPhone(phone);
+    if (!st) return { ok: true, found: false, phone: phone, canRegister: s.selfRegister, idExample: formatId(s, Number(s.idStart) || 1) };
+    if (String(st.active) === 'no') { L('rejected', 'inactive ' + st.id); return fail('inactive', 'This number is switched off. Talk to your instructor.'); }
+    var mine = env.read('attendance').filter(function (r) { return r.date === t.date && r.id === st.id; })[0];
+    return { ok: true, found: true, student: studentOut(st), already: mine ? mine.time : '', date: t.date };
+  }
+
+  // first time only: number + name get the next student ID
+  function register(req, now) {
+    var s = settings(), t = local(now, s), phone = cleanPhone(req.phone), name = cleanName(req.name);
+    var L = function (result, detail) { log(now, s, 'register', phone, name, String(req.device || '').slice(0, 40), result, detail); };
+    var bad = gate(req, now, s, L); if (bad) return bad;
+    if (!s.selfRegister) { L('rejected', 'self register off'); return fail('unknown', 'This number is not on the class list. Talk to your instructor.'); }
     if (!validName(name)) { L('rejected', 'bad name'); return fail('name', 'Type your name with letters only.'); }
-    if (!isOpen(now, s)) { L('rejected', 'closed'); return fail('closed', 'Check-in is closed now.', { nextOpen: nextOpen(now, s) }); }
-    if (s.requireCode && !codeOk(req.code, now, s)) { L('rejected', 'bad or old code'); return fail('code', 'That QR code has expired. Scan the screen again.'); }
+    var hit = byPhone(phone);
+    if (hit) { L('duplicate', 'number already ' + hit.id); return { ok: true, student: studentOut(hit), existing: true }; }
+    var st = { id: nextId(s, env.read('students')), name: name, added: t.date, source: 'self', active: 'yes', phone: phone };
+    env.append('students', st);
+    L('accepted', st.id);
+    return { ok: true, student: studentOut(st) };
+  }
 
-    var students = env.read('students'), st = null;
-    students.forEach(function (r) { if (r.id === id) st = r; });
-    if (st && String(st.active) === 'no') { L('rejected', 'inactive'); return fail('inactive', 'This ID is switched off. Talk to your instructor.'); }
-    if (st && !sameName(st.name, name)) { L('rejected', 'name mismatch: ' + st.name); return fail('mismatch', 'This ID belongs to a different name. Check your ID or talk to your instructor.'); }
-    if (!st && !s.selfRegister) { L('rejected', 'unknown id'); return fail('unknown', 'This ID is not on the class list. Talk to your instructor.'); }
+  // step 2: student confirmed "this is me"
+  function checkin(req, now) {
+    var s = settings(), t = local(now, s), phone = cleanPhone(req.phone), device = String(req.device || '').slice(0, 40);
+    var st = phone ? byPhone(phone) : null;
+    var L = function (result, detail) { log(now, s, 'checkin', st ? st.id : phone, st ? st.name : '', device, result, detail); };
+    var bad = gate(req, now, s, L); if (bad) return bad;
+    if (!st) { L('rejected', 'unknown number'); return fail('unknown', 'This number is not registered yet.'); }
+    if (String(st.active) === 'no') { L('rejected', 'inactive'); return fail('inactive', 'This number is switched off. Talk to your instructor.'); }
+    if (req.id && cleanId(req.id) !== st.id) { L('rejected', 'confirmed ' + cleanId(req.id) + ' but number is ' + st.id); return fail('changed', 'Your details changed. Type your number again.'); }
 
-    var rows = env.read('attendance'), mine = null, other = null;
-    rows.forEach(function (r) {
+    var mine = null, other = null;
+    env.read('attendance').forEach(function (r) {
       if (r.date !== t.date) return;
-      if (r.id === id) mine = r;
+      if (r.id === st.id) mine = r;
       else if (s.oneDevice && r.device && r.device === device) other = r;
     });
-    if (mine) { L('duplicate', 'already at ' + mine.time); return { ok: true, already: true, date: t.date, time: mine.time, name: st ? st.name : name }; }
+    if (mine) { L('duplicate', 'already at ' + mine.time); return { ok: true, already: true, date: t.date, time: mine.time, student: studentOut(st) }; }
     if (other) { L('rejected', 'device used by ' + other.id); return fail('shared', 'This phone already checked in another student today. Use your own phone, or ask your instructor.'); }
 
-    if (!st) { st = { id: id, name: name, added: t.date, source: 'self', active: 'yes' }; env.append('students', st); }
-    env.append('attendance', { date: t.date, id: id, name: st.name, time: t.time, device: device, method: req.code ? 'qr' : 'open', note: '' });
+    env.append('attendance', { date: t.date, id: st.id, name: st.name, time: t.time, device: device, method: s.requireCode ? 'qr' : 'open', note: '' });
     if (!env.read('days').some(function (r) { return r.date === t.date; })) env.append('days', { date: t.date, status: 'held', note: '' });
     L('accepted', '');
-    return { ok: true, date: t.date, time: t.time, name: st.name };
+    return { ok: true, date: t.date, time: t.time, student: studentOut(st) };
   }
 
   function me(req, now) {
-    var s = settings(), id = cleanId(req.id), name = cleanName(req.name), device = String(req.device || '').slice(0, 40);
-    if (rateLimited('rl:' + device, 12, 600)) return fail('slow', 'Too many tries. Wait 10 minutes.');
-    var st = env.read('students').filter(function (r) { return r.id === id; })[0];
-    if (!st || !sameName(st.name, name)) return fail('notfound', 'No record for this ID and name yet.');
-    var today = local(now, s).date;
+    var s = settings(), phone = cleanPhone(req.phone), name = cleanName(req.name), device = String(req.device || '').slice(0, 40);
+    if (rateLimited('rl:' + device, 20, 600)) return fail('slow', 'Too many tries. Wait 10 minutes.');
+    var st = phone ? byPhone(phone) : null;
+    if (!st || !sameName(st.name, name)) return fail('notfound', 'No record for this number and name yet.');
+    var id = st.id, today = local(now, s).date;
     var att = {}, exc = {}, start = st.added || today;
     env.read('attendance').forEach(function (r) { if (r.id === id) { att[r.date] = r.time; if (r.date < start) start = r.date; } });
     if (!s.fromFirst) start = '';
     var days = env.read('days').filter(function (r) { return r.status !== 'cancelled' && r.date <= today && r.date >= start; }).map(function (r) { return r.date; }).sort();
     env.read('excuses').forEach(function (r) { if (r.id === id) exc[r.date] = r.reason || 'excused'; });
-    return { ok: true, id: id, name: st.name, records: days.map(function (d) {
+    return { ok: true, id: id, name: st.name, phone: st.phone, records: days.map(function (d) {
       return { date: d, status: att[d] ? 'present' : exc[d] ? 'excused' : 'absent', time: att[d] || '' };
     }), upcomingExcuses: Object.keys(exc).filter(function (d) { return d > today; }).sort() };
   }
@@ -227,7 +284,8 @@ function AttendanceCore(rawEnv) {
       var lg = env.read('log');
       return { ok: true, now: now, today: t.date, settings: s, status: publicStatus(now),
         students: env.read('students'), attendance: env.read('attendance'), excuses: env.read('excuses'),
-        days: env.read('days'), log: lg.slice(Math.max(0, lg.length - 400)) };
+        days: env.read('days'), log: lg.slice(Math.max(0, lg.length - 400)),
+        nextIdPreview: formatId(s, Math.max(Number(env.getProp('idNext') || 0), Number(s.idStart) || 1)) };
     }
     if (a === 'today') {
       return { ok: true, now: now, today: t.date, status: publicStatus(now),
@@ -253,30 +311,36 @@ function AttendanceCore(rawEnv) {
       return { ok: true };
     }
     if (a === 'student') {
-      if (!validId(id)) return fail('input', 'Student ID: 3 to 20 letters or numbers.');
       rows = env.read('students');
       if (req.remove) {
+        if (!validId(id)) return fail('input', 'Pick a student.');
         if (env.read('attendance').some(function (r) { return r.id === id; })) return fail('input', 'This student has attendance. Switch them off instead.');
         env.write('students', rows.filter(function (r) { return r.id !== id; }));
         A('removed'); return { ok: true };
       }
-      var nm = cleanName(req.name);
+      var nm = cleanName(req.name), ph = cleanPhone(req.phone);
       if (!validName(nm)) return fail('input', 'Type a name with letters only.');
-      var found = false;
-      rows.forEach(function (r) { if (r.id === id) { found = true; r.name = nm; r.active = req.active === false ? 'no' : 'yes'; } });
-      if (!found) rows.push({ id: id, name: nm, added: t.date, source: 'admin', active: req.active === false ? 'no' : 'yes' });
+      if (!ph) return fail('input', 'Type a mobile number like 0771234567.');
+      var clash = rows.filter(function (r) { return r.phone === ph && r.id !== id; })[0];
+      if (clash) return fail('input', 'That number already belongs to ' + clash.name + ' (' + clash.id + ').');
+      var found = null;
+      if (id) rows.forEach(function (r) { if (r.id === id) found = r; });
+      if (id && !found) return fail('input', 'Unknown student.');
+      if (found) { found.name = nm; found.phone = ph; found.active = req.active === false ? 'no' : 'yes'; }
+      else { id = nextId(s, rows); rows.push({ id: id, name: nm, added: t.date, source: 'admin', active: req.active === false ? 'no' : 'yes', phone: ph }); }
       env.write('students', rows);
       if (found) env.write('attendance', env.read('attendance').map(function (r) { if (r.id === id) r.name = nm; return r; }));
-      A(found ? 'updated' : 'added'); return { ok: true };
+      A(found ? 'updated' : 'added'); return { ok: true, id: id };
     }
     if (a === 'bulk') {
       rows = env.read('students');
       var added = 0, bad = [];
       (req.list || []).slice(0, 300).forEach(function (x) {
-        var bid = cleanId(x.id), bn = cleanName(x.name);
-        if (!validId(bid) || !validName(bn)) { bad.push(String(x.id || '') + ' ' + String(x.name || '')); return; }
-        var hit = rows.filter(function (r) { return r.id === bid; })[0];
-        if (hit) hit.name = bn; else { rows.push({ id: bid, name: bn, added: t.date, source: 'admin', active: 'yes' }); added++; }
+        var bp = cleanPhone(x.phone), bn = cleanName(x.name), line = String(x.phone || '') + ', ' + String(x.name || '');
+        if (!bp || !validName(bn)) { bad.push(line); return; }
+        var hit = rows.filter(function (r) { return r.phone === bp; })[0];
+        if (hit) bad.push(line + ' (number already ' + hit.id + ')');
+        else { rows.push({ id: nextId(s, rows), name: bn, added: t.date, source: 'admin', active: 'yes', phone: bp }); added++; }
       });
       env.write('students', rows);
       A('bulk ' + added + ' added'); return { ok: true, added: added, bad: bad };
@@ -301,6 +365,16 @@ function AttendanceCore(rawEnv) {
       if (n.end != null) { if (!hm.test(n.end)) return fail('input', 'End time like 13:00.'); out.end = n.end; }
       if (out.start >= out.end) return fail('input', 'End time must be after start time.');
       ['requireCode', 'selfRegister', 'oneDevice', 'fromFirst'].forEach(function (k) { if (typeof n[k] === 'boolean') out[k] = n[k]; });
+      if (n.idPrefix != null || n.idSuffix != null || n.idDigits != null || n.idStart != null) {
+        var pre = String(n.idPrefix == null ? out.idPrefix : n.idPrefix).trim().toUpperCase(), suf = String(n.idSuffix == null ? out.idSuffix : n.idSuffix).trim().toUpperCase();
+        var dig = Math.round(Number(n.idDigits == null ? out.idDigits : n.idDigits)), st0 = Math.round(Number(n.idStart == null ? out.idStart : n.idStart));
+        if (!/^[A-Z0-9_\/-]{0,10}$/.test(pre) || !/^[A-Z0-9_\/-]{0,10}$/.test(suf)) return fail('input', 'Prefix and suffix: up to 10 letters, numbers or - _ /.');
+        if (pre && !/^[A-Z0-9]/.test(pre)) return fail('input', 'The prefix must start with a letter or number.');
+        if (!(dig >= 1 && dig <= 8)) return fail('input', 'Digits: 1 to 8.');
+        if (!(st0 >= 0 && st0 < 1e8)) return fail('input', 'Start number: 0 or more.');
+        if (pre !== out.idPrefix || suf !== out.idSuffix || dig !== out.idDigits || st0 !== out.idStart) env.setProp('idNext', String(st0));
+        out.idPrefix = pre; out.idSuffix = suf; out.idDigits = dig; out.idStart = st0;
+      }
       env.setProp('settings', JSON.stringify(out));
       A(JSON.stringify(n)); return { ok: true, settings: out };
     }
@@ -312,6 +386,8 @@ function AttendanceCore(rawEnv) {
     var now = env.now();
     try {
       if (req.action === 'status') return publicStatus(now);
+      if (req.action === 'lookup') return lookup(req, now);
+      if (req.action === 'register') return env.lock(function () { return register(req, now); });
       if (req.action === 'checkin') return env.lock(function () { return checkin(req, now); });
       if (req.action === 'me') return me(req, now);
       if (req.action === 'login') return login(req, now);
@@ -336,6 +412,10 @@ function sheetsEnv_() {
       sh.getRange(1, 1, sh.getMaxRows(), TABLES[t].length).setNumberFormat('@');
       sh.getRange(1, 1, 1, TABLES[t].length).setValues([TABLES[t]]).setFontWeight('bold');
       sh.setFrozenRows(1);
+    } else if (sh.getLastColumn() < TABLES[t].length) {
+      // a tab made by an older version: add the new column headers
+      sh.getRange(1, 1, sh.getMaxRows(), TABLES[t].length).setNumberFormat('@');
+      sh.getRange(1, 1, 1, TABLES[t].length).setValues([TABLES[t]]).setFontWeight('bold');
     }
     return sh;
   }
