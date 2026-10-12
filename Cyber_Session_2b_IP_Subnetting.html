@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <script>
+if(window.self!==window.top)document.documentElement.classList.add('framed');
 /* phones, tablets, small windows: run the deck in a frame laid out at a size it was built
    and tested for, then scale that frame to fit the screen, so no word is ever cut off */
 (function(){
@@ -1332,6 +1333,32 @@ body.stu.idle .bar{opacity:1;pointer-events:auto}
 #lvWait .lvdots i:nth-child(3){animation-delay:.4s}
 #lvWait .nb{margin-top:1.2em;font-size:1rem;padding:.6rem 1.4rem}
 body.stu #stage[inert]{cursor:not-allowed}
+html.framed .top{padding:.4rem max(14px,2vw) .55rem;gap:.7rem}
+html.framed .logos{gap:.5rem}
+html.framed .top .logo{height:46px;padding:4px 9px;border-radius:10px}
+html.framed .top .sec{font-size:.85rem;padding:.2em .8em}
+html.framed .brand{font-size:.7rem;white-space:nowrap}
+html.framed .bar{padding:.4rem max(14px,2vw) calc(.45rem + env(safe-area-inset-bottom,0px))}
+@media (max-width:1000px){
+  .labhead{flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:.7rem}
+  .labhead .pills,.cdtop .pills{justify-content:flex-start;margin-left:0}
+  html.framed .brand{display:none}
+}
+#lvName{position:fixed;inset:0;z-index:59;display:grid;place-items:center;background:rgba(251,252,254,.94);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:24px;text-align:center}
+#lvName form{display:grid;gap:1rem;justify-items:center;width:min(92vw,560px)}
+#lvName h2{margin:0;font:300 clamp(2.2rem,5vw,4rem)/1.05 var(--display);letter-spacing:-.03em}
+#lvName h2 b{font-weight:600;color:var(--c-red)}
+#lvName p{margin:0;color:var(--mute);font-size:clamp(1rem,1.6vw,1.3rem)}
+#lvName input{width:100%;font:500 clamp(1.3rem,2.4vw,1.9rem) var(--body);text-align:center;padding:.5em .8em;border:2px solid var(--line);border-radius:16px;background:#fff;color:var(--text);outline:none}
+#lvName input:focus{border-color:var(--c-blue)}
+#lvName .nb{font-size:1.1rem;padding:.7rem 2rem}
+#lvName.shake form{animation:lvShake .4s}
+@keyframes lvShake{25%{translate:-10px 0}75%{translate:10px 0}}
+@media (max-width:1000px){#lvName h2{font-size:5rem}#lvName p{font-size:1.7rem}#lvName input{font-size:2.6rem}#lvName .nb{font-size:1.9rem;padding:.8rem 2.6rem}#lvName form{width:min(92vw,700px);gap:1.4rem}}
+.lvroster{display:flex;flex-wrap:wrap;gap:.4rem;max-height:7.5em;overflow:auto}
+.lvroster span{font-size:clamp(.8rem,1vw,.95rem);padding:.25em .75em;border-radius:999px;background:var(--tint);color:var(--text);white-space:nowrap}
+.lvroster span.away{color:var(--mute);opacity:.6}
+.lvroster:empty::before{content:'Names appear here as students join.';color:var(--mute);font-size:.9rem}
 </style>
 </head>
 <body data-total="180">
@@ -1356,7 +1383,7 @@ body.stu #stage[inert]{cursor:not-allowed}
         <div class="row" style="justify-content:center"><button class="btn" id="startBtn">Begin</button></div>
         <div class="dgline"><span id="dgCount"></span></div>
       </div>
-      <aside class="nt"><h4>Before class</h4><ul><li>Press <b>P</b> for the presenter window, <b>N</b> for notes, <b>M</b> for the slide menu, <b>F</b> for full screen.</li><li>Almost every slide is a toy: click it, drag it, type in it. Let students come to the screen and drive.</li><li>No installs. Lab 1 uses the built-in Command Prompt / Terminal.</li><li><b>Live class:</b> press <b>L</b> and students scan the QR. Their screens follow yours and stay locked. On a game, press <b>U</b> (Unleash) so everyone plays their own copy; moving on locks it again. Needs internet; the deck itself works offline.</li><li>The games need no internet. Only the "real public IP" button and Lab 1 do.</li></ul></aside>
+      <aside class="nt"><h4>Before class</h4><ul><li>Press <b>P</b> for the presenter window, <b>N</b> for notes, <b>M</b> for the slide menu, <b>F</b> for full screen.</li><li>Almost every slide is a toy: click it, drag it, type in it. Let students come to the screen and drive.</li><li>No installs. Lab 1 uses the built-in Command Prompt / Terminal.</li><li><b>Live class:</b> press <b>L</b> and students scan the QR. Their screens follow yours and stay locked. On a game, press <b>U</b> (Unleash) so everyone plays their own copy; moving on locks it again. Students type their name when they join; <b>Download class file</b> in the L panel saves names, games played and scores as a .properties file (it also downloads by itself when you press End class). Needs internet; the deck itself works offline.</li><li>The games need no internet. Only the "real public IP" button and Lab 1 do.</li></ul></aside>
     </section>
 
     <section class="slide" data-id="mission" data-title="Your mission">
@@ -3443,7 +3470,7 @@ const LV_MQTT='https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js';
 const LV_QR='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
 const LV_Q=new URLSearchParams(location.search);
 const LV_TEST=(LV_Q.get('lvb')||'').split(',').filter(Boolean);
-const LIVE={pres:false,stu:false,room:'',key:null,vkey:null,pub:'',seq:0,last:0,u:false,sid:'',cl:[],seen:new Map(),got:false,ended:false,locked:true,me:Math.random().toString(36).slice(2,10),qt:0,hb:0};
+const LIVE={roster:new Map(),rt:0,name:'',use:{},uId:'',uT:0,pres:false,stu:false,room:'',key:null,vkey:null,pub:'',seq:0,last:0,u:false,sid:'',cl:[],seen:new Map(),got:false,ended:false,locked:true,me:Math.random().toString(36).slice(2,10),qt:0,hb:0};
 const EC={name:'ECDSA',namedCurve:'P-256'},SIG={name:'ECDSA',hash:'SHA-256'};
 const SUB=typeof crypto!=='undefined'&&crypto.subtle;
 const b64e=buf=>btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -3498,16 +3525,58 @@ async function lvStart(fresh){
   LIVE.pres=true;LIVE.ended=false;LIVE.u=false;LIVE.sid='';LIVE.seen.clear();
   ls('s2b-live-on','1');
   lvDrop();
-  try{await lvConnect(['hi'],lvHello,c=>{if(c)lvSendNow(c);lvUI();});}
+  LIVE.roster=new Map();try{JSON.parse(ls('s2b-roster-'+LIVE.room)||'[]').forEach(([k,v])=>LIVE.roster.set(k,v));}catch(e){}
+  try{await lvConnect(['hi','use'],lvHello,c=>{if(c)lvSendNow(c);lvUI();});}
   catch(e){toast('Live class needs internet. The deck still works offline.');}
   clearInterval(LIVE.hb);LIVE.hb=setInterval(()=>{lvSendNow();lvUI();},8000);
   lvUI();
 }
 function lvHello(t,p){
-  if(!t.endsWith('/hi'))return;
-  const id=String(p).slice(0,24);if(!id)return;
+  const hi=t.endsWith('/hi');if(!hi&&!t.endsWith('/use'))return;
+  let o=null;try{o=JSON.parse(p);}catch(e){}
+  if(!o||typeof o!=='object'){if(!hi)return;o={i:String(p)};}
+  const id=String(o.i||'').replace(/[^a-z0-9]/gi,'').slice(0,24);if(!id)return;
+  if(!LIVE.roster.has(id)&&LIVE.roster.size>=300)return;
   const fresh=!LIVE.seen.has(id);LIVE.seen.set(id,Date.now());
-  if(fresh)lvUI();
+  const r=LIVE.roster.get(id)||{n:'',a:Date.now(),z:0,g:{}};
+  if(typeof o.n==='string'&&o.n.trim())r.n=o.n.replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,24);
+  r.z=Date.now();
+  if(!hi&&o.g&&typeof o.g==='object')Object.keys(o.g).slice(0,60).forEach(k=>{
+    if(!slides.some(s=>s.dataset.id===k))return;
+    const u=o.g[k]||{},num=v=>Math.max(0,Math.min(1e5,Math.round(Number(v)||0)));
+    r.g[k]={t:num(u.t),s:num(u.s),r:String(u.r||'').replace(/[\u0000-\u001f\u007f]/g,' ').slice(0,80)};
+  });
+  LIVE.roster.set(id,r);
+  clearTimeout(LIVE.rt);LIVE.rt=setTimeout(()=>ls('s2b-roster-'+LIVE.room,JSON.stringify([...LIVE.roster])),1500);
+  if(fresh)lvUI();else lvRosterUI();
+}
+function lvRosterUI(){
+  const box=$('#lvRoster');if(!box)return;
+  const now=Date.now(),rs=[...LIVE.roster.values()].filter(r=>r.n).sort((a,b)=>a.n.localeCompare(b.n));
+  box.textContent='';
+  rs.forEach(r=>{const s=document.createElement('span');s.textContent=r.n;if(now-r.z>32000)s.className='away';box.appendChild(s);});
+}
+function lvStamp(t){const d=new Date(t),z=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+' '+z(d.getHours())+':'+z(d.getMinutes());}
+function lvProps(){
+  const v=x=>String(x).replace(/\\/g,'\\\\').replace(/\r?\n/g,'\\n').replace(/^\s/,'\\ ');
+  const rs=[...LIVE.roster.values()].sort((a,b)=>(a.n||'~').localeCompare(b.n||'~'));
+  const L=['# Cyber Foundations Session 2b: student names and usage','# American Corner Matara · exported '+lvStamp(Date.now()),'# taps = taps on an unleashed slide, seconds = time it was unleashed for them, result = what their screen showed','',
+    'class.room='+LIVE.room,'class.exported='+lvStamp(Date.now()),'class.students='+rs.length];
+  rs.forEach((r,k)=>{
+    const n='student.'+(k+1)+'.',played=Object.keys(r.g).filter(g=>r.g[g].t||r.g[g].s);
+    L.push('',n+'name='+v(r.n||'(no name)'),n+'joined='+lvStamp(r.a),n+'lastSeen='+lvStamp(r.z),n+'gamesPlayed='+played.join(','));
+    played.forEach(g=>{const u=r.g[g];L.push(n+g+'.taps='+u.t,n+g+'.seconds='+u.s);if(u.r)L.push(n+g+'.result='+v(u.r));});
+  });
+  return L.join('\n')+'\n';
+}
+function lvDownload(){
+  if(!LIVE.roster.size){toast('No students yet');return;}
+  try{
+    const a=document.createElement('a'),d=new Date(),z=n=>String(n).padStart(2,'0');
+    a.href=URL.createObjectURL(new Blob([lvProps()],{type:'text/plain;charset=utf-8'}));
+    a.download='class-2b-'+d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+'-'+LIVE.room+'.properties';
+    document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
+  }catch(e){toast('Download blocked by the browser');}
 }
 function lvCount(){const now=Date.now();let n=0;LIVE.seen.forEach((t,id)=>{if(now-t<32000)n++;else LIVE.seen.delete(id);});return n;}
 function lvQueue(){if(!LIVE.pres)return;clearTimeout(LIVE.qt);LIVE.qt=setTimeout(lvSendNow,60);}
@@ -3531,9 +3600,9 @@ function lvToggleU(){
 function lvEnd(){
   if(!LIVE.pres)return;
   LIVE.ended=true;LIVE.u=false;
-  lvSendNow().then(()=>setTimeout(()=>{lvDrop();LIVE.pres=false;clearInterval(LIVE.hb);lvUI();},600));
+  lvSendNow().then(()=>setTimeout(()=>{lvDrop();LIVE.pres=false;clearInterval(LIVE.hb);lvUI();if(LIVE.roster.size)lvDownload();},2500));
   ls('s2b-live-on',null);
-  lvPanel(false);toast('Class ended. Students can now explore on their own.');
+  lvPanel(false);toast('Class ended. Saving the class file…');
 }
 function lvGame(s){return !!$('button,input,.qc,.fc,.tok,.sbin,.npc,[draggable]',s);}
 function lvUI(){
@@ -3551,6 +3620,7 @@ function lvUI(){
   const p=$('#lvPanel');
   if(p){
     $('#lvN',p).textContent=lvCount();
+    lvRosterUI();
     const up=lvUp(),st=$('#lvSt',p),all=LIVE.cl.length;
     st.className='lvst '+(up?'ok':'bad');
     $('span',st).textContent=!LIVE.pres?'Not live':(up?'Connected to '+up+' of '+all+' relays':'Connecting… (needs internet)');
@@ -3563,13 +3633,14 @@ async function lvPanel(open){
   if(p)return;
   if(!LIVE.pres)await lvStart(false);
   p=document.createElement('div');p.id='lvPanel';
-  p.innerHTML='<div class="lvc"><button class="lvx" aria-label="Close">&times;</button><div id="lvQr"><small>Loading QR…</small></div><div class="lvi"><h2>Join the <b>class.</b></h2><p>Scan with your phone. Your screen follows mine.</p><div class="lvlink" id="lvLink"></div><div class="lvn"><b id="lvN">0</b><span>joined</span></div><div class="lvst" id="lvSt"><i></i><span></span></div><div class="lvbtns"><button class="nb main" id="lvUp">Unleash this slide (U)</button><button class="nb" id="lvCopy">Copy link</button><button class="nb" id="lvNew">New class link</button><button class="nb" id="lvStop">End class</button></div></div></div>';
+  p.innerHTML='<div class="lvc"><button class="lvx" aria-label="Close">&times;</button><div id="lvQr"><small>Loading QR…</small></div><div class="lvi"><h2>Join the <b>class.</b></h2><p>Scan with your phone. Your screen follows mine.</p><div class="lvlink" id="lvLink"></div><div class="lvn"><b id="lvN">0</b><span>joined</span></div><div class="lvroster" id="lvRoster"></div><div class="lvst" id="lvSt"><i></i><span></span></div><div class="lvbtns"><button class="nb main" id="lvUp">Unleash this slide (U)</button><button class="nb" id="lvCopy">Copy link</button><button class="nb" id="lvDl">Download class file</button><button class="nb" id="lvNew">New class link</button><button class="nb" id="lvStop">End class</button></div></div></div>';
   document.body.appendChild(p);
   const url=lvJoinUrl();
   $('#lvLink',p).textContent=url;
   $('.lvx',p).onclick=()=>lvPanel(false);
   p.addEventListener('click',e=>{if(e.target===p)lvPanel(false);});
   $('#lvUp',p).onclick=lvToggleU;
+  $('#lvDl',p).onclick=lvDownload;
   $('#lvCopy',p).onclick=()=>{try{navigator.clipboard.writeText(url).then(()=>toast('Link copied'),()=>toast('Copy blocked: select the link text'));}catch(e){toast('Copy blocked: select the link text');}};
   $('#lvNew',p).onclick=async()=>{if(!confirm('Make a new class link? Students on the old link stop following.'))return;lvPanel(false);await lvStart(true);lvPanel(true);};
   $('#lvStop',p).onclick=()=>{if(confirm('End the class? Students get the deck to explore on their own.'))lvEnd();};
@@ -3598,6 +3669,9 @@ function lvStudent(){
   const w=document.createElement('div');w.id='lvWait';
   w.innerHTML='<div><h2>You\'re <b>in.</b></h2><p id="lvWaitP">Waiting for the teacher to start…</p><div class="lvdots"><i></i><i></i><i></i></div></div>';
   document.body.appendChild(w);
+  LIVE.name=(ls('s2b-name')||'').slice(0,24);
+  lvAskName();
+  $('#stage').addEventListener('pointerdown',()=>{if(!LIVE.locked&&LIVE.uId)lvUse(LIVE.uId).t++;},true);
   lvLock(true);
   addEventListener('keydown',e=>{
     if(!LIVE.stu)return;
@@ -3608,11 +3682,44 @@ function lvStudent(){
   },true);
   (async()=>{
     if(LIVE.pub&&SUB)try{LIVE.vkey=await SUB.importKey('raw',b64d(LIVE.pub),EC,false,['verify']);}catch(e){LIVE.vkey=null;}
-    try{await lvConnect(['s'],lvRecv,c=>{if(c)c.publish(lvTopic('hi'),LIVE.me);lvChip();});}
+    try{await lvConnect(['s'],lvRecv,c=>{if(c)lvHi(c);lvChip();});}
     catch(e){$('#lvWaitP').textContent='Can\'t reach the class. Check your internet, then reload. Meanwhile, watch the shared screen.';}
-    setInterval(()=>{if(!LIVE.stu)return;LIVE.cl.forEach(c=>{if(c.connected)c.publish(lvTopic('hi'),LIVE.me);});lvChip();},12000);
+    setInterval(()=>{if(!LIVE.stu)return;lvHi();if(LIVE.uId){lvTally();lvReport();}lvChip();},12000);
     setTimeout(()=>{if(LIVE.stu&&!LIVE.got&&!lvUp())$('#lvWaitP').textContent='Still connecting… Check your Wi-Fi or mobile data. Meanwhile, watch the shared screen.';},12000);
   })();
+}
+function lvAskName(){
+  const old=$('#lvName');if(old)old.remove();
+  const w=document.createElement('div');w.id='lvName';
+  w.innerHTML='<form><h2>What\'s your <b>name?</b></h2><p>Your teacher sees it with the games you play.</p><input id="lvNameIn" maxlength="24" autocomplete="given-name" placeholder="Your name"><button class="nb main" type="submit">Join</button></form>';
+  document.body.appendChild(w);
+  const i=$('#lvNameIn',w);i.value=LIVE.name;setTimeout(()=>{try{i.focus();}catch(e){}},300);
+  $('form',w).onsubmit=e=>{
+    e.preventDefault();
+    const v=i.value.replace(/[\u0000-\u001f\u007f]/g,'').replace(/\s+/g,' ').trim().slice(0,24);
+    if(!v){w.classList.remove('shake');void w.offsetWidth;w.classList.add('shake');return;}
+    LIVE.name=v;ls('s2b-name',v);w.remove();lvHi();lvReport();lvChip();
+  };
+}
+function lvHi(only){
+  if(!LIVE.stu||!LIVE.name)return;
+  const m=JSON.stringify({i:LIVE.me,n:LIVE.name});
+  (only&&only.publish?[only]:LIVE.cl).forEach(c=>{if(c.connected)c.publish(lvTopic('hi'),m);});
+}
+function lvUse(id){return LIVE.use[id]||(LIVE.use[id]={t:0,s:0,r:''});}
+const lvTx=sel=>{const e=$(sel);return e?e.textContent.replace(/\s+/g,' ').trim().slice(0,60):'';};
+const LV_RES={sortgame:()=>lvTx('#sgScore')+' · '+lvTx('#sgMiss'),octgame:()=>'score '+lvTx('#ogS'),ipreal:()=>lvTx('#frScore'),
+  natsim:()=>lvTx('#nSay'),need:()=>lvTx('#ndRes'),magic:()=>lvTx('#mgOut'),split:()=>lvTx('#spMsg'),sprint:()=>'Blue '+lvTx('#sbB')+' : Red '+lvTx('#sbR'),boss:()=>lvTx('#bSay')};
+function lvTally(){
+  if(!LIVE.uId)return;
+  const u=lvUse(LIVE.uId),now=Date.now();
+  u.s+=Math.round((now-LIVE.uT)/1000);LIVE.uT=now;
+  if(LV_RES[LIVE.uId])try{u.r=LV_RES[LIVE.uId]();}catch(e){}
+}
+function lvReport(){
+  if(!LIVE.stu||!LIVE.name)return;
+  const m=JSON.stringify({i:LIVE.me,n:LIVE.name,g:LIVE.use});
+  LIVE.cl.forEach(c=>{if(c.connected)c.publish(lvTopic('use'),m);});
 }
 async function lvRecv(t,p){
   if(!LIVE.stu||!t.endsWith('/s'))return;
@@ -3629,8 +3736,9 @@ async function lvRecv(t,p){
 }
 function lvApply(st){
   if(!LIVE.got){LIVE.got=true;const w=$('#lvWait');if(w)w.remove();}
-  if(st.e){lvFree();return;}
+  if(st.e){if(LIVE.uId){lvTally();LIVE.uId='';}lvReport();setTimeout(lvFree,400);return;}
   const i=slides.findIndex(s=>s.dataset.id===st.id);if(i<0)return;
+  if(LIVE.uId&&LIVE.uId!==st.id){lvTally();LIVE.uId='';lvReport();}
   if(i!==cur)show(i);
   const b=Math.max(0,Math.min(Number(st.b)||0,bs[i].length));
   if(shown[i]!==b){shown[i]=b;applyBuilds(i);}
@@ -3639,6 +3747,8 @@ function lvApply(st){
 function lvLock(lock){
   const was=LIVE.locked;LIVE.locked=lock;
   $('#stage').inert=lock;
+  if(!lock&&!LIVE.uId){LIVE.uId=slides[cur].dataset.id;LIVE.uT=Date.now();lvUse(LIVE.uId);}
+  if(lock&&LIVE.uId){lvTally();LIVE.uId='';lvReport();}
   if(was&&!lock)lvFlash('Your turn!');
   else if(!was&&lock)lvFlash('Locked',true);
   lvChip();
@@ -3647,10 +3757,12 @@ function lvChip(){
   const c=$('#lvChip');if(!c)return;
   const up=lvUp();
   c.className=!up?'gone':(LIVE.locked?'':'free');
-  c.textContent=!up?'Reconnecting…':(LIVE.locked?'Watching · teacher drives':'Your turn · play!');
+  c.textContent=(LIVE.name?LIVE.name+' · ':'')+(!up?'Reconnecting…':(LIVE.locked?'Watching':'Your turn · play!'));
 }
 function lvFree(){
+  if(!LIVE.stu)return;
   LIVE.stu=false;lvDrop();
+  const nm=$('#lvName');if(nm)nm.remove();
   $('#stage').inert=false;$('#stage').classList.remove('nosw');
   document.body.classList.remove('stu');
   const c=$('#lvChip');if(c)c.remove();
