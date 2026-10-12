@@ -11,17 +11,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>
-:root{--navy:#002868;--red:#BF0A30;--ink:#0b1630;--muted:#5a6478;--line:#e3e7ee;--soft:#f5f7fb;--bg:#ffffff;--ease:cubic-bezier(.22,1,.36,1)}
+:root{--gut:clamp(16px,3.2vw,56px);--navy:#002868;--red:#BF0A30;--ink:#0b1630;--muted:#5a6478;--line:#e3e7ee;--soft:#f5f7fb;--bg:#ffffff;--ease:cubic-bezier(.22,1,.36,1)}
 *{box-sizing:border-box;margin:0}
 html{-webkit-text-size-adjust:100%}
 body{background:var(--bg);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;overflow-x:hidden;font-size:16px}
 a{color:var(--navy)}
 [hidden]{display:none!important}
 .deco{position:absolute;top:0;left:0;right:0;height:520px;pointer-events:none;z-index:0;overflow:hidden}
-.stripes{position:absolute;top:-12vmin;left:-12vmin;width:40vmin;height:40vmin;transform:rotate(-45deg);display:grid;gap:2vmin;align-content:center;opacity:.9}
+.stripes{position:absolute;top:calc(var(--sw) * -.3);left:calc(var(--sw) * -.3);width:var(--sw);height:var(--sw);transform:rotate(-45deg);display:grid;gap:2vmin;align-content:center;opacity:.9}
 .stripes i{display:block;height:2vmin;background:var(--red);transform-origin:left;animation:grow 1.4s var(--ease) both}
 .stripes i:nth-child(2){animation-delay:.12s}.stripes i:nth-child(3){animation-delay:.24s}.stripes i:nth-child(4){animation-delay:.36s}
-.stars{position:absolute;right:max(16px,calc(50% - 574px));top:150px;width:min(22vw,240px);display:grid;grid-template-columns:repeat(5,1fr);gap:1.2vmin;opacity:.12}
+.stars{position:absolute;right:var(--gut);top:150px;width:min(22vw,240px);display:grid;grid-template-columns:repeat(5,1fr);gap:1.2vmin;opacity:.12}
 .stars svg{width:100%;height:auto;fill:var(--navy);animation:fade 2.4s ease both}
 @keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @keyframes fade{from{opacity:0}to{opacity:1}}
@@ -31,7 +31,13 @@ a{color:var(--navy)}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 @keyframes slidein{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
-main{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:clamp(16px,3vw,40px) 16px 56px}
+main{position:relative;z-index:1;padding:clamp(16px,3vw,40px) var(--gut) 56px}
+/* keep the top-left text clear of the corner stripes */
+.brand,header{padding-left:max(0px,calc(var(--clear) - var(--gut)))}
+:root{--sw:min(34vmin,330px);--clear:calc(var(--sw) * .92 + 16px)}
+/* the stars sit top right; keep the title out from under them */
+@media (min-width:901px){header{padding-right:calc(min(22vw,240px) + 32px)}}
+@media (max-width:900px){.stars{display:none}}
 .brand{display:flex;justify-content:flex-end;align-items:center;gap:clamp(10px,2vw,20px);animation:fade .8s ease both}
 .brand svg,.brand img{height:clamp(30px,4.4vw,50px);width:auto;display:block}
 .brand img{border-radius:6px}
@@ -115,7 +121,7 @@ input[type=checkbox]{width:22px;height:22px;min-height:0;accent-color:var(--navy
 .msg.good{background:#fff;border:1.5px solid var(--navy);color:var(--navy)}
 footer{color:var(--muted);font-size:.95rem;text-align:center;border-top:1px solid var(--line);padding-top:20px;margin-top:36px}
 /* admin */
-.tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--line);margin:0 -16px 20px;padding:0 16px;position:sticky;top:0;background:rgba(255,255,255,.96);backdrop-filter:blur(6px);z-index:5}
+.tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--line);margin:0 calc(-1 * var(--gut)) 20px;padding:0 var(--gut);position:sticky;top:0;background:rgba(255,255,255,.96);backdrop-filter:blur(6px);z-index:5}
 .tabs::-webkit-scrollbar{display:none}
 .tabs button{flex:none;font-family:'Outfit';font-weight:600;font-size:1.02rem;padding:14px 14px 12px;border:0;background:none;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;transition:color .2s,border-color .3s var(--ease)}
 .tabs button.on{color:var(--navy);border-bottom-color:var(--red)}
@@ -166,7 +172,7 @@ td.name{white-space:normal;min-width:140px;font-weight:600}
 .bar.low i{background:var(--red)}
 .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
 .split.wideleft{grid-template-columns:minmax(0,1.9fr) minmax(300px,1fr)}
-@media (max-width:900px){.split.wideleft{grid-template-columns:1fr}}
+@media (max-width:900px){.split.wideleft{grid-template-columns:minmax(0,1fr)}}
 .reg td.cell{padding:4px;text-align:center;min-width:60px}
 .reg td.cell button{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;min-height:42px;border-radius:9px;font-family:'Outfit';font-weight:700;font-size:1.2rem;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .2s,color .2s,transform .15s}
 .reg td.cell button:active{transform:scale(.92)}
@@ -206,7 +212,7 @@ body.present .names{max-height:52vh}
 body.present .names div{font-size:2.4vh}
 .projtitle{display:none;font-family:'Outfit';font-weight:700;color:var(--navy);font-size:5vh;line-height:1.1;margin-bottom:2vh}
 .projtitle span{color:var(--red)}
-@media (max-width:600px){.stripes{width:28vmin;height:28vmin;top:-8vmin;left:-8vmin;gap:1.5vmin}.stripes i{height:1.5vmin}header{margin-top:40px}.stars{display:none}.me-top{flex-direction:column;align-items:stretch}.ring{margin:0 auto}th,td{padding:9px 10px}}
+@media (max-width:600px){:root{--sw:28vmin}header{padding-left:0!important}.stripes{gap:1.5vmin}.stripes i{height:1.5vmin}header{margin-top:40px}.stars{display:none}.me-top{flex-direction:column;align-items:stretch}.ring{margin:0 auto}th,td{padding:9px 10px}}
 @media print{.deco,.brand,.tabs,.adminbar,footer,.noprint,.demo,.toast{display:none!important}main{padding:0}.card{border:0;padding:0;animation:none}.card::before{display:none}.tblwrap{overflow:visible;border:0}th{position:static}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.result path{stroke-dashoffset:0}}
 </style>
