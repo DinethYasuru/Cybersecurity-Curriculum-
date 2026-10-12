@@ -372,9 +372,9 @@ function msgBox(msg){return '<div id="ciMsg">'+(msg?'<div class="msg err">'+esc(
 
 function renderPhone(msg){
   const me=getMe()||{},c=$('#stCard');
-  if(!SID){c.innerHTML='<h2>Not set up yet</h2><p class="lead">Your instructor has not connected the attendance server. Scan the QR on the classroom screen when it shows.</p>';return}
   c.innerHTML=`<h2>${me.name?'Hi '+esc(me.name.split(' ')[0])+'!':'Check in'}</h2>
     <p class="lead">${CODE?'Code scanned. Type your mobile number.':needCode()?'Scan the QR on the classroom screen, or type the 6-letter code you see under it.':'Type your mobile number.'}</p>
+    ${SID?'':'<div class="msg err">Not connected to the attendance server yet, so check-in will not save. Instructor: <a href="#setup">connect it or try the demo</a>.</div>'}
     <form id="ciForm" novalidate>
       <div class="field"><label for="sphone">Mobile number</label><input id="sphone" type="tel" inputmode="tel" autocomplete="tel" maxlength="16" placeholder="07X XXX XXXX" value="${esc(showPhone(me.phone||''))}"><div class="hint">First time? You register with this number and get your student ID.</div></div>
       ${codeField()}
