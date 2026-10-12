@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<script>/* live class: phones joining get a laptop-sized layout, scaled to fit */try{if(/[?&]join=/.test(location.search)&&Math.min(screen.width,screen.height)<700)document.querySelector('meta[name=viewport]').setAttribute('content','width=1280,viewport-fit=cover');}catch(e){}</script>
 <title>Cyber Foundations Session 2b</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1238,6 +1239,67 @@ input[type=range]{accent-color:var(--c-red);height:2rem;cursor:pointer;min-width
 .brm.hit{background:#fde8ec}
 .boss::before{content:'';position:absolute;left:50%;top:1.5rem;bottom:20%;border-left:3px dashed var(--seg-blue);z-index:0}
 .boss .nsay{width:100%}
+/* ---- live class ---- */
+.nb.lvb{display:inline-flex;align-items:center;gap:.45em}
+.nb.lvb::before{content:'';width:.55em;height:.55em;border-radius:50%;background:var(--line)}
+.nb.lvb.live::before{background:var(--c-red);animation:lvBeat 1.6s infinite}
+.nb.lvu{background:var(--c-red);border-color:var(--c-red);color:#fff;font-weight:600}
+.nb.lvu.unl{background:var(--surface);color:var(--c-red)}
+.nb.lvu.hint{animation:lvPulse 1.6s infinite}
+@keyframes lvBeat{50%{opacity:.25}}
+@keyframes lvPulse{0%{box-shadow:0 0 0 0 rgba(191,10,48,.45)}70%{box-shadow:0 0 0 12px rgba(191,10,48,0)}100%{box-shadow:0 0 0 0 rgba(191,10,48,0)}}
+#lvPanel{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:rgba(251,252,254,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:fadein .3s both}
+#lvPanel .lvc{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);gap:clamp(18px,3vw,48px);align-items:center;background:var(--surface);border:1.5px solid var(--line);border-radius:28px;padding:clamp(20px,3vw,44px);box-shadow:0 30px 80px rgba(0,40,104,.16);width:min(92vw,1100px);max-height:92vh;overflow:auto}
+#lvPanel .lvc::before{content:'';position:absolute;left:0;right:0;top:0;height:6px;border-radius:28px 28px 0 0;background:linear-gradient(90deg,var(--c-red) 0 33.3%,var(--line) 33.3% 66.6%,var(--c-blue) 66.6%)}
+#lvQr{width:clamp(200px,26vw,380px);aspect-ratio:1;display:grid;place-items:center;border:1.5px solid var(--line);border-radius:18px;padding:12px;background:#fff}
+#lvQr svg{width:100%;height:100%;display:block}
+#lvQr small{font-size:.9rem;color:var(--mute);text-align:center}
+.lvi{display:grid;gap:clamp(10px,1.4vw,18px);min-width:0}
+.lvi h2{margin:0;font:300 clamp(2rem,4vw,3.6rem)/1 var(--display);letter-spacing:-.03em}
+.lvi h2 b{font-weight:600;color:var(--c-red)}
+.lvi p{margin:0;font-size:clamp(1rem,1.5vw,1.35rem);color:var(--mute)}
+.lvlink{font:500 clamp(.75rem,1vw,.95rem)/1.35 ui-monospace,Menlo,Consolas,monospace;color:var(--c-blue);background:var(--tint);border-radius:12px;padding:.6em .8em;word-break:break-all;max-height:5.6em;overflow:auto}
+.lvn{display:flex;align-items:baseline;gap:.4em;font-family:var(--display)}
+.lvn b{font-weight:600;font-size:clamp(2.6rem,5vw,4.6rem);line-height:1;color:var(--c-blue);font-variant-numeric:tabular-nums}
+.lvn span{font-size:clamp(1.1rem,1.8vw,1.6rem);color:var(--text)}
+.lvst{font-size:clamp(.85rem,1.1vw,1rem);color:var(--mute);display:flex;align-items:center;gap:.5em}
+.lvst i{width:.6em;height:.6em;border-radius:50%;background:var(--line)}
+.lvst.ok i{background:var(--c-blue)}.lvst.bad i{background:var(--c-red)}
+.lvbtns{display:flex;flex-wrap:wrap;gap:.6rem}
+.lvbtns .nb{font-size:clamp(.85rem,1.1vw,1.05rem);padding:.5rem 1.1rem}
+.lvx{position:absolute;right:14px;top:14px;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);font-size:1.4rem;cursor:pointer;line-height:1}
+#lvFlag{position:fixed;left:50%;top:clamp(78px,11vh,130px);translate:-50% 0;z-index:45;display:flex;align-items:center;gap:.5em;background:var(--c-red);color:#fff;font:600 clamp(.85rem,1.2vw,1.15rem) var(--body);padding:.45em 1.1em;border-radius:999px;box-shadow:0 10px 30px rgba(191,10,48,.3);pointer-events:none;animation:fadein .3s both}
+#lvFlag::before{content:'';width:.55em;height:.55em;border-radius:50%;background:#fff;animation:lvBeat 1.2s infinite}
+#lvGo{position:fixed;inset:0;z-index:55;display:grid;place-items:center;pointer-events:none}
+#lvGo b{font:600 clamp(3rem,11vw,10rem)/1 var(--display);letter-spacing:-.04em;color:var(--c-red);background:rgba(255,255,255,.9);padding:.15em .45em;border-radius:.3em;box-shadow:0 30px 80px rgba(191,10,48,.2);animation:lvPop 1.7s cubic-bezier(.22,1,.36,1) both}
+#lvGo b.lk{color:var(--c-blue);box-shadow:0 30px 80px rgba(0,40,104,.2)}
+@keyframes lvPop{0%{opacity:0;scale:.6}18%{opacity:1;scale:1.06}30%{scale:1}78%{opacity:1}100%{opacity:0;scale:.96}}
+/* student view */
+body.stu #prev,body.stu #next,body.stu #pvBtn,body.stu #notesBtn,body.stu #menuBtn,body.stu #lvBtn,body.stu #lvU,body.stu #notes,body.stu #menu{display:none!important}
+body.stu.idle{cursor:auto}
+body.stu.idle .bar{opacity:1;pointer-events:auto}
+#lvChip{display:inline-flex;align-items:center;gap:.5em;font:600 .95rem var(--body);padding:.4rem 1rem;border-radius:999px;border:1.5px solid var(--line);background:var(--surface);color:var(--c-blue);white-space:nowrap}
+#lvChip::before{content:'';width:.55em;height:.55em;border-radius:50%;background:var(--c-blue)}
+#lvChip.free{background:var(--c-red);border-color:var(--c-red);color:#fff}
+#lvChip.free::before{background:#fff;animation:lvBeat 1.2s infinite}
+#lvChip.gone{color:var(--mute)}#lvChip.gone::before{background:var(--line)}
+#lvWait{position:fixed;inset:0;z-index:58;display:grid;place-items:center;background:rgba(251,252,254,.9);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);text-align:center;padding:24px}
+#lvWait h2{margin:0 0 .3em;font:300 clamp(2.2rem,5vw,4.4rem)/1.05 var(--display);letter-spacing:-.03em}
+#lvWait h2 b{font-weight:600;color:var(--c-red)}
+#lvWait p{margin:0 auto;max-width:28em;color:var(--mute);font-size:clamp(1rem,1.6vw,1.4rem)}
+#lvWait .lvdots{display:flex;gap:.5em;justify-content:center;margin-top:1.2em}
+#lvWait .lvdots i{width:.7em;height:.7em;border-radius:50%;background:var(--c-blue);animation:lvBeat 1.2s infinite}
+#lvWait .lvdots i:nth-child(2){background:var(--c-red);animation-delay:.2s}
+#lvWait .lvdots i:nth-child(3){animation-delay:.4s}
+#lvWait .nb{margin-top:1.2em;font-size:1rem;padding:.6rem 1.4rem}
+body.stu #stage[inert]{cursor:not-allowed}
+#lvRot{position:fixed;inset:0;z-index:59;display:grid;place-items:center;background:rgba(251,252,254,.94);text-align:center;padding:6vw}
+#lvRot i{display:block;width:16vw;height:26vw;margin:0 auto 5vw;border:1.2vw solid var(--c-blue);border-radius:3vw;animation:lvTurn 2.4s cubic-bezier(.22,1,.36,1) infinite}
+@keyframes lvTurn{0%,25%{rotate:0deg}55%,100%{rotate:-90deg;border-color:var(--c-red)}}
+#lvRot h2{margin:0 0 .4em;font:300 9vw/1.05 var(--display);letter-spacing:-.03em}
+#lvRot h2 b{font-weight:600;color:var(--c-red)}
+#lvRot p{margin:0;color:var(--mute);font-size:4.4vw}
+#lvRot .nb{margin-top:6vw;font-size:4vw;padding:2vw 5vw}
 </style>
 </head>
 <body data-total="180">
@@ -1262,7 +1324,7 @@ input[type=range]{accent-color:var(--c-red);height:2rem;cursor:pointer;min-width
         <div class="row" style="justify-content:center"><button class="btn" id="startBtn">Begin</button></div>
         <div class="dgline"><span id="dgCount"></span></div>
       </div>
-      <aside class="nt"><h4>Before class</h4><ul><li>Press <b>P</b> for the presenter window, <b>N</b> for notes, <b>M</b> for the slide menu, <b>F</b> for full screen.</li><li>Almost every slide is a toy: click it, drag it, type in it. Let students come to the screen and drive.</li><li>No installs. Lab 1 uses the built-in Command Prompt / Terminal.</li><li>The games need no internet. Only the "real public IP" button and Lab 1 do.</li></ul></aside>
+      <aside class="nt"><h4>Before class</h4><ul><li>Press <b>P</b> for the presenter window, <b>N</b> for notes, <b>M</b> for the slide menu, <b>F</b> for full screen.</li><li>Almost every slide is a toy: click it, drag it, type in it. Let students come to the screen and drive.</li><li>No installs. Lab 1 uses the built-in Command Prompt / Terminal.</li><li><b>Live class:</b> press <b>L</b> and students scan the QR. Their screens follow yours and stay locked. On a game, press <b>U</b> (Unleash) so everyone plays their own copy; moving on locks it again. Needs internet; the deck itself works offline.</li><li>The games need no internet. Only the "real public IP" button and Lab 1 do.</li></ul></aside>
     </section>
 
     <section class="slide" data-id="mission" data-title="Your mission">
@@ -2280,6 +2342,7 @@ function applyBuilds(i){
   for(let k=1;k<=Math.max(bs[i].length,1);k++)s.classList.toggle('st'+k,n>=k);
   $$('[data-at]',s).forEach(el=>el.classList.toggle('on',n>=Number(el.dataset.at)));
   if(typeof PV!=='undefined'&&PV.w)pvUpdate();
+  if(LIVE.pres)lvQueue();
 }
 const ENTER={
   ipv6:()=>{const e=$('#v4n');if(e)countUp(e,4294967296,2200);},
@@ -2739,6 +2802,7 @@ function openPresenter(){
     if(['ArrowRight','PageDown',' ','Enter','ArrowDown'].includes(e.key)){e.preventDefault();next();}
     else if(['ArrowLeft','PageUp','ArrowUp'].includes(e.key)){e.preventDefault();back();}
     else if(e.key==='Home')show(0);else if(e.key==='End')show(slides.length-1,true);
+    else if(e.key==='u'||e.key==='U')lvToggleU();
   });
   let rz=0;w.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(pvUpdate,150);});
   clearInterval(PV.tick);PV.tick=setInterval(()=>{if(!PV.w||PV.w.closed){clearInterval(PV.tick);PV.w=null;return;}pvClock();},1000);
@@ -3334,9 +3398,261 @@ ENTER.boss=()=>{bossDraw();bSay(SP.blocks.filter(b=>b.a).length===4?'Built from 
 bossDraw();
 
 
+/* ---- live class: students follow the presenter, Unleash lets them play ---- */
+/* Presenter: press L (or the Live button). Students scan the QR; their copy follows
+   every slide and build, view only. U unleashes the current slide so each student
+   plays their own copy; moving on locks it again. Messages go through public MQTT
+   relays and are signed (ECDSA) so a student can't drive everyone else's screen. */
+const LV_RELAYS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt','wss://mqtt.eclipseprojects.io:443/mqtt'];
+const LV_PUBLIC='https://dinethyasuru.github.io/Cybersecurity-Curriculum-/Cyber_Session_2b_IP_Subnetting.html';
+const LV_MQTT='https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js';
+const LV_QR='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+const LV_Q=new URLSearchParams(location.search);
+const LV_TEST=(LV_Q.get('lvb')||'').split(',').filter(Boolean);
+const LIVE={pres:false,stu:false,room:'',key:null,vkey:null,pub:'',seq:0,last:0,u:false,sid:'',cl:[],seen:new Map(),got:false,ended:false,locked:true,me:Math.random().toString(36).slice(2,10),qt:0,hb:0};
+const EC={name:'ECDSA',namedCurve:'P-256'},SIG={name:'ECDSA',hash:'SHA-256'};
+const SUB=typeof crypto!=='undefined'&&crypto.subtle;
+const b64e=buf=>btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const b64d=s=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));
+const lvTopic=k=>'acm-matara/cyber2b/'+LIVE.room+'/'+k;
+function lvLoad(src,ready){
+  if(ready())return Promise.resolve();
+  return new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=()=>ready()?ok():no();s.onerror=no;document.head.appendChild(s);});
+}
+function lvUp(){return LIVE.cl.filter(c=>c.connected).length;}
+async function lvConnect(subs,onMsg,onUp){
+  await lvLoad(LV_MQTT,()=>window.mqtt);
+  const relays=LV_TEST.length?LV_TEST:LV_RELAYS;
+  LIVE.cl=relays.map(u=>{
+    const c=mqtt.connect(u,{clientId:'acm'+LIVE.me+Math.random().toString(36).slice(2,6),clean:true,connectTimeout:8000,reconnectPeriod:4000,keepalive:30});
+    c.on('connect',()=>{c.subscribe(subs.map(lvTopic));onUp(c);});
+    c.on('close',()=>onUp(null));
+    c.on('error',()=>{});
+    c.on('message',(t,p)=>onMsg(t,p.toString()));
+    return c;
+  });
+}
+function lvDrop(){LIVE.cl.forEach(c=>{try{c.end(true);}catch(e){}});LIVE.cl=[];}
+
+/* ---------- presenter ---------- */
+async function lvKeys(fresh){
+  let sv=null;try{sv=JSON.parse(ls('s2b-live')||'null');}catch(e){}
+  if(sv&&sv.room&&!fresh){
+    LIVE.room=sv.room;LIVE.pub=sv.pub||'';
+    if(sv.priv&&SUB)try{LIVE.key=await SUB.importKey('jwk',sv.priv,EC,false,['sign']);}catch(e){LIVE.key=null;LIVE.pub='';}
+    return;
+  }
+  LIVE.room=Array.from({length:10},()=>'abcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random()*31)]).join('');
+  let priv=null;LIVE.key=null;LIVE.pub='';
+  if(SUB)try{
+    const kp=await SUB.generateKey(EC,true,['sign','verify']);
+    priv=await SUB.exportKey('jwk',kp.privateKey);
+    LIVE.pub=b64e(await SUB.exportKey('raw',kp.publicKey));
+    LIVE.key=kp.privateKey;
+  }catch(e){priv=null;LIVE.pub='';}
+  ls('s2b-live',JSON.stringify({room:LIVE.room,priv,pub:LIVE.pub}));
+}
+function lvJoinUrl(){
+  const base=/^https?:$/.test(location.protocol)?location.origin+location.pathname:LV_PUBLIC;
+  let u=base+'?join='+LIVE.room+(LIVE.pub?'.'+LIVE.pub:'');
+  if(LV_TEST.length)u+='&lvb='+encodeURIComponent(LV_TEST.join(','));
+  return u;
+}
+async function lvStart(fresh){
+  if(LIVE.stu)return;
+  await lvKeys(fresh);
+  LIVE.pres=true;LIVE.ended=false;LIVE.u=false;LIVE.sid='';LIVE.seen.clear();
+  ls('s2b-live-on','1');
+  lvDrop();
+  try{await lvConnect(['hi'],lvHello,c=>{if(c)lvSendNow(c);lvUI();});}
+  catch(e){toast('Live class needs internet. The deck still works offline.');}
+  clearInterval(LIVE.hb);LIVE.hb=setInterval(()=>{lvSendNow();lvUI();},8000);
+  lvUI();
+}
+function lvHello(t,p){
+  if(!t.endsWith('/hi'))return;
+  const id=String(p).slice(0,24);if(!id)return;
+  const fresh=!LIVE.seen.has(id);LIVE.seen.set(id,Date.now());
+  if(fresh)lvUI();
+}
+function lvCount(){const now=Date.now();let n=0;LIVE.seen.forEach((t,id)=>{if(now-t<32000)n++;else LIVE.seen.delete(id);});return n;}
+function lvQueue(){if(!LIVE.pres)return;clearTimeout(LIVE.qt);LIVE.qt=setTimeout(lvSendNow,60);}
+async function lvSendNow(only){
+  if(!LIVE.pres)return;
+  const id=slides[cur].dataset.id;
+  if(id!==LIVE.sid){if(LIVE.sid&&LIVE.u){LIVE.u=false;lvFlash('Locked',true);}LIVE.sid=id;lvUI();}
+  LIVE.seq=Math.max(Date.now(),LIVE.seq+1);
+  const m=JSON.stringify({id,b:shown[cur],u:LIVE.u?1:0,e:LIVE.ended?1:0,s:LIVE.seq});
+  let g='';
+  if(LIVE.key)try{g=b64e(await SUB.sign(SIG,LIVE.key,new TextEncoder().encode(m)));}catch(e){}
+  const pl=JSON.stringify({m,g});
+  (only&&only.publish?[only]:LIVE.cl).forEach(c=>{if(c.connected)c.publish(lvTopic('s'),pl,{qos:0,retain:true});});
+}
+function lvToggleU(){
+  if(!LIVE.pres){toast('Press L to start the live class first');return;}
+  LIVE.u=!LIVE.u;LIVE.sid=slides[cur].dataset.id;
+  lvFlash(LIVE.u?'Your turn!':'Locked',!LIVE.u);
+  lvSendNow();lvUI();
+}
+function lvEnd(){
+  if(!LIVE.pres)return;
+  LIVE.ended=true;LIVE.u=false;
+  lvSendNow().then(()=>setTimeout(()=>{lvDrop();LIVE.pres=false;clearInterval(LIVE.hb);lvUI();},600));
+  ls('s2b-live-on',null);
+  lvPanel(false);toast('Class ended. Students can now explore on their own.');
+}
+function lvGame(s){return !!$('button,input,.qc,.fc,.tok,.sbin,.npc,[draggable]',s);}
+function lvUI(){
+  const b=$('#lvBtn'),u=$('#lvU');
+  if(b){b.classList.toggle('live',LIVE.pres);b.textContent=LIVE.pres?'Live · '+lvCount():'Live';}
+  if(u){
+    u.hidden=!LIVE.pres;
+    u.textContent=LIVE.u?'Lock':'Unleash';
+    u.classList.toggle('unl',LIVE.u);
+    u.classList.toggle('hint',LIVE.pres&&!LIVE.u&&lvGame(slides[cur]));
+  }
+  let f=$('#lvFlag');
+  if(LIVE.pres&&LIVE.u){if(!f){f=document.createElement('div');f.id='lvFlag';document.body.appendChild(f);}f.textContent='Unleashed · everyone plays';}
+  else if(f)f.remove();
+  const p=$('#lvPanel');
+  if(p){
+    $('#lvN',p).textContent=lvCount();
+    const up=lvUp(),st=$('#lvSt',p),all=LIVE.cl.length;
+    st.className='lvst '+(up?'ok':'bad');
+    $('span',st).textContent=!LIVE.pres?'Not live':(up?'Connected to '+up+' of '+all+' relays':'Connecting… (needs internet)');
+    $('#lvUp',p).textContent=LIVE.u?'Lock this slide (U)':'Unleash this slide (U)';
+  }
+}
+async function lvPanel(open){
+  let p=$('#lvPanel');
+  if(open===false||(open===undefined&&p)){if(p)p.remove();return;}
+  if(p)return;
+  if(!LIVE.pres)await lvStart(false);
+  p=document.createElement('div');p.id='lvPanel';
+  p.innerHTML='<div class="lvc"><button class="lvx" aria-label="Close">&times;</button><div id="lvQr"><small>Loading QR…</small></div><div class="lvi"><h2>Join the <b>class.</b></h2><p>Scan with your phone. Your screen follows mine.</p><div class="lvlink" id="lvLink"></div><div class="lvn"><b id="lvN">0</b><span>joined</span></div><div class="lvst" id="lvSt"><i></i><span></span></div><div class="lvbtns"><button class="nb main" id="lvUp">Unleash this slide (U)</button><button class="nb" id="lvCopy">Copy link</button><button class="nb" id="lvNew">New class link</button><button class="nb" id="lvStop">End class</button></div></div></div>';
+  document.body.appendChild(p);
+  const url=lvJoinUrl();
+  $('#lvLink',p).textContent=url;
+  $('.lvx',p).onclick=()=>lvPanel(false);
+  p.addEventListener('click',e=>{if(e.target===p)lvPanel(false);});
+  $('#lvUp',p).onclick=lvToggleU;
+  $('#lvCopy',p).onclick=()=>{try{navigator.clipboard.writeText(url).then(()=>toast('Link copied'),()=>toast('Copy blocked: select the link text'));}catch(e){toast('Copy blocked: select the link text');}};
+  $('#lvNew',p).onclick=async()=>{if(!confirm('Make a new class link? Students on the old link stop following.'))return;lvPanel(false);await lvStart(true);lvPanel(true);};
+  $('#lvStop',p).onclick=()=>{if(confirm('End the class? Students get the deck to explore on their own.'))lvEnd();};
+  lvUI();
+  try{
+    await lvLoad(LV_QR,()=>window.qrcode);
+    const q=qrcode(0,'L');q.addData(url);q.make();
+    $('#lvQr',p).innerHTML=q.createSvgTag({cellSize:4,margin:2,scalable:true});
+  }catch(e){$('#lvQr',p).innerHTML='<small>QR needs internet. Share the link instead.</small>';}
+}
+function lvFlash(txt,lock){
+  const old=$('#lvGo');if(old)old.remove();
+  const g=document.createElement('div');g.id='lvGo';g.innerHTML='<b'+(lock?' class="lk"':'')+'>'+txt+'</b>';
+  document.body.appendChild(g);setTimeout(()=>g.remove(),1800);
+}
+
+/* ---------- student ---------- */
+function lvStudent(){
+  const j=(LV_Q.get('join')||'').split('.');
+  LIVE.room=(j[0]||'').replace(/[^a-z0-9]/g,'');if(!LIVE.room)return;
+  LIVE.stu=true;LIVE.pub=j[1]||'';
+  document.body.classList.add('stu');
+  $('#stage').classList.add('nosw');
+  DG.passed=true;
+  const chip=document.createElement('span');chip.id='lvChip';$('#bar').prepend(chip);
+  const w=document.createElement('div');w.id='lvWait';
+  w.innerHTML='<div><h2>You\'re <b>in.</b></h2><p id="lvWaitP">Waiting for the teacher to start…</p><div class="lvdots"><i></i><i></i><i></i></div></div>';
+  document.body.appendChild(w);
+  lvLock(true);
+  if(Math.min(screen.width,screen.height)<700&&matchMedia){
+    const mq=matchMedia('(orientation: portrait)');let keep=false;
+    const rot=()=>{let r=$('#lvRot');if(mq.matches&&!keep){if(!r){r=document.createElement('div');r.id='lvRot';r.innerHTML='<div><i></i><h2>Turn your phone <b>sideways.</b></h2><p>Slides and games fit much better.</p><button class="nb">Keep it upright</button></div>';document.body.appendChild(r);$('button',r).onclick=()=>{keep=true;r.remove();};}}else if(r)r.remove();};
+    rot();try{mq.addEventListener('change',rot);}catch(e){addEventListener('resize',rot);}
+  }
+  addEventListener('keydown',e=>{
+    if(!LIVE.stu)return;
+    const t=e.target.tagName;
+    if(t==='INPUT'||t==='TEXTAREA'||t==='SELECT')return;
+    if((e.key===' '||e.key==='Enter')&&t==='BUTTON')return;
+    if(['ArrowRight','ArrowLeft','PageDown','PageUp',' ','Enter','Home','End','n','N','m','M','p','P','l','L','u','U'].includes(e.key)){e.stopImmediatePropagation();e.preventDefault();}
+  },true);
+  (async()=>{
+    if(LIVE.pub&&SUB)try{LIVE.vkey=await SUB.importKey('raw',b64d(LIVE.pub),EC,false,['verify']);}catch(e){LIVE.vkey=null;}
+    try{await lvConnect(['s'],lvRecv,c=>{if(c)c.publish(lvTopic('hi'),LIVE.me);lvChip();});}
+    catch(e){$('#lvWaitP').textContent='Can\'t reach the class. Check your internet, then reload. Meanwhile, watch the shared screen.';}
+    setInterval(()=>{if(!LIVE.stu)return;LIVE.cl.forEach(c=>{if(c.connected)c.publish(lvTopic('hi'),LIVE.me);});lvChip();},12000);
+    setTimeout(()=>{if(LIVE.stu&&!LIVE.got&&!lvUp())$('#lvWaitP').textContent='Still connecting… Check your Wi-Fi or mobile data. Meanwhile, watch the shared screen.';},12000);
+  })();
+}
+async function lvRecv(t,p){
+  if(!LIVE.stu||!t.endsWith('/s'))return;
+  let o;try{o=JSON.parse(p);}catch(e){return;}
+  if(!o||typeof o.m!=='string')return;
+  if(LIVE.pub){
+    if(!LIVE.vkey||!o.g)return;
+    let ok=false;try{ok=await SUB.verify(SIG,LIVE.vkey,b64d(o.g),new TextEncoder().encode(o.m));}catch(e){}
+    if(!ok)return;
+  }
+  let st;try{st=JSON.parse(o.m);}catch(e){return;}
+  if(!(st.s>LIVE.last))return;
+  LIVE.last=st.s;lvApply(st);
+}
+function lvApply(st){
+  if(!LIVE.got){LIVE.got=true;const w=$('#lvWait');if(w)w.remove();}
+  if(st.e){lvFree();return;}
+  const i=slides.findIndex(s=>s.dataset.id===st.id);if(i<0)return;
+  if(i!==cur)show(i);
+  const b=Math.max(0,Math.min(Number(st.b)||0,bs[i].length));
+  if(shown[i]!==b){shown[i]=b;applyBuilds(i);}
+  lvLock(!st.u);
+}
+function lvLock(lock){
+  const was=LIVE.locked;LIVE.locked=lock;
+  $('#stage').inert=lock;
+  if(was&&!lock)lvFlash('Your turn!');
+  else if(!was&&lock)lvFlash('Locked',true);
+  lvChip();
+}
+function lvChip(){
+  const c=$('#lvChip');if(!c)return;
+  const up=lvUp();
+  c.className=!up?'gone':(LIVE.locked?'':'free');
+  c.textContent=!up?'Reconnecting…':(LIVE.locked?'Watching · teacher drives':'Your turn · play!');
+}
+function lvFree(){
+  LIVE.stu=false;lvDrop();
+  $('#stage').inert=false;$('#stage').classList.remove('nosw');
+  document.body.classList.remove('stu');
+  const c=$('#lvChip');if(c)c.remove();
+  const w=document.createElement('div');w.id='lvWait';
+  w.innerHTML='<div><h2>Class <b>over.</b></h2><p>The deck is yours now. Replay any game, at your own pace.</p><button class="nb main">Explore</button></div>';
+  document.body.appendChild(w);$('button',w).onclick=()=>w.remove();
+}
+
+/* ---------- wiring ---------- */
+(function(){
+  const fsb=$('#fsBtn');
+  const lb=document.createElement('button');lb.className='nb opt lvb';lb.id='lvBtn';lb.title='Live class (L)';lb.textContent='Live';
+  const ub=document.createElement('button');ub.className='nb lvu';ub.id='lvU';ub.title='Unleash or lock this slide for students (U)';ub.hidden=true;ub.textContent='Unleash';
+  fsb.before(lb);$('#next').after(ub);
+  lb.onclick=()=>lvPanel();ub.onclick=lvToggleU;
+  document.addEventListener('keydown',e=>{
+    if(LIVE.stu)return;
+    const t=e.target.tagName;if(t==='INPUT'||t==='TEXTAREA')return;
+    if(e.key==='l'||e.key==='L')lvPanel();
+    else if(e.key==='u'||e.key==='U')lvToggleU();
+    else if(e.key==='Escape')lvPanel(false);
+  });
+  setInterval(()=>{if(LIVE.pres)lvUI();},4000);
+  if(LV_Q.get('join'))lvStudent();
+  else if(ls('s2b-live-on')==='1')lvStart(false);
+})();
+
+
 /* ---- boot ---- */
 setOS(ls('s2b-os')==='lin'?'lin':'win');
-const k0=slides.findIndex(s=>s.dataset.id===location.hash.slice(1));
+const k0=LIVE.stu?0:slides.findIndex(s=>s.dataset.id===location.hash.slice(1));
 show(k0>=0?k0:0);
 })();
 </script>
