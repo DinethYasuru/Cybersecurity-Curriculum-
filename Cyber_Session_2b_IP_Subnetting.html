@@ -3,7 +3,44 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<script>/* live class: phones joining get a laptop-sized layout, scaled to fit */try{if(/[?&]join=/.test(location.search)&&Math.min(screen.width,screen.height)<700)document.querySelector('meta[name=viewport]').setAttribute('content','width=1280,viewport-fit=cover');}catch(e){}</script>
+<script>
+/* phones, tablets, small windows: run the deck in a frame laid out at a size it was built
+   and tested for, then scale that frame to fit the screen, so no word is ever cut off */
+(function(){
+  if(window.self!==window.top||/[?&]noshell\b/.test(location.search))return;
+  var coarse=false;try{coarse=matchMedia('(pointer:coarse)').matches;}catch(e){}
+  if(!(coarse||innerWidth<1100||innerHeight<600))return;
+  window.__SHELL=1;
+  document.write('<style>html,body{margin:0;height:100%;overflow:hidden;background:#fbfcfe}body>*:not(#shf){display:none!important}#shf{position:absolute;left:0;top:0;border:0;display:block;transform-origin:0 0;background:#fbfcfe}</style>');
+  var f;
+  function fit(){
+    var ow=document.documentElement.clientWidth||innerWidth,oh=document.documentElement.clientHeight||innerHeight,a=ow/oh,W,H;
+    if(a>=1){
+      if(ow>=1366&&oh>=768){W=ow;H=oh;}
+      else if(a>=1.6){W=1366;H=768;}
+      else{W=1366;H=Math.round(1366/a);}
+    }else{W=820;H=Math.max(1460,Math.round(820/a));}
+    var s=Math.min(ow/W,oh/H);
+    f.style.width=W+'px';f.style.height=H+'px';
+    f.style.transform='translate('+((ow-W*s)/2).toFixed(1)+'px,'+((oh-H*s)/2).toFixed(1)+'px) scale('+s.toFixed(4)+')';
+  }
+  document.addEventListener('DOMContentLoaded',function(){
+    f=document.createElement('iframe');f.id='shf';f.title=document.title;
+    f.setAttribute('allow','fullscreen; clipboard-write');
+    f.src=location.href;
+    document.body.appendChild(f);fit();
+    f.addEventListener('load',function(){try{f.contentWindow.focus();}catch(e){}});
+    addEventListener('resize',fit);
+    addEventListener('orientationchange',function(){setTimeout(fit,250);});
+    addEventListener('keydown',function(e){try{f.contentWindow.postMessage({acm:'key',key:e.key},'*');}catch(x){}if(/^(Arrow|Page| $)/.test(e.key))e.preventDefault();});
+    addEventListener('message',function(e){
+      if(e.source!==f.contentWindow||!e.data)return;
+      if(e.data.acm==='fs'){try{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(function(){});}catch(x){}}
+      else if(e.data.acm==='hash'){try{history.replaceState(null,'','#'+e.data.h);}catch(x){}}
+    });
+  });
+})();
+</script>
 <title>Cyber Foundations Session 2b</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,6 +64,7 @@ button,input{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--navy);outline-offset:3px}
 body.idle{cursor:none}
 body.idle .bar{opacity:0;pointer-events:none}
+@media (pointer:coarse){body.idle{cursor:auto}body.idle .bar{opacity:1;pointer-events:auto}}
 
 #app{height:100%;display:grid;grid-template-rows:auto 1fr auto;position:relative;overflow:hidden}
 .glow{display:none}
@@ -1189,6 +1227,7 @@ input[type=range]{accent-color:var(--c-red);height:2rem;cursor:pointer;min-width
 .eqc span{color:var(--mute);font-size:clamp(.7rem,1.1vw,1.1rem);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .eqc.sp{border-left-color:var(--line);opacity:.55}
 .eqgrid.tiny .eqc span{display:none}
+@media (max-width:1000px){.eqgrid.tiny{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @keyframes dropin{from{opacity:0;transform:translateY(-30px) scale(.9)}to{opacity:1;transform:none}}
 
 /* subnet sprint */
@@ -1293,13 +1332,6 @@ body.stu.idle .bar{opacity:1;pointer-events:auto}
 #lvWait .lvdots i:nth-child(3){animation-delay:.4s}
 #lvWait .nb{margin-top:1.2em;font-size:1rem;padding:.6rem 1.4rem}
 body.stu #stage[inert]{cursor:not-allowed}
-#lvRot{position:fixed;inset:0;z-index:59;display:grid;place-items:center;background:rgba(251,252,254,.94);text-align:center;padding:6vw}
-#lvRot i{display:block;width:16vw;height:26vw;margin:0 auto 5vw;border:1.2vw solid var(--c-blue);border-radius:3vw;animation:lvTurn 2.4s cubic-bezier(.22,1,.36,1) infinite}
-@keyframes lvTurn{0%,25%{rotate:0deg}55%,100%{rotate:-90deg;border-color:var(--c-red)}}
-#lvRot h2{margin:0 0 .4em;font:300 9vw/1.05 var(--display);letter-spacing:-.03em}
-#lvRot h2 b{font-weight:600;color:var(--c-red)}
-#lvRot p{margin:0;color:var(--mute);font-size:4.4vw}
-#lvRot .nb{margin-top:6vw;font-size:4vw;padding:2vw 5vw}
 </style>
 </head>
 <body data-total="180">
@@ -2084,6 +2116,7 @@ body.stu #stage[inert]{cursor:not-allowed}
 <div id="menu" hidden><h3>All slides</h3><ol id="menuList"></ol></div>
 
 <script>
+if(!window.__SHELL){
 (function(){
 'use strict';
 const $=(s,r)=>(r||document).querySelector(s);
@@ -2409,6 +2442,7 @@ function show(i,fromEnd){
   $('#next').disabled=i===slides.length-1&&shown[i]>=bs[i].length;
   renderNotes();
   try{history.replaceState(null,'','#'+slides[i].dataset.id);}catch(e){}
+  if(window.self!==window.top)try{parent.postMessage({acm:'hash',h:slides[i].dataset.id},'*');}catch(e){}
 }
 function next(){
   if(shown[cur]<bs[cur].length){shown[cur]++;applyBuilds(cur);$('#next').disabled=cur===slides.length-1&&shown[cur]>=bs[cur].length;}
@@ -2441,7 +2475,7 @@ $('#stage').addEventListener('touchend',e=>{
   const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
   if(Math.abs(dx)>70&&Math.abs(dy)<45)dx<0?next():back();
 },{passive:true});
-function fs(){try{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(()=>{});}catch(e){}}
+function fs(){if(window.self!==window.top){try{parent.postMessage({acm:'fs'},'*');}catch(e){}return;}try{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(()=>{});}catch(e){}}
 $('#fsBtn').onclick=fs;
 document.addEventListener('mousemove',e=>{
   const d=$('#deco'),r=d.getBoundingClientRect();
@@ -3565,11 +3599,6 @@ function lvStudent(){
   w.innerHTML='<div><h2>You\'re <b>in.</b></h2><p id="lvWaitP">Waiting for the teacher to start…</p><div class="lvdots"><i></i><i></i><i></i></div></div>';
   document.body.appendChild(w);
   lvLock(true);
-  if(Math.min(screen.width,screen.height)<700&&matchMedia){
-    const mq=matchMedia('(orientation: portrait)');let keep=false;
-    const rot=()=>{let r=$('#lvRot');if(mq.matches&&!keep){if(!r){r=document.createElement('div');r.id='lvRot';r.innerHTML='<div><i></i><h2>Turn your phone <b>sideways.</b></h2><p>Slides and games fit much better.</p><button class="nb">Keep it upright</button></div>';document.body.appendChild(r);$('button',r).onclick=()=>{keep=true;r.remove();};}}else if(r)r.remove();};
-    rot();try{mq.addEventListener('change',rot);}catch(e){addEventListener('resize',rot);}
-  }
   addEventListener('keydown',e=>{
     if(!LIVE.stu)return;
     const t=e.target.tagName;
@@ -3650,11 +3679,17 @@ function lvFree(){
 })();
 
 
+if(window.self!==window.top)addEventListener('message',e=>{
+  if(e.source!==window.parent||!e.data||e.data.acm!=='key')return;
+  document.dispatchEvent(new KeyboardEvent('keydown',{key:e.data.key,bubbles:true,cancelable:true}));
+});
+
 /* ---- boot ---- */
 setOS(ls('s2b-os')==='lin'?'lin':'win');
 const k0=LIVE.stu?0:slides.findIndex(s=>s.dataset.id===location.hash.slice(1));
 show(k0>=0?k0:0);
 })();
+}
 </script>
 
 </body>
