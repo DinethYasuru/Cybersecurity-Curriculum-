@@ -256,7 +256,7 @@ td.name .hint{font-weight:400}
 .reg td.cell button.v0{color:var(--red);background:var(--red-50)}
 .reg td.cell button.vE{color:var(--navy);background:var(--navy-50)}
 .reg td.cell button.vP{color:#b8c1d1}
-.reg td.cell button.vX{color:#d5dbe6;cursor:default}
+.reg td.cell button.vX{color:#b8c1d1}
 .reg td.cell button.saving{opacity:.55}
 .reg td.tot{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 .reg th.today{color:var(--red)}
@@ -1088,7 +1088,7 @@ function paneRegister(box){
   const hadFocus=document.activeElement&&document.activeElement.id==='regQ';
   box.innerHTML=`<div class="pane">
     ${rows.length?`<div class="toolbar noprint"><div class="search">${ICON.search}<input id="regQ" type="search" placeholder="Search name, ID or mobile number" aria-label="Search students" autocomplete="off" value="${esc(regQ)}"></div><span class="count" id="regN"></span></div>`:''}
-    <div class="row mb" style="justify-content:space-between"><div class="legend"><span><b class="v1" style="background:var(--navy);color:#fff">1</b>Present</span><span><b style="color:var(--red);border:1px solid var(--line)">0</b>Absent</span><span><b style="color:var(--navy);background:#eef2f8">E</b>Excused</span><span><b style="color:#b8c1d1;border:1px solid var(--line)">…</b>Class not over</span></div>
+    <div class="row mb" style="justify-content:space-between"><div class="legend"><span><b class="v1" style="background:var(--navy);color:#fff">1</b>Present</span><span><b style="color:var(--red);border:1px solid var(--line)">0</b>Absent</span><span><b style="color:var(--navy);background:#eef2f8">E</b>Excused</span><span><b style="color:#b8c1d1;border:1px solid var(--line)">…</b>Class not over</span><span><b style="color:#b8c1d1;border:1px solid var(--line)">·</b>Before they joined</span></div>
       <form id="addDay" class="row noprint"><input type="date" id="newDay" max="${today}" value="${today}" style="width:auto" aria-label="Class day"><button class="btn small ghost">Add day</button></form></div>
     <p class="hint mb">Tap a cell to mark <b>1</b>, tap again for <b>0</b>. Double tap always sets 0. QR check-ins show here as 1. ${done?'':'Today turns into 0 for anyone missing once the class ends at '+esc(DATA.settings.end)+'.'} Past days are locked: tap a past date to open it for editing.</p>
     ${od?`<div class="msg good"><b>${esc(niceDate(od.date))}</b> is open for editing until ${esc(hhmm(od.until))}. Mark it in the highlighted column. <button class="linkbtn" id="regOdClose">Lock now</button></div>`:''}
@@ -1096,7 +1096,7 @@ function paneRegister(box){
     ${rows.map(r=>`<tr data-q="${esc((r.s.name+' '+r.s.id).toLowerCase())}" data-ph="${esc(r.s.phone||'')}"><td class="name">${esc(r.s.name)}<br><span class="hint">${esc(r.s.id)}${r.s.phone?' · <span style="white-space:nowrap">'+esc(showPhone(r.s.phone))+'</span>':''}</span></td>${days.map(d=>{const c=r.cells[d]||'?';
       const v=c==='P'?'1':c==='E'?'E':c==='?'?'…':c==='-'?'·':'0',cls=c==='P'?'v1':c==='E'?'vE':c==='?'?'vP':c==='-'?'vX':'v0';
       const a=C.att[r.s.id+'|'+d],lk=d<today&&!(od&&od.date===d);
-      return `<td class="cell${od&&od.date===d?' opened':''}"><button class="${cls}${lk&&c!=='-'?' lk':''}" data-id="${esc(r.s.id)}" data-d="${d}" title="${esc(r.s.name)}, ${esc(niceDate(d))}${a&&a.time?' · '+esc(a.time)+(a.method==='qr'?' QR':''):''}${c==='E'?' · excused':''}">${v}</button></td>`}).join('')}<td class="tot">${r.P}/${r.n}</td></tr>`).join('')}
+      return `<td class="cell${od&&od.date===d?' opened':''}"><button class="${cls}${lk?' lk':''}" data-id="${esc(r.s.id)}" data-d="${d}" title="${esc(r.s.name)}, ${esc(niceDate(d))}${a&&a.time?' · '+esc(a.time)+(a.method==='qr'?' QR':''):''}${c==='E'?' · excused':''}${c==='-'?' · before this student joined, tap to mark':''}">${v}</button></td>`}).join('')}<td class="tot">${r.P}/${r.n}</td></tr>`).join('')}
     <tr id="regNone" hidden><td colspan="${days.length+2}">${emptyHTML('No matches','Try part of the name, the ID or the mobile number.')}</td></tr>
     </tbody></table></div>`:'<p class="hint">'+(rows.length?'No class days yet. Add one above.':'No students yet. Add them under Students.')+'</p>'}
     <div class="row mt"><span class="hint" id="regState"></span></div></div>`;
@@ -1111,7 +1111,7 @@ function paneRegister(box){
     $('#regNone').hidden=n>0;$('#regN').textContent=q?n+' of '+rows.length:rows.length+' students'};
   const qi=$('#regQ');filter();
   qi.oninput=()=>{regQ=qi.value;filter()};
-  qi.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();const tr=tbl.querySelector('tbody tr[data-q]:not([hidden])');if(tr){const b=[...tr.querySelectorAll('button[data-id]:not(.vX):not(.lk)')].pop();if(b){b.focus();b.scrollIntoView({block:'nearest',inline:'nearest'})}}}else if(e.key==='Escape'){qi.value='';regQ='';filter()}};
+  qi.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();const tr=tbl.querySelector('tbody tr[data-q]:not([hidden])');if(tr){const b=[...tr.querySelectorAll('button[data-id]:not(.lk)')].pop();if(b){b.focus();b.scrollIntoView({block:'nearest',inline:'nearest'})}}}else if(e.key==='Escape'){qi.value='';regQ='';filter()}};
   if(hadFocus){qi.focus();qi.setSelectionRange(qi.value.length,qi.value.length)}
   tbl.scrollLeft=regScroll==null?tbl.scrollWidth:regScroll;tbl.onscroll=()=>{regScroll=tbl.scrollLeft};
   // bring the opened past day into view
@@ -1121,11 +1121,11 @@ function paneRegister(box){
   // pick up new QR check-ins while the sheet is open
   pollTimer=setInterval(()=>{if(!regBusy&&!Object.keys(regQueue).length&&!clickT)loadData(false,true)},isDemo()?5000:20000);
   let clickT=null,lastBtn=null;
-  const set=(b,present)=>{if(b.classList.contains('vX')||!canEdit(b.dataset.d))return;
+  const set=(b,present)=>{if(!canEdit(b.dataset.d))return;
     b.className=present?'v1':'v0';b.textContent=present?'1':'0';b.classList.add('saving');
     regQueue[b.dataset.id+'|'+b.dataset.d]={id:b.dataset.id,date:b.dataset.d,present};
     $('#regState').textContent='Saving…';clearTimeout(regTimer);regTimer=setTimeout(flushRegister,700)};
-  tbl.addEventListener('click',e=>{const b=e.target.closest('button[data-id]');if(!b||b.classList.contains('vX'))return;
+  tbl.addEventListener('click',e=>{const b=e.target.closest('button[data-id]');if(!b)return;
     if(!canEdit(b.dataset.d)){openDayDialog(b.dataset.d);return}
     if(clickT&&lastBtn===b){clearTimeout(clickT);clickT=null;set(b,false);return}
     lastBtn=b;clickT=setTimeout(()=>{clickT=null;set(b,!b.classList.contains('v1'))},230)});
