@@ -82,15 +82,32 @@ function AttendanceCore(rawEnv) {
     var x = Number(env.getProp('extraUntil') || 0);
     return x > now ? x : 0;
   }
-  function isOpen(now, s) {
+  // today's own class: the weekly window or an extra window the instructor opened
+  function isOpenToday(now, s) {
     var t = local(now, s);
     if (extraWindow(now)) return true;
     return s.days.indexOf(t.day) >= 0 && t.time >= s.start && t.time < s.end && !cancelled(t.date);
   }
+  // a past class the instructor reopened for a while, so forgotten check-ins land on that day
+  function reopened(now) {
+    var r = null;
+    try { r = JSON.parse(env.getProp('reopen') || 'null'); } catch (e) {}
+    return r && r.until > now && /^\d{4}-\d{2}-\d{2}$/.test(r.date) && !cancelled(r.date) ? r : null;
+  }
+  function isOpen(now, s) { return isOpenToday(now, s) || !!reopened(now); }
+  // the class day a check-in right now counts for
+  function classDate(now, s) {
+    var r = !isOpenToday(now, s) && reopened(now);
+    return r ? r.date : local(now, s).date;
+  }
+  function needCode(now, s) {
+    var r = !isOpenToday(now, s) && reopened(now);
+    return s.requireCode && !(r && r.noCode);
+  }
   // today's absences count only once the class window is over (13:00 by default)
   function todayDone(now, s) {
     var t = local(now, s);
-    return !isOpen(now, s) && (s.days.indexOf(t.day) < 0 || t.time >= s.end);
+    return !isOpenToday(now, s) && (s.days.indexOf(t.day) < 0 || t.time >= s.end);
   }
   function counted(date, now, s) {
     var today = local(now, s).date;
@@ -160,7 +177,7 @@ function AttendanceCore(rawEnv) {
     if (rateLimited('rl:' + device, 20, 600)) { L('rejected', 'too many tries'); return fail('slow', 'Too many tries. Wait 10 minutes.'); }
     if (!cleanPhone(req.phone)) { L('rejected', 'bad number'); return fail('phone', 'Type your mobile number, like 0771234567.'); }
     if (!isOpen(now, s)) { L('rejected', 'closed'); return fail('closed', 'Check-in is closed now.', { nextOpen: nextOpen(now, s) }); }
-    if (s.requireCode && !codeOk(req.code, now, s)) { L('rejected', 'bad or old code'); return fail('code', 'That QR code has expired. Scan the screen again.'); }
+    if (needCode(now, s) && !codeOk(req.code, now, s)) { L('rejected', 'bad or old code'); return fail('code', 'That QR code has expired. Scan the screen again.'); }
     return null;
   }
   function validName(n) { return n.length >= 2 && n.length <= 60 && /^[\p{L}\p{M} .'-]+$/u.test(n); }
@@ -176,11 +193,12 @@ function AttendanceCore(rawEnv) {
     return n > max;
   }
   function publicStatus(now) {
-    var s = settings(), t = local(now, s);
+    var s = settings(), t = local(now, s), r = !isOpenToday(now, s) && reopened(now);
     return { ok: true, now: now, today: t.date, time: t.time, open: isOpen(now, s), todayDone: todayDone(now, s),
       extraUntil: extraWindow(now), nextOpen: nextOpen(now, s),
+      reopen: r ? { date: r.date, until: r.until, noCode: !!r.noCode } : null, classDate: classDate(now, s),
       window: { days: s.days, start: s.start, end: s.end, tzName: s.tzName, tzOffset: s.tzOffset },
-      requireCode: s.requireCode, selfRegister: s.selfRegister, configured: !!env.getProp('adminHash'), idExample: formatId(s, Number(s.idStart) || 1) };
+      requireCode: needCode(now, s), selfRegister: s.selfRegister, configured: !!env.getProp('adminHash'), idExample: formatId(s, Number(s.idStart) || 1) };
   }
   function fail(reason, msg, extra) {
     var r = { ok: false, reason: reason, message: msg };
@@ -190,7 +208,7 @@ function AttendanceCore(rawEnv) {
 
   // step 1: student types their number; answer who it belongs to so they can confirm
   function lookup(req, now) {
-    var s = settings(), t = local(now, s), phone = cleanPhone(req.phone);
+    var s = settings(), t = { date: classDate(now, s) }, phone = cleanPhone(req.phone);
     var L = function (result, detail) { log(now, s, 'lookup', phone || String(req.phone || '').slice(0, 20), '', String(req.device || '').slice(0, 40), result, detail); };
     var bad = gate(req, now, s, L); if (bad) return bad;
     var st = byPhone(phone);
@@ -218,6 +236,8 @@ function AttendanceCore(rawEnv) {
   // step 2: student confirmed "this is me"
   function checkin(req, now) {
     var s = settings(), t = local(now, s), phone = cleanPhone(req.phone), device = String(req.device || '').slice(0, 40);
+    var late = classDate(now, s) !== t.date;
+    t.date = classDate(now, s);
     var st = phone ? byPhone(phone) : null;
     var L = function (result, detail) { log(now, s, 'checkin', st ? st.id : phone, st ? st.name : '', device, result, detail); };
     var bad = gate(req, now, s, L); if (bad) return bad;
@@ -234,10 +254,10 @@ function AttendanceCore(rawEnv) {
     if (mine) { L('duplicate', 'already at ' + mine.time); return { ok: true, already: true, date: t.date, time: mine.time, student: studentOut(st) }; }
     if (other) { L('rejected', 'device used by ' + other.id); return fail('shared', 'This phone already checked in another student today. Use your own phone, or ask your instructor.'); }
 
-    env.append('attendance', { date: t.date, id: st.id, name: st.name, time: t.time, device: device, method: s.requireCode ? 'qr' : 'open', note: '' });
+    env.append('attendance', { date: t.date, id: st.id, name: st.name, time: t.time, device: device, method: late ? 'reopen' : needCode(now, s) ? 'qr' : 'open', note: late ? 'checked in ' + local(now, s).date : '' });
     if (!env.read('days').some(function (r) { return r.date === t.date; })) env.append('days', { date: t.date, status: 'held', note: '' });
-    L('accepted', '');
-    return { ok: true, date: t.date, time: t.time, student: studentOut(st) };
+    L('accepted', late ? 'reopened ' + t.date : '');
+    return { ok: true, date: t.date, time: t.time, late: late, student: studentOut(st) };
   }
 
   function me(req, now) {
@@ -297,8 +317,9 @@ function AttendanceCore(rawEnv) {
         nextIdPreview: formatId(s, Math.max(Number(env.getProp('idNext') || 0), Number(s.idStart) || 1)) };
     }
     if (a === 'today') {
-      return { ok: true, now: now, today: t.date, status: publicStatus(now),
-        present: env.read('attendance').filter(function (r) { return r.date === t.date; }).map(function (r) { return { id: r.id, name: r.name, time: r.time }; }) };
+      var cd = classDate(now, s);
+      return { ok: true, now: now, today: t.date, classDate: cd, status: publicStatus(now),
+        present: env.read('attendance').filter(function (r) { return r.date === cd; }).map(function (r) { return { id: r.id, name: r.name, time: r.time }; }) };
     }
     if (a === 'mark') {
       if (!validId(id) || !validDate(req.date)) return fail('input', 'Pick a student and a date.');
@@ -385,6 +406,18 @@ function AttendanceCore(rawEnv) {
       var mins = Math.max(0, Math.min(240, Number(req.minutes) || 0));
       env.setProp('extraUntil', String(mins ? now + mins * 60000 : 0));
       A('extra window ' + mins + ' min'); return { ok: true, extraUntil: mins ? now + mins * 60000 : 0 };
+    }
+    if (a === 'reopen') {
+      var rm = Math.max(0, Math.min(240, Number(req.minutes) || 0));
+      if (!rm) { env.setProp('reopen', ''); A('reopen closed'); return { ok: true, reopen: null }; }
+      var today = local(now, settings()).date;
+      if (!validDate(req.date) || req.date >= today) return fail('input', 'Pick a class day before today. For today, use the extra window on Live QR.');
+      if (cancelled(req.date)) return fail('input', 'That day is cancelled. Restore it under Class days first.');
+      if (isOpenToday(now, settings())) return fail('input', 'Today\'s check-in is open now. Reopen a past class after it closes.');
+      var ro = { date: req.date, until: now + rm * 60000, noCode: !!req.noCode };
+      env.setProp('reopen', JSON.stringify(ro));
+      if (!env.read('days').some(function (r) { return r.date === req.date; })) env.append('days', { date: req.date, status: 'held', note: '' });
+      A('reopen ' + req.date + ' for ' + rm + ' min' + (ro.noCode ? ', no room code' : '')); return { ok: true, reopen: ro };
     }
     if (a === 'settings') {
       var n = req.settings || {}, out = settings(), hm = /^([01]\d|2[0-3]):[0-5]\d$/;
