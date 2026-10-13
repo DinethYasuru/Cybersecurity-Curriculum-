@@ -19,10 +19,18 @@
   4. Reload the Sheet. Menu "Attendance" > "Set admin password".
   5. Paste the Web app URL in attendance.html > Instructor > Setup.
   After editing this code later: Deploy > Manage deployments > Edit > Version: New version.
+  Version 7 adds Drive backups: after pasting it, run Attendance > Back up now in the Sheet once
+  and allow access, then deploy the new version.
+
+  Security
+  - Everything a student must not see or change is decided here, not in the page: the page is
+    public, so hiding a button or a URL protects nothing. Instructor actions need a token that only
+    a correct password gives (kept 6 hours, in this script's cache).
+  - Students only ever get their own masked or confirmed details back.
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 6;
+var SERVER_VERSION = 7;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -50,6 +58,9 @@ var TABLES = {
   log:        ['ts', 'date', 'time', 'action', 'id', 'name', 'device', 'result', 'detail']
 };
 
+var SHEET_NAMES = { students: 'Students', attendance: 'Attendance', excuses: 'Excuses', days: 'Days', log: 'Log' };
+var BACKUPS_KEPT = 30;
+
 var CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 /* ---------- core: no Google APIs in here, so the page's demo mode runs the same code ---------- */
@@ -63,6 +74,12 @@ function AttendanceCore(rawEnv) {
   };
   env.append = function (t, o) { delete memo[t]; rawEnv.append(t, o); };
   env.write = function (t, rows) { delete memo[t]; rawEnv.write(t, rows); };
+  // one writer at a time; a step that already holds the lock just runs
+  var inLock = false;
+  env.lock = function (fn, waitMs) {
+    if (inLock) return fn();
+    return rawEnv.lock(function () { inLock = true; try { return fn(); } finally { inLock = false; } }, waitMs);
+  };
 
   function settings() {
     var s = {}, k, saved = {};
@@ -168,12 +185,17 @@ function AttendanceCore(rawEnv) {
   }
   function byPhone(phone) { return env.read('students').filter(function (r) { return r.phone && r.phone === phone; })[0] || null; }
   function studentOut(st) { return { id: st.id, name: st.name, phone: st.phone }; }
+  // before a student proves anything, show only enough of the name to recognise it: "Dineth Yasuru" -> "Di**** Ya****"
+  function maskName(n) { return cleanName(n).split(' ').map(function (w) { return w.slice(0, 2) + (w.length > 2 ? new Array(w.length - 1).join('*') : ''); }).join(' '); }
+  function cleanDevice(v) { return String(v || '').replace(/[^a-z0-9]/gi, '').slice(0, 40); }
   // shared checks for every student step: real browser, not too many tries, valid number, open now, live code
   function gate(req, now, s, L) {
     var device = String(req.device || '').slice(0, 40);
     if (!/^[a-z0-9]{8,40}$/i.test(device)) { L('rejected', 'no device id'); return fail('device', 'Open this page in a normal browser tab and try again.'); }
     if (rateLimited('rl:' + device, 20, 600)) { L('rejected', 'too many tries'); return fail('slow', 'Too many tries. Wait 10 minutes.'); }
     if (!cleanPhone(req.phone)) { L('rejected', 'bad number'); return fail('phone', 'Type your mobile number, like 0771234567.'); }
+    // a new device id per try is easy to fake, so each number has its own limit too
+    if (rateLimited('rp:' + cleanPhone(req.phone), 12, 600)) { L('rejected', 'too many tries for number'); return fail('slow', 'Too many tries for this number. Wait 10 minutes.'); }
     if (!isOpen(now, s)) { L('rejected', 'closed'); return fail('closed', 'Check-in is closed now.', { nextOpen: nextOpen(now, s) }); }
     if (s.requireCode && !codeOk(req.code, now, s)) { L('rejected', 'bad or old code'); return fail('code', 'That QR code has expired. Scan the screen again.'); }
     return null;
@@ -181,13 +203,14 @@ function AttendanceCore(rawEnv) {
   function validName(n) { return n.length >= 2 && n.length <= 60 && /^[\p{L}\p{M} .'-]+$/u.test(n); }
 
   function log(now, s, action, id, name, device, result, detail) {
-    var t = local(now, s);
-    env.append('log', { ts: String(now), date: t.date, time: t.time + ':' + t.sec, action: action,
-      id: id || '', name: name || '', device: device || '', result: result, detail: detail || '' });
+    var t = local(now, s), row = { ts: String(now), date: t.date, time: t.time + ':' + t.sec, action: action,
+      id: String(id || '').slice(0, 40), name: String(name || '').slice(0, 60), device: device === 'admin' ? 'admin' : cleanDevice(device), result: result, detail: String(detail || '').slice(0, 500) };
+    // rows are added inside the lock so two at once never land on the same line; a log line is not worth a long wait
+    try { env.lock(function () { env.append('log', row); }, 5000); } catch (e) {}
   }
   function rateLimited(key, max, seconds) {
     var n = Number(env.cacheGet(key) || 0) + 1;
-    env.cachePut(key, String(n), seconds);
+    if (n <= max + 1) env.cachePut(key, String(n), seconds);
     return n > max;
   }
   function publicStatus(now) {
@@ -213,7 +236,7 @@ function AttendanceCore(rawEnv) {
     if (!st) return { ok: true, found: false, phone: phone, canRegister: s.selfRegister, idExample: formatId(s, Number(s.idStart) || 1) };
     if (String(st.active) === 'no') { L('rejected', 'inactive ' + st.id); return fail('inactive', 'This number is switched off. Talk to your instructor.'); }
     var mine = env.read('attendance').filter(function (r) { return r.date === t.date && r.id === st.id; })[0];
-    return { ok: true, found: true, student: studentOut(st), already: mine ? mine.time : '', date: t.date };
+    return { ok: true, found: true, student: { id: st.id, name: maskName(st.name) }, masked: true, already: mine ? mine.time : '', date: t.date };
   }
 
   // first time only: number + name get the next student ID
@@ -258,7 +281,7 @@ function AttendanceCore(rawEnv) {
 
   function me(req, now) {
     var s = settings(), phone = cleanPhone(req.phone), name = cleanName(req.name), device = String(req.device || '').slice(0, 40);
-    if (rateLimited('rl:' + device, 20, 600)) return fail('slow', 'Too many tries. Wait 10 minutes.');
+    if (rateLimited('rl:' + device, 20, 600) || (phone && rateLimited('rm:' + phone, 10, 600))) return fail('slow', 'Too many tries. Wait 10 minutes.');
     var st = phone ? byPhone(phone) : null;
     if (!st || !sameName(st.name, name)) return fail('notfound', 'No record for this number and name yet.');
     var id = st.id, today = local(now, s).date;
@@ -284,21 +307,45 @@ function AttendanceCore(rawEnv) {
     env.setProp('adminSalt', salt);
     env.setProp('adminHash', hashPw(pw, salt));
   }
+  // a browser that signed in before gets a "trusted" key (90 days). Wrong passwords from other browsers
+  // lock sign-in for 15 minutes, but not on a trusted browser, so students can't lock the instructor out.
+  function trusted(now) { try { return JSON.parse(env.getProp('trusted') || '{}'); } catch (e) { return {}; } }
+  function trustOk(key, now) {
+    if (!key || !/^[a-f0-9]{16,64}$/.test(key)) return false;
+    var exp = trusted(now)[env.sha256('trust:' + key)];
+    return !!exp && exp > now;
+  }
+  function trustNew(now) {
+    var all = trusted(now), out = {}, key = env.random();
+    Object.keys(all).filter(function (h) { return all[h] > now; }).sort(function (a, b) { return all[b] - all[a]; }).slice(0, 9).forEach(function (h) { out[h] = all[h]; });
+    out[env.sha256('trust:' + key)] = now + 90 * 86400000;
+    env.setProp('trusted', JSON.stringify(out));
+    return key;
+  }
+  function epoch() { return env.getProp('admEpoch') || '1'; }
   function login(req, now) {
-    var s = settings();
+    var s = settings(), trust = trustOk(req.trust, now), failKey = trust ? 'loginfail:trusted' : 'loginfail';
     if (!env.getProp('adminHash')) return fail('nopass', 'No admin password yet. In the Google Sheet: Attendance > Set admin password.');
-    if (Number(env.cacheGet('loginfail') || 0) >= 20) { log(now, s, 'login', '', '', '', 'rejected', 'locked'); return fail('locked', 'Too many wrong passwords. Wait 15 minutes.'); }
+    if (Number(env.cacheGet(failKey) || 0) >= (trust ? 10 : 20)) { log(now, s, 'login', '', '', '', 'rejected', 'locked' + (trust ? ' (trusted browser)' : '')); return fail('locked', 'Too many wrong passwords. Wait 15 minutes, or in the Sheet use Attendance > Unlock instructor sign-in.'); }
     if (hashPw(String(req.password || ''), env.getProp('adminSalt')) !== env.getProp('adminHash')) {
-      env.cachePut('loginfail', String(Number(env.cacheGet('loginfail') || 0) + 1), 900);
-      log(now, s, 'login', '', '', '', 'rejected', 'wrong password');
+      env.cachePut(failKey, String(Number(env.cacheGet(failKey) || 0) + 1), 900);
+      log(now, s, 'login', '', '', '', 'rejected', 'wrong password' + (trust ? ' (trusted browser)' : ''));
       return fail('password', 'Wrong password.');
     }
     var token = env.random();
-    env.cachePut('adm:' + token, '1', 21600);
-    log(now, s, 'login', '', '', '', 'accepted', '');
-    return { ok: true, token: token, qrKey: qrKey(), now: now, hours: 6 };
+    env.cachePut('adm:' + token, epoch(), 21600);
+    log(now, s, 'login', '', '', '', 'accepted', trust ? 'trusted browser' : 'new browser');
+    return { ok: true, token: token, qrKey: qrKey(), now: now, hours: 6, trust: trust ? req.trust : trustNew(now) };
   }
-  function adminOk(req) { return req.token && /^[a-f0-9]{16,64}$/.test(req.token) && env.cacheGet('adm:' + req.token) === '1'; }
+  function adminOk(req) { return req.token && /^[a-f0-9]{16,64}$/.test(req.token) && env.cacheGet('adm:' + req.token) === epoch(); }
+  // Sheet menu: sign every instructor browser out, forget trusted browsers and change the QR secret
+  function resetSecurity() {
+    env.setProp('admEpoch', String(Number(epoch()) + 1));
+    env.setProp('trusted', '{}');
+    env.setProp('qrKey', env.random());
+    env.cacheDel('loginfail'); env.cacheDel('loginfail:trusted');
+  }
+  function unlockLogin() { env.cacheDel('loginfail'); env.cacheDel('loginfail:trusted'); }
   function validDate(d) { return /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')); }
 
   function admin(req, now) {
@@ -306,11 +353,27 @@ function AttendanceCore(rawEnv) {
     var A = function (detail) { log(now, s, a, id, '', 'admin', 'done', detail || ''); };
     if (a === 'logout') { env.cacheDel('adm:' + req.token); return { ok: true }; }
     if (a === 'data') {
-      var lg = env.read('log');
+      // only the newest 400 log lines; the Log tab keeps everything
+      var lg = env.readTail ? env.readTail('log', 400) : env.read('log');
       return { ok: true, now: now, today: t.date, settings: s, status: publicStatus(now),
         students: env.read('students'), attendance: env.read('attendance'), excuses: env.read('excuses'),
-        days: env.read('days'), log: lg.slice(Math.max(0, lg.length - 400)),
+        days: env.read('days'), log: lg.slice(Math.max(0, lg.length - 400)), backup: backupInfo(),
         nextIdPreview: formatId(s, Math.max(Number(env.getProp('idNext') || 0), Number(s.idStart) || 1)) };
+    }
+    if (a === 'export') {
+      // the whole record as one file; password hashes and secrets are never included
+      var all = { ok: true, kind: 'attendance-backup', version: SERVER_VERSION, exportedAt: now, today: t.date, settings: s };
+      Object.keys(TABLES).forEach(function (k) { all[k] = env.read(k); });
+      A('download'); return all;
+    }
+    if (a === 'backup') {
+      if (!env.backup) return fail('input', 'Backups to Drive work with the Google server, not in demo mode.');
+      if (rateLimited('bk', 1, 60)) return fail('input', 'A backup was made less than a minute ago.');
+      var b = env.backup('by instructor'); A(b.name); return { ok: true, backup: backupInfo() };
+    }
+    if (a === 'backupAuto') {
+      if (!env.backupAuto) return fail('input', 'Backups to Drive work with the Google server, not in demo mode.');
+      env.backupAuto(!!req.on); A(req.on ? 'daily on' : 'daily off'); return { ok: true, backup: backupInfo() };
     }
     if (a === 'today') {
       return { ok: true, now: now, today: t.date, status: publicStatus(now),
@@ -437,7 +500,11 @@ function AttendanceCore(rawEnv) {
     return fail('action', 'Unknown action.');
   }
 
+  function backupInfo() { try { return JSON.parse(env.getProp('backup') || 'null') || { auto: false }; } catch (e) { return { auto: false }; } }
+
   var WRITES = { mark: 1, marks: 1, excuse: 1, student: 1, bulk: 1, day: 1, extra: 1, openDay: 1, settings: 1 };
+  // reading and backups don't wait for the lock, so the live screen never slows check-in down
+  var NOLOCK = { data: 1, today: 1, logout: 1, export: 1, backup: 1, backupAuto: 1 };
   function handle(req) {
     req = req || {};
     var now = env.now();
@@ -449,6 +516,7 @@ function AttendanceCore(rawEnv) {
       if (req.action === 'me') return me(req, now);
       if (req.action === 'login') return login(req, now);
       if (!adminOk(req)) return fail('auth', 'Please log in again.');
+      if (NOLOCK[req.action]) return admin(req, now);
       return env.lock(function () {
         // the page retries a save when an answer gets lost; the same operation id returns the first answer
         var key = req.opId && WRITES[req.action] ? 'op:' + String(req.opId).slice(0, 40) : '';
@@ -458,21 +526,52 @@ function AttendanceCore(rawEnv) {
         return res;
       });
     } catch (e) {
-      return fail('error', 'Server error: ' + (e && e.message ? e.message : e));
+      var m = String(e && e.message ? e.message : e);
+      // many students at the same second: the page waits a moment and tries again
+      if (/lock|too many simultaneous|service invoked too many/i.test(m)) return fail('busy', 'The server is busy. Trying again.');
+      return fail('error', 'Server error: ' + m);
     }
   }
 
-  return { handle: handle, setPassword: setPassword, codeFor: codeFor, local: local, settings: settings };
+  return { handle: handle, setPassword: setPassword, codeFor: codeFor, local: local, settings: settings, resetSecurity: resetSecurity, unlockLogin: unlockLogin };
 }
 
 /* ---------- Google Apps Script adapter ---------- */
+// Speed: Sheets reads are slow (about 0.2 s each), so each tab except Log is also kept in the script
+// cache. Every write gives the tab a new "generation"; a copy saved under an older generation is never
+// read again, so a slow reader can't put back stale data. Typing in the Sheet does the same (onEdit).
+var CACHED_TABS = { students: 1, attendance: 1, excuses: 1, days: 1 };
+var CACHE_SECONDS = 21600, CHUNK = 90000;
+function tabGen_(cache, t, fresh) {
+  var g = fresh ? null : cache.get('g:' + t);
+  if (!g) { g = Utilities.getUuid().slice(0, 13); cache.put('g:' + t, g, CACHE_SECONDS); }
+  return g;
+}
+function cacheLoad_(cache, t, g) {
+  var base = 't:' + t + ':' + g, n = Number(cache.get(base) || 0);
+  if (!n) return null;
+  var keys = [];
+  for (var i = 0; i < n; i++) keys.push(base + ':' + i);
+  var got = cache.getAll(keys), str = '';
+  for (var j = 0; j < n; j++) { if (got[keys[j]] == null) return null; str += got[keys[j]]; }
+  try { return JSON.parse(str); } catch (e) { return null; }
+}
+function cacheSave_(cache, t, g, rows) {
+  // plain ASCII so every chunk stays under the cache's 100 KB per value
+  var str = JSON.stringify(rows).replace(/[\u007f-￿]/g, function (c) { return '\\u' + ('000' + c.charCodeAt(0).toString(16)).slice(-4); });
+  var base = 't:' + t + ':' + g, n = Math.max(1, Math.ceil(str.length / CHUNK)), parts = {};
+  if (n > 40) return;
+  for (var i = 0; i < n; i++) parts[base + ':' + i] = str.substr(i * CHUNK, CHUNK);
+  parts[base] = String(n);
+  try { cache.putAll(parts, CACHE_SECONDS); } catch (e) {}
+}
+
 function sheetsEnv_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet(), props = PropertiesService.getScriptProperties(), cache = CacheService.getScriptCache();
-  var NAMES = { students: 'Students', attendance: 'Attendance', excuses: 'Excuses', days: 'Days', log: 'Log' };
   function sheet(t) {
-    var sh = ss.getSheetByName(NAMES[t]);
+    var sh = ss.getSheetByName(SHEET_NAMES[t]);
     if (!sh) {
-      sh = ss.insertSheet(NAMES[t]);
+      sh = ss.insertSheet(SHEET_NAMES[t]);
       sh.getRange(1, 1, sh.getMaxRows(), TABLES[t].length).setNumberFormat('@');
       sh.getRange(1, 1, 1, TABLES[t].length).setValues([TABLES[t]]).setFontWeight('bold');
       sh.setFrozenRows(1);
@@ -488,23 +587,45 @@ function sheetsEnv_() {
     return v == null ? '' : String(v);
   }
   function toRow(t, o) { return TABLES[t].map(function (c) { return o[c] == null ? '' : String(o[c]); }); }
+  function rowsOf(t, vals) {
+    var cols = TABLES[t];
+    return vals.filter(function (r) { return r.join('') !== ''; }).map(function (r) {
+      var o = {}; cols.forEach(function (c, i) { o[c] = str(r[i]); }); return o;
+    });
+  }
+  function readSheet(t) {
+    var sh = sheet(t), n = sh.getLastRow();
+    return n < 2 ? [] : rowsOf(t, sh.getRange(2, 1, n - 1, TABLES[t].length).getValues());
+  }
   return {
     now: function () { return Date.now(); },
     read: function (t) {
-      var sh = sheet(t), n = sh.getLastRow(), cols = TABLES[t];
-      if (n < 2) return [];
-      return sh.getRange(2, 1, n - 1, cols.length).getValues().filter(function (r) { return r.join('') !== ''; }).map(function (r) {
-        var o = {}; cols.forEach(function (c, i) { o[c] = str(r[i]); }); return o;
-      });
+      if (!CACHED_TABS[t]) return readSheet(t);
+      var g = tabGen_(cache, t), rows = cacheLoad_(cache, t, g);
+      if (rows) return rows;
+      rows = readSheet(t);
+      cacheSave_(cache, t, g, rows);
+      return rows;
     },
+    readTail: function (t, max) {
+      var sh = sheet(t), n = sh.getLastRow();
+      if (n < 2) return [];
+      var from = Math.max(2, n - max + 1);
+      return rowsOf(t, sh.getRange(from, 1, n - from + 1, TABLES[t].length).getValues());
+    },
+    // appends and writes only run inside the lock (see AttendanceCore), so rows never collide
     append: function (t, o) {
       var sh = sheet(t), r = sh.getRange(sh.getLastRow() + 1, 1, 1, TABLES[t].length);
       r.setNumberFormat('@'); r.setValues([toRow(t, o)]);
+      if (!CACHED_TABS[t]) return;
+      var old = cacheLoad_(cache, t, tabGen_(cache, t)), g = tabGen_(cache, t, true);
+      if (old) { var row = {}; TABLES[t].forEach(function (c) { row[c] = o[c] == null ? '' : String(o[c]); }); old.push(row); cacheSave_(cache, t, g, old); }
     },
     write: function (t, rows) {
       var sh = sheet(t), cols = TABLES[t].length, n = sh.getLastRow();
       if (n > 1) sh.getRange(2, 1, n - 1, cols).clearContent();
       if (rows.length) { var r = sh.getRange(2, 1, rows.length, cols); r.setNumberFormat('@'); r.setValues(rows.map(function (o) { return toRow(t, o); })); }
+      if (CACHED_TABS[t]) cacheSave_(cache, t, tabGen_(cache, t, true), rows.map(function (o) { var x = {}; TABLES[t].forEach(function (c) { x[c] = o[c] == null ? '' : String(o[c]); }); return x; }).filter(function (x) { return TABLES[t].map(function (c) { return x[c]; }).join('') !== ''; }));
     },
     getProp: function (k) { return props.getProperty(k); },
     setProp: function (k, v) { props.setProperty(k, v); },
@@ -514,25 +635,104 @@ function sheetsEnv_() {
     hmac: function (key, msg) { return Utilities.computeHmacSha256Signature(msg, key).map(function (b) { return b & 255; }); },
     sha256: function (s) { return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, s, Utilities.Charset.UTF_8).map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join(''); },
     random: function () { return Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').slice(0, 8); },
-    lock: function (fn) { var l = LockService.getScriptLock(); l.waitLock(25000); try { return fn(); } finally { l.releaseLock(); } }
+    lock: function (fn, waitMs) {
+      var l = LockService.getScriptLock();
+      l.waitLock(waitMs || 28000);
+      // flush before letting the next request in, so it reads what this one wrote
+      try { return fn(); } finally { SpreadsheetApp.flush(); l.releaseLock(); }
+    },
+    backup: function (why) { return backupNow_(why); },
+    backupAuto: function (on) { setDailyBackup_(on); }
   };
+}
+
+/* ---------- backups: a full copy of this Sheet in Drive > "Attendance backups", newest 30 kept ---------- */
+function backupFolder_() {
+  var props = PropertiesService.getScriptProperties(), id = props.getProperty('backupFolder');
+  if (id) { try { var f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) {} }
+  var it = DriveApp.getFoldersByName('Attendance backups'), folder = it.hasNext() ? it.next() : DriveApp.createFolder('Attendance backups');
+  props.setProperty('backupFolder', folder.getId());
+  return folder;
+}
+function backupInfo_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('backup') || 'null') || { auto: false }; } catch (e) { return { auto: false }; } }
+function backupNow_(why) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), props = PropertiesService.getScriptProperties(), info = backupInfo_();
+  SpreadsheetApp.flush();
+  var name = ss.getName() + ' backup ' + Utilities.formatDate(new Date(), 'Asia/Colombo', 'yyyy-MM-dd HH:mm');
+  var folder = backupFolder_(), copy = DriveApp.getFileById(ss.getId()).makeCopy(name, folder);
+  var files = [], it = folder.getFiles();
+  while (it.hasNext()) files.push(it.next());
+  files.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); });
+  files.slice(BACKUPS_KEPT).forEach(function (f) { f.setTrashed(true); });
+  info.last = Date.now(); info.name = name; info.url = copy.getUrl(); info.folder = folder.getUrl();
+  info.count = Math.min(files.length, BACKUPS_KEPT); info.why = why || ''; info.error = '';
+  props.setProperty('backup', JSON.stringify(info));
+  return info;
+}
+function setDailyBackup_(on) {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'dailyBackup') ScriptApp.deleteTrigger(t); });
+  if (on) ScriptApp.newTrigger('dailyBackup').timeBased().everyDays(1).atHour(22).inTimezone('Asia/Colombo').create();
+  var info = backupInfo_(); info.auto = !!on;
+  PropertiesService.getScriptProperties().setProperty('backup', JSON.stringify(info));
+}
+function dailyBackup() {
+  try { backupNow_('daily'); }
+  catch (e) { var info = backupInfo_(); info.error = String(e.message || e); info.errorAt = Date.now(); PropertiesService.getScriptProperties().setProperty('backup', JSON.stringify(info)); }
 }
 
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 function doGet(e) { return json_(AttendanceCore(sheetsEnv_()).handle({ action: 'status' })); }
 function doPost(e) {
-  var req = {};
-  try { req = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, reason: 'input', message: 'Bad request.' }); }
+  var req = {}, body = e && e.postData ? String(e.postData.contents || '') : '';
+  if (body.length > 300000) return json_({ ok: false, reason: 'input', message: 'Request too big.' });
+  try { req = JSON.parse(body); } catch (err) { return json_({ ok: false, reason: 'input', message: 'Bad request.' }); }
+  if (!req || typeof req !== 'object' || Array.isArray(req)) return json_({ ok: false, reason: 'input', message: 'Bad request.' });
   return json_(AttendanceCore(sheetsEnv_()).handle(req));
 }
+// typing in the Sheet: forget the cached copy of that tab
+function onEdit(e) {
+  try {
+    var name = e.range.getSheet().getName();
+    for (var t in SHEET_NAMES) if (SHEET_NAMES[t] === name && CACHED_TABS[t]) tabGen_(CacheService.getScriptCache(), t, true);
+  } catch (err) {}
+}
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Attendance').addItem('Set admin password', 'setAdminPassword').addItem('Create the tabs now', 'createTabs').addToUi();
+  SpreadsheetApp.getUi().createMenu('Attendance')
+    .addItem('Set admin password', 'setAdminPassword')
+    .addItem('Back up now', 'menuBackup')
+    .addItem('Daily backup on or off', 'menuDailyBackup')
+    .addSeparator()
+    .addItem('Unlock instructor sign-in', 'menuUnlock')
+    .addItem('Sign out everywhere and change QR secret', 'menuReset')
+    .addItem('Reload the page data from the Sheet', 'menuClearCache')
+    .addItem('Create the tabs now', 'createTabs').addToUi();
 }
 function setAdminPassword() {
   var ui = SpreadsheetApp.getUi(), r = ui.prompt('Admin password', 'At least 8 characters. Only its hash is saved.', ui.ButtonSet.OK_CANCEL);
   if (r.getSelectedButton() !== ui.Button.OK) return;
   try { AttendanceCore(sheetsEnv_()).setPassword(r.getResponseText()); ui.alert('Saved. Log in on the attendance page.'); }
   catch (e) { ui.alert(e.message); }
+}
+function menuBackup() {
+  var info = backupNow_('from the Sheet menu');
+  SpreadsheetApp.getUi().alert('Backed up to Drive > Attendance backups as "' + info.name + '". The newest ' + BACKUPS_KEPT + ' copies are kept.');
+}
+function menuDailyBackup() {
+  var ui = SpreadsheetApp.getUi(), on = backupInfo_().auto;
+  var r = ui.alert('Daily backup is ' + (on ? 'ON' : 'OFF'), on ? 'Turn it off?' : 'Turn it on? A copy is made every night around 10 pm Sri Lanka time.', ui.ButtonSet.YES_NO);
+  if (r === ui.Button.YES) { setDailyBackup_(!on); ui.alert('Daily backup is now ' + (on ? 'OFF.' : 'ON.')); }
+}
+function menuUnlock() { AttendanceCore(sheetsEnv_()).unlockLogin(); SpreadsheetApp.getUi().alert('Instructor sign-in is unlocked.'); }
+function menuReset() {
+  var ui = SpreadsheetApp.getUi();
+  if (ui.alert('Sign out everywhere?', 'Every instructor browser is signed out, trusted browsers are forgotten and the classroom QR gets a new secret. Use this if you think someone saw your password.', ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return;
+  AttendanceCore(sheetsEnv_()).resetSecurity();
+  ui.alert('Done. Sign in again on the attendance page. Change the password too if it may have leaked.');
+}
+function menuClearCache() {
+  var cache = CacheService.getScriptCache();
+  Object.keys(CACHED_TABS).forEach(function (t) { tabGen_(cache, t, true); });
+  SpreadsheetApp.getUi().alert('Done. The page reads the Sheet again.');
 }
 function createTabs() {
   var env = sheetsEnv_();

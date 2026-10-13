@@ -7,6 +7,9 @@
 <meta name="description" content="American Corner Matara Cyber Security class: scan the classroom QR to check in.">
 <meta name="theme-color" content="#ffffff">
 <meta name="color-scheme" content="light">
+<!-- the page may only talk to Google Apps Script and load its fonts and QR library; nothing else can be injected or sent out -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -665,6 +668,15 @@ let CODE=urlCode;
 function cleanPhone(v){let d=String(v||'').replace(/\D/g,'');if(d.length===11&&d.startsWith('94'))d='0'+d.slice(2);if(d.length===9&&d[0]!=='0')d='0'+d;return /^0\d{9}$/.test(d)?d:''}
 const showPhone=p=>p&&p.length===10?p.slice(0,3)+' '+p.slice(3,6)+' '+p.slice(6):p||'';
 const needCode=()=>!STATUS||STATUS.requireCode;
+// 70 students at once: if the server is busy or the network drops, wait a random moment and try again
+async function stuApi(body,label){
+  const waits=[1500,3500,7000];let last;
+  for(let i=0;i<=waits.length;i++){
+    try{const r=await api(body,25000);if(r.ok||r.reason!=='busy')return r;last=r}catch(e){last={ok:false,reason:e.code||'network',message:e.message}}
+    if(i<waits.length){busy('Many students are checking in. Trying again…');await sleep(waits[i]+Math.random()*2000);if(label)busy(label)}
+  }
+  return last;
+}
 function busy(t,n){$('#stCard').innerHTML=stepper(n||2)+'<div class="result" role="status"><div class="spinner"></div><p>'+esc(t)+'</p></div>'}
 function codeField(){return needCode()?`<div class="field"${CODE?' hidden':''}><label for="scode">Code on the screen</label><input id="scode" class="code" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="••••••" value="${esc(CODE)}"></div>`:''}
 function readCode(){const el=$('#scode');if(el)CODE=el.value.toUpperCase().replace(/[^A-Z0-9]/g,'');return CODE}
@@ -694,13 +706,16 @@ async function doLookup(raw){
   if(!phone)return renderPhone('Type your mobile number, like 0771234567.');
   if(needCode()&&CODE.length!==6)return renderPhone('Type the 6-letter code from the screen.');
   busy('Finding you…',1);
-  let r;try{r=await api({action:'lookup',phone,code:CODE,device:DEVICE})}catch(e){r={ok:false,message:e.message}}
+  const r=await stuApi({action:'lookup',phone,code:CODE,device:DEVICE},'Finding you…');
   if(!r.ok)return fail(r);
+  // the server shows only part of the name until the student confirms; this phone may know the full one
+  const me=getMe();
+  if(r.student){r.student.phone=phone;if(me&&me.phone===phone&&me.id===r.student.id)r.student.name=me.name}
   if(!r.found){
     if(!r.canRegister)return fail({message:'This number is not on the class list. Talk to your instructor.'});
     return renderRegister(phone,null,r.idExample);
   }
-  if(r.already){setMe(r.student);return done({already:true,date:r.date,time:r.already,student:r.student})}
+  if(r.already)return done({already:true,date:r.date,time:r.already,student:r.student});
   renderConfirm(r.student,false);
 }
 function renderRegister(phone,msg,example){
@@ -714,7 +729,7 @@ function renderRegister(phone,msg,example){
     const name=$('#sname').value.trim().replace(/\s+/g,' ');
     if(!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name))return renderRegister(phone,'Type your name with letters only.',example);
     busy('Registering…');
-    let r;try{r=await api({action:'register',phone,name,code:CODE,device:DEVICE})}catch(err){r={ok:false,message:err.message}}
+    const r=await stuApi({action:'register',phone,name,code:CODE,device:DEVICE},'Registering…');
     if(!r.ok)return fail(r,()=>renderRegister(phone,null,example));
     renderConfirm(r.student,!r.existing)};
 }
@@ -723,6 +738,7 @@ function renderConfirm(st,isNew){
     <p class="lead">${isNew?'This is your student ID. Check your details, then mark your attendance.':'Check your details before you mark your attendance.'}</p>
     <div class="idcard"><div class="idk">Student ID</div><div class="idv">${esc(st.id)}</div>
       <dl><dt>Name</dt><dd>${esc(st.name)}</dd><dt>Mobile</dt><dd>${esc(showPhone(st.phone))}</dd></dl></div>
+    ${/\*/.test(st.name)?'<p class="hint mt">Part of the name is hidden to keep it private.</p>':''}
     <button class="btn wide big mt" id="yes">Yes, mark my attendance</button>
     <button class="btn ghost wide" style="margin-top:10px" id="no">No, this is not me</button>`;
   $('#yes').onclick=()=>doConfirm(st);
@@ -730,7 +746,7 @@ function renderConfirm(st,isNew){
 }
 async function doConfirm(st){
   busy('Marking your attendance…');
-  let r;try{r=await api({action:'checkin',phone:st.phone,id:st.id,code:CODE,device:DEVICE})}catch(e){r={ok:false,message:e.message}}
+  const r=await stuApi({action:'checkin',phone:st.phone,id:st.id,code:CODE,device:DEVICE},'Marking your attendance…');
   if(!r.ok)return fail(r);
   setMe(r.student);done(r);
 }
@@ -779,15 +795,15 @@ async function adminCall(body){
   return r;
 }
 // the page expects this server version; older Apps Script copies lack newer actions (like opening a past day)
-const SERVER_NEEDS=6;
+const SERVER_NEEDS=7;
 const oldServer=()=>!isDemo()&&DATA&&DATA.status&&(DATA.status.version||0)<SERVER_NEEDS;
 function oldServerHTML(){return `<div class="msg err mb" id="oldSrv"><b>Update the server code.</b> Your Google Apps Script still runs an older copy, so opening past days and other newer features will fail. In the Sheet open <b>Extensions › Apps Script</b>, replace everything in <code>Code.gs</code> with the new code and save. Then <b>Deploy › Manage deployments</b>, click the pencil, set <b>Version: New version</b> and <b>Deploy</b>. Do not make a new deployment, or the link changes. <button class="btn small" id="oldSrvCopy">Copy new server code</button></div>`}
 function logoutLocal(){TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
 $('#loginForm').onsubmit=async e=>{
   e.preventDefault();const btn=$('#loginBtn');btn.disabled=true;btn.textContent='Checking…';$('#loginMsg').innerHTML='';
   const t0=Date.now();
-  try{const r=await api({action:'login',password:$('#pw').value});logRead('login',Date.now()-t0,r.ok?null:r.message);
-    if(r.ok){TOKEN=r.token;QRKEY=r.qrKey;OFFSET=r.now-Date.now();sess.set('att-token',TOKEN);sess.set('att-qrkey',QRKEY);$('#pw').value='';showAdmin();opsAfterLogin()}
+  try{const r=await api({action:'login',password:$('#pw').value,trust:store.get('att-trust')||''});logRead('login',Date.now()-t0,r.ok?null:r.message);
+    if(r.ok){if(r.trust)store.set('att-trust',r.trust);TOKEN=r.token;QRKEY=r.qrKey;OFFSET=r.now-Date.now();sess.set('att-token',TOKEN);sess.set('att-qrkey',QRKEY);$('#pw').value='';showAdmin();opsAfterLogin()}
     else $('#loginMsg').innerHTML='<div class="msg err">'+esc(r.message)+'</div>';
   }catch(err){logRead('login',Date.now()-t0,err.message);$('#loginMsg').innerHTML='<div class="msg err">'+esc(err.message)+'</div>'}
   btn.disabled=false;btn.textContent='Log in';
@@ -1320,6 +1336,7 @@ async function sendOp(o){
     else if(r.reason==='locked'){state='blocked';block='locked';detail='That day is locked. Open it for editing, then it sends.'}
     else if(r.reason==='action'){state='blocked';block='server';detail='Apps Script runs older server code that does not know this change. Update the server code, then retry.'}
     else if(r.reason==='error'){auto=true;detail='Server error: '+m}
+    else if(r.reason==='busy'){auto=true;detail='The server was busy with other requests.'}
     else detail=m+' Fix it and press Retry, or Cancel.'}
   else{auto=true;o.error={reason:(err&&err.code)||'network',message:err?err.message:'No answer.'};
     detail=err&&err.code==='timeout'?'No answer after '+cfg.timeout+' s. It may have saved; sending again is safe.':'Could not reach the server.'}
@@ -1337,7 +1354,7 @@ function logRead(action,ms,errMsg){
   if(errMsg&&last&&last.state==='failed'&&Date.now()-last.created<36e5){last.attempts++;last.ms=ms;opHist(last,'failed',errMsg+' ('+last.attempts+' times)');opsSave();opsPaint();return}
   if(!errMsg&&last&&last.state==='failed'){opHist(last,'done','Worked again after '+last.attempts+(last.attempts===1?' failure.':' failures.'));opsSave();opsPaint()}
   if(!errMsg&&!slow&&!cfg.logReads)return;
-  const label={data:'Load class data',today:'Refresh the live list',login:'Sign in'}[action]||action,now=Date.now();
+  const label={data:'Load class data',today:'Refresh the live list',login:'Sign in',backup:'Back up to Drive',export:'Download full backup'}[action]||action,now=Date.now();
   const o={id:'rd'+now.toString(36)+Math.random().toString(36).slice(2,6),sid:SID,kind:action==='login'?'Sign in':'Sync',label,read:action,body:{action},created:now,updated:now,attempts:1,ms,history:[]};
   opHist(o,errMsg?'failed':'done',errMsg?errMsg:(slow?'Slow: ':'')+'Answered in '+secs(ms)+'.');OPS.push(o);opsSave();opsPaint()}
 async function timedCall(body){const t0=Date.now();
@@ -1483,7 +1500,9 @@ function paneSettings(box){
     ${DATA.students.length?'<p class="hint mt">Students already have IDs. Those stay the same; only new students get the new format.</p>':''}
     <button class="btn mt">Save ID format</button></form></div>
    <div class="card mt" style="animation:none"><h3>Server</h3><p class="mb">${isDemo()?'Demo mode on this device.':'Google Apps Script, ID ending <code>…'+esc(SID.slice(-8))+'</code>.'}</p>
-    <button class="btn ghost" onclick="location.hash='#setup'">Setup and demo</button></div></div></div>`;
+    <button class="btn ghost" onclick="location.hash='#setup'">Setup and demo</button></div>
+   ${backupCard()}</div></div>`;
+  paintBackup(box);
   const fmt=()=>{const pre=$('#iPre').value.trim().toUpperCase(),suf=$('#iSuf').value.trim().toUpperCase(),dig=Math.max(1,Math.min(8,+$('#iDig').value||1)),st=Math.max(0,+$('#iStart').value||0);return {idPrefix:pre,idSuffix:suf,idDigits:dig,idStart:st,preview:pre+String(st).padStart(dig,'0')+suf}};
   const prev=()=>{$('#iPrev').textContent=fmt().preview};prev();
   ['#iPre','#iSuf','#iDig','#iStart'].forEach(k=>$(k).oninput=prev);
@@ -1493,6 +1512,31 @@ function paneSettings(box){
   $('#setForm').onsubmit=async e=>{e.preventDefault();
     const settings={days:[...box.querySelectorAll('input[name=day]:checked')].map(x=>+x.value),start:$('#sStart').value,end:$('#sEnd').value,requireCode:$('#sCode').checked,oneDevice:$('#sDev').checked,selfRegister:$('#sReg').checked,fromFirst:$('#sFirst').checked};
     const r=await saveOp({action:'settings',settings});if(r.ok){toast('Settings saved');loadData()}else toast(r.message,true)};
+}
+
+/* Backups: a full copy of the Sheet in the instructor's Google Drive, and a JSON file to keep anywhere */
+function backupCard(){
+  const b=DATA.backup,link=u=>/^https:\/\/(docs|drive)\.google\.com\//.test(u||'');
+  if(!b)return `<div class="card mt" style="animation:none"><h3>Backups</h3><p class="hint">Update the server code to turn on backups.</p></div>`;
+  return `<div class="card mt" style="animation:none" id="bkCard"><h3>Backups</h3>
+    <p class="mb">${b.last?'Last copy <b>'+esc(niceMs(b.last))+'</b>'+(link(b.url)?' · <a href="'+esc(b.url)+'" target="_blank" rel="noopener">open it</a>':'')+(link(b.folder)?' · <a href="'+esc(b.folder)+'" target="_blank" rel="noopener">all copies</a>':'')+'<br><span class="hint">'+(b.count||1)+' kept in Drive › Attendance backups. The newest 30 are kept.</span>':'No copy yet. A copy is a full Google Sheet in your Drive, in a folder called Attendance backups.'}</p>
+    ${b.error?'<div class="msg err mb">The last nightly copy failed: '+esc(b.error)+'</div>':''}
+    <label class="check"><input type="checkbox" id="bkAuto" ${b.auto?'checked':''}>Make a copy every night, about 10 pm</label>
+    <div class="row mt"><button class="btn" id="bkNow" type="button">Back up to Drive now</button><button class="btn ghost" id="bkJson" type="button">Download full backup (.json)</button></div>
+    <p class="hint mt">The download has every tab, including the whole activity log. Keep it somewhere private: it has phone numbers.</p></div>`;
+}
+function paintBackup(box){
+  const now=box.querySelector('#bkNow');if(!now)return;
+  now.onclick=async()=>{now.disabled=true;now.textContent='Copying…';const t0=Date.now();
+    let r;try{r=await adminCall({action:'backup'})}catch(e){r={ok:false,message:e.message}}logRead('backup',Date.now()-t0,r.ok?null:r.message);
+    if(r.ok){DATA.backup=r.backup;toast('Backed up to Drive');renderPane()}else{toast(r.message,true);now.disabled=false;now.textContent='Back up to Drive now'}};
+  box.querySelector('#bkAuto').onchange=async e=>{const on=e.target.checked;
+    let r;try{r=await adminCall({action:'backupAuto',on})}catch(err){r={ok:false,message:err.message}}
+    if(r.ok){DATA.backup=r.backup;toast(on?'Nightly copy on':'Nightly copy off')}else{e.target.checked=!on;toast(r.message,true)}};
+  box.querySelector('#bkJson').onclick=async e=>{const b=e.target;b.disabled=true;b.textContent='Preparing…';const t0=Date.now();
+    let r;try{r=await adminCall({action:'export'})}catch(err){r={ok:false,message:err.message}}logRead('export',Date.now()-t0,r.ok?null:r.message);
+    b.disabled=false;b.textContent='Download full backup (.json)';
+    if(r.ok){delete r.ok;download('attendance-backup-'+r.today+'.json',JSON.stringify(r,null,1),'application/json')}else toast(r.message,true)};
 }
 
 /* Setup + demo */
