@@ -30,7 +30,7 @@
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 7;
+var SERVER_VERSION = 8;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -41,6 +41,7 @@ var DEFAULT_SETTINGS = {
   requireCode: true,    // must scan the live QR (or type its code) in the room
   selfRegister: true,   // new students may register themselves (mobile number + name) on first check-in
   oneDevice: true,      // one student per phone per day
+  selfEdit: true,       // students may change their own name, number and photo (after one check-in on that phone)
   fromFirst: true,      // count a student's classes from the day they joined, not from week 1
   slotSeconds: 30,      // QR code changes every 30 s
   codeSlots: 5,         // a code stays valid for 5 slots (about 2.5 min)
@@ -55,10 +56,11 @@ var TABLES = {
   attendance: ['date', 'id', 'name', 'time', 'device', 'method', 'note'],
   excuses:    ['date', 'id', 'reason', 'added'],
   days:       ['date', 'status', 'note'],
-  log:        ['ts', 'date', 'time', 'action', 'id', 'name', 'device', 'result', 'detail']
+  log:        ['ts', 'date', 'time', 'action', 'id', 'name', 'device', 'result', 'detail'],
+  profiles:   ['id', 'photo', 'updated']   // profile photos, kept apart so the Students tab stays small and fast
 };
 
-var SHEET_NAMES = { students: 'Students', attendance: 'Attendance', excuses: 'Excuses', days: 'Days', log: 'Log' };
+var SHEET_NAMES = { students: 'Students', attendance: 'Attendance', excuses: 'Excuses', days: 'Days', log: 'Log', profiles: 'Profiles' };
 var BACKUPS_KEPT = 30;
 
 var CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -188,6 +190,24 @@ function AttendanceCore(rawEnv) {
   // before a student proves anything, show only enough of the name to recognise it: "Dineth Yasuru" -> "Di**** Ya****"
   function maskName(n) { return cleanName(n).split(' ').map(function (w) { return w.slice(0, 2) + (w.length > 2 ? new Array(w.length - 1).join('*') : ''); }).join(' '); }
   function cleanDevice(v) { return String(v || '').replace(/[^a-z0-9]/gi, '').slice(0, 40); }
+
+  // Profile key: a check-in on a phone gives it a key for that student (an HMAC of the ID with a server
+  // secret). Changing a profile needs the key, so knowing someone's number and name is not enough.
+  // The instructor can cancel one student's key (Students > Edit > Sign out of profile).
+  function keyVersions() { try { return JSON.parse(env.getProp('stuKv') || '{}'); } catch (e) { return {}; } }
+  function stuKey(id) {
+    var sec = env.getProp('stuSecret');
+    if (!sec) { sec = env.random(); env.setProp('stuSecret', sec); }
+    return env.hmac(sec, 'student:' + id + ':' + (keyVersions()[id] || 0)).slice(0, 16).map(function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+  }
+  function keyOk(id, key) {
+    if (!validId(id) || !/^[a-f0-9]{32}$/.test(String(key || ''))) return false;
+    var want = stuKey(id), diff = 0;
+    for (var i = 0; i < 32; i++) diff |= want.charCodeAt(i) ^ String(key).charCodeAt(i);
+    return diff === 0;
+  }
+  // photos: small square JPEGs made by the page, about 10 KB
+  function validPhoto(p) { return typeof p === 'string' && p.length <= 40000 && /^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+\/]+=*$/.test(p); }
   // shared checks for every student step: real browser, not too many tries, valid number, open now, live code
   function gate(req, now, s, L) {
     var device = String(req.device || '').slice(0, 40);
@@ -219,7 +239,7 @@ function AttendanceCore(rawEnv) {
     return { ok: true, version: SERVER_VERSION, now: now, today: t.date, time: t.time, open: isOpen(now, s), todayDone: todayDone(now, s),
       extraUntil: extraWindow(now), nextOpen: nextOpen(now, s), openDay: o ? { date: o.date, until: o.until } : null,
       window: { days: s.days, start: s.start, end: s.end, tzName: s.tzName, tzOffset: s.tzOffset },
-      requireCode: s.requireCode, selfRegister: s.selfRegister, configured: !!env.getProp('adminHash'), idExample: formatId(s, Number(s.idStart) || 1) };
+      requireCode: s.requireCode, selfRegister: s.selfRegister, selfEdit: s.selfEdit, configured: !!env.getProp('adminHash'), idExample: formatId(s, Number(s.idStart) || 1) };
   }
   function fail(reason, msg, extra) {
     var r = { ok: false, reason: reason, message: msg };
@@ -270,20 +290,22 @@ function AttendanceCore(rawEnv) {
       if (r.id === st.id) mine = r;
       else if (s.oneDevice && r.device && r.device === device) other = r;
     });
-    if (mine) { L('duplicate', 'already at ' + mine.time); return { ok: true, already: true, date: t.date, time: mine.time, student: studentOut(st) }; }
+    if (mine) { L('duplicate', 'already at ' + mine.time); return { ok: true, already: true, date: t.date, time: mine.time, student: studentOut(st), key: stuKey(st.id) }; }
     if (other) { L('rejected', 'device used by ' + other.id); return fail('shared', 'This phone already checked in another student today. Use your own phone, or ask your instructor.'); }
 
     env.append('attendance', { date: t.date, id: st.id, name: st.name, time: t.time, device: device, method: s.requireCode ? 'qr' : 'open', note: '' });
     if (!env.read('days').some(function (r) { return r.date === t.date; })) env.append('days', { date: t.date, status: 'held', note: '' });
     L('accepted', '');
-    return { ok: true, date: t.date, time: t.time, student: studentOut(st) };
+    return { ok: true, date: t.date, time: t.time, student: studentOut(st), key: stuKey(st.id) };
   }
 
   function me(req, now) {
     var s = settings(), phone = cleanPhone(req.phone), name = cleanName(req.name), device = String(req.device || '').slice(0, 40);
     if (rateLimited('rl:' + device, 20, 600) || (phone && rateLimited('rm:' + phone, 10, 600))) return fail('slow', 'Too many tries. Wait 10 minutes.');
-    var st = phone ? byPhone(phone) : null;
-    if (!st || !sameName(st.name, name)) return fail('notfound', 'No record for this number and name yet.');
+    var st = null;
+    if (req.key) { st = env.read('students').filter(function (r) { return r.id === cleanId(req.id); })[0] || null; if (st && !keyOk(st.id, req.key)) st = null; }
+    else if (phone) { st = byPhone(phone); if (st && !sameName(st.name, name)) st = null; }
+    if (!st) return fail('notfound', 'No record for this number and name yet.');
     var id = st.id, today = local(now, s).date;
     var att = {}, exc = {}, start = st.added || today;
     env.read('attendance').forEach(function (r) { if (r.id === id) { att[r.date] = r.time; if (r.date < start) start = r.date; } });
@@ -293,6 +315,49 @@ function AttendanceCore(rawEnv) {
     return { ok: true, id: id, name: st.name, phone: st.phone, records: days.map(function (d) {
       return { date: d, status: att[d] ? 'present' : exc[d] ? 'excused' : 'absent', time: att[d] || '' };
     }), upcomingExcuses: Object.keys(exc).filter(function (d) { return d > today; }).sort() };
+  }
+
+  /* ----- the student's own profile ----- */
+  function profileStudent(req) {
+    var id = cleanId(req.id);
+    if (rateLimited('pf:' + id, 30, 3600)) return { err: fail('slow', 'Too many tries. Wait an hour.') };
+    if (!keyOk(id, req.key)) return { err: fail('key', 'Check in once on this phone to change your profile.') };
+    var st = env.read('students').filter(function (r) { return r.id === id; })[0];
+    if (!st) return { err: fail('key', 'Check in once on this phone to change your profile.') };
+    return { st: st };
+  }
+  function photoOf(id) { var p = env.read('profiles').filter(function (r) { return r.id === id; })[0]; return p ? p.photo : ''; }
+  function profileGet(req, now) {
+    var r = profileStudent(req); if (r.err) return r.err;
+    return { ok: true, student: studentOut(r.st), photo: photoOf(r.st.id), canEdit: settings().selfEdit };
+  }
+  function profileSave(req, now) {
+    var s = settings(), r = profileStudent(req); if (r.err) return r.err;
+    if (!s.selfEdit) return fail('off', 'Your instructor has turned off profile changes. Ask them to change it.');
+    var st = r.st, id = st.id, changes = [];
+    var nm = req.name == null ? st.name : cleanName(req.name), ph = req.phone == null ? st.phone : cleanPhone(req.phone);
+    if (!validName(nm)) return fail('name', 'Type your name with letters only.');
+    if (!ph) return fail('phone', 'Type your mobile number, like 0771234567.');
+    if (req.photo != null && req.photo !== '' && !validPhoto(req.photo)) return fail('photo', 'That photo could not be used. Try another one.');
+    var rows = env.read('students');
+    if (ph !== st.phone && rows.some(function (x) { return x.phone === ph && x.id !== id; })) return fail('phone', 'That number belongs to another student. Ask your instructor.');
+    if (nm !== st.name) changes.push('name "' + st.name + '" to "' + nm + '"');
+    if (ph !== st.phone) changes.push('number ' + st.phone + ' to ' + ph);
+    if (changes.length) {
+      rows.forEach(function (x) { if (x.id === id) { x.name = nm; x.phone = ph; } });
+      env.write('students', rows);
+      if (nm !== st.name) env.write('attendance', env.read('attendance').map(function (x) { if (x.id === id) x.name = nm; return x; }));
+    }
+    if (req.photo != null) {
+      var ps = env.read('profiles'), had = false;
+      ps.forEach(function (x) { if (x.id === id) { had = true; x.photo = req.photo; x.updated = String(now); } });
+      if (!had && req.photo) ps.push({ id: id, photo: req.photo, updated: String(now) });
+      env.write('profiles', ps.filter(function (x) { return x.photo; }));
+      changes.push(req.photo ? 'photo' : 'photo removed');
+    }
+    log(now, s, 'profile', id, nm, req.device, changes.length ? 'accepted' : 'duplicate', changes.join(', ') || 'no change');
+    st.name = nm; st.phone = ph;
+    return { ok: true, student: studentOut(st), photo: req.photo != null ? req.photo : undefined };
   }
 
   /* ----- admin ----- */
@@ -359,6 +424,23 @@ function AttendanceCore(rawEnv) {
         students: env.read('students'), attendance: env.read('attendance'), excuses: env.read('excuses'),
         days: env.read('days'), log: lg.slice(Math.max(0, lg.length - 400)), backup: backupInfo(),
         nextIdPreview: formatId(s, Math.max(Number(env.getProp('idNext') || 0), Number(s.idStart) || 1)) };
+    }
+    if (a === 'photos') {
+      var ph = {};
+      env.read('profiles').forEach(function (r) { if (r.photo) ph[r.id] = r.photo; });
+      return { ok: true, photos: ph };
+    }
+    if (a === 'photo') {
+      // the instructor can remove a photo that should not be there
+      if (!validId(id)) return fail('input', 'Pick a student.');
+      env.write('profiles', env.read('profiles').filter(function (r) { return r.id !== id; }));
+      A('photo removed'); return { ok: true };
+    }
+    if (a === 'profileKey') {
+      // a lost or shared phone: the old key stops working; the student checks in again to get a new one
+      if (!validId(id)) return fail('input', 'Pick a student.');
+      var kv = keyVersions(); kv[id] = (kv[id] || 0) + 1; env.setProp('stuKv', JSON.stringify(kv));
+      A('profile key reset'); return { ok: true };
     }
     if (a === 'export') {
       // the whole record as one file; password hashes and secrets are never included
@@ -483,7 +565,7 @@ function AttendanceCore(rawEnv) {
       if (n.start != null) { if (!hm.test(n.start)) return fail('input', 'Start time like 09:00.'); out.start = n.start; }
       if (n.end != null) { if (!hm.test(n.end)) return fail('input', 'End time like 13:00.'); out.end = n.end; }
       if (out.start >= out.end) return fail('input', 'End time must be after start time.');
-      ['requireCode', 'selfRegister', 'oneDevice', 'fromFirst'].forEach(function (k) { if (typeof n[k] === 'boolean') out[k] = n[k]; });
+      ['requireCode', 'selfRegister', 'oneDevice', 'fromFirst', 'selfEdit'].forEach(function (k) { if (typeof n[k] === 'boolean') out[k] = n[k]; });
       if (n.idPrefix != null || n.idSuffix != null || n.idDigits != null || n.idStart != null) {
         var pre = String(n.idPrefix == null ? out.idPrefix : n.idPrefix).trim().toUpperCase(), suf = String(n.idSuffix == null ? out.idSuffix : n.idSuffix).trim().toUpperCase();
         var dig = Math.round(Number(n.idDigits == null ? out.idDigits : n.idDigits)), st0 = Math.round(Number(n.idStart == null ? out.idStart : n.idStart));
@@ -502,9 +584,9 @@ function AttendanceCore(rawEnv) {
 
   function backupInfo() { try { return JSON.parse(env.getProp('backup') || 'null') || { auto: false }; } catch (e) { return { auto: false }; } }
 
-  var WRITES = { mark: 1, marks: 1, excuse: 1, student: 1, bulk: 1, day: 1, extra: 1, openDay: 1, settings: 1 };
+  var WRITES = { mark: 1, marks: 1, excuse: 1, student: 1, bulk: 1, day: 1, extra: 1, openDay: 1, settings: 1, photo: 1, profileKey: 1 };
   // reading and backups don't wait for the lock, so the live screen never slows check-in down
-  var NOLOCK = { data: 1, today: 1, logout: 1, export: 1, backup: 1, backupAuto: 1 };
+  var NOLOCK = { data: 1, today: 1, logout: 1, export: 1, backup: 1, backupAuto: 1, photos: 1 };
   function handle(req) {
     req = req || {};
     var now = env.now();
@@ -514,6 +596,8 @@ function AttendanceCore(rawEnv) {
       if (req.action === 'register') return env.lock(function () { return register(req, now); });
       if (req.action === 'checkin') return env.lock(function () { return checkin(req, now); });
       if (req.action === 'me') return me(req, now);
+      if (req.action === 'profile') return profileGet(req, now);
+      if (req.action === 'profileSave') return env.lock(function () { return profileSave(req, now); });
       if (req.action === 'login') return login(req, now);
       if (!adminOk(req)) return fail('auth', 'Please log in again.');
       if (NOLOCK[req.action]) return admin(req, now);

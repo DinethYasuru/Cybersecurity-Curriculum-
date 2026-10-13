@@ -358,6 +358,18 @@ tr.opd td{background:#fbfcfe;padding:0}
 .names{display:flex;flex-direction:column;gap:6px;max-height:440px;overflow:auto;margin-top:var(--s3)}
 .names div{display:flex;justify-content:space-between;gap:10px;padding:10px 14px;border-radius:var(--r-sm);background:var(--canvas);animation:slidein .5s var(--ease) both;font-size:1rem}
 .names div span{color:var(--muted);font-variant-numeric:tabular-nums}
+.names div b{display:flex;align-items:center;gap:10px;font-weight:500}
+/* profile photos: a round picture, or initials when there is none */
+.pic{--sz:36px;width:var(--sz);height:var(--sz);border-radius:50%;flex:none;display:inline-grid;place-items:center;object-fit:cover;background:var(--navy-50);color:var(--navy);font:600 calc(var(--sz)*.38)/1 'Outfit';border:2px solid #fff;box-shadow:0 0 0 1px var(--navy-100);vertical-align:middle}
+.pic.lg{--sz:96px}
+.pic.xl{--sz:132px}
+body.present .names .pic{--sz:4.4vh}
+.pfhead{display:flex;align-items:center;gap:var(--s4)}
+.pfhead h3{margin:0;font-size:1.3rem}
+.pfphoto{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:var(--s4)}
+td.name .pic{--sz:32px}
+.nmrow{display:flex;align-items:center;gap:10px}
+.li .pic{--sz:34px}
 .projtitle{display:none;font-family:'Outfit';font-weight:700;color:var(--navy);font-size:5vh;line-height:1.1;margin-bottom:2vh}
 .projtitle span{color:var(--red)}
 .steps{padding-left:22px;line-height:1.65}
@@ -446,6 +458,7 @@ body.present{background:#fff}
       <div class="wrap">
         <div class="card anim" id="stCard"></div>
         <div class="card anim" id="meCard" style="animation-delay:.08s"></div>
+        <div class="card anim" id="pfCard" style="animation-delay:.16s"></div>
       </div>
     </div>
     <footer>Check-in opens on <span id="winText">Saturdays, 09:00 to 13:00</span> (Sri Lanka time). <button class="linkbtn" id="toAdmin">Instructor</button></footer>
@@ -673,7 +686,8 @@ async function stuApi(body,label){
   const waits=[1500,3500,7000];let last;
   for(let i=0;i<=waits.length;i++){
     try{const r=await api(body,25000);if(r.ok||r.reason!=='busy')return r;last=r}catch(e){last={ok:false,reason:e.code||'network',message:e.message}}
-    if(i<waits.length){busy('Many students are checking in. Trying again…');await sleep(waits[i]+Math.random()*2000);if(label)busy(label)}
+    // label false: a profile call, which must not take over the check-in card
+    if(i<waits.length){if(label!==false)busy('Many students are checking in. Trying again…');await sleep(waits[i]+Math.random()*2000);if(label)busy(label)}
   }
   return last;
 }
@@ -748,13 +762,14 @@ async function doConfirm(st){
   busy('Marking your attendance…');
   const r=await stuApi({action:'checkin',phone:st.phone,id:st.id,code:CODE,device:DEVICE},'Marking your attendance…');
   if(!r.ok)return fail(r);
-  setMe(r.student);done(r);
+  // the check-in also gives this phone the key to the student's own profile
+  const old=getMe();setMe(Object.assign({},r.student,{key:r.key||(old&&old.id===r.student.id?old.key:'')}));done(r);
 }
 function done(r){
   CODE='';
   $('#stCard').innerHTML=`${stepper(3)}<div class="result">${OK_SVG}<div class="headline">${r.already?'Already checked in':'You’re in, '+esc(r.student.name.split(' ')[0])+'!'}</div><p>${esc(r.student.id)} · ${esc(niceDate(r.date))} at ${esc(r.time)}${r.already?'<br>One check-in per day is enough.':''}</p></div>`;
   if(navigator.vibrate)navigator.vibrate(60);
-  renderMeCard();loadMine(true);
+  renderMeCard();renderProfile();loadMine(true);
 }
 function ringSVG(pct){const r=45,C=2*Math.PI*r,off=C*(1-(pct||0)/100);return `<svg class="ring" viewBox="0 0 110 110"><circle class="bg" cx="55" cy="55" r="${r}"/><circle class="fg" cx="55" cy="55" r="${r}" stroke-dasharray="${C}" stroke-dashoffset="${C}" data-off="${off}"/><text x="55" y="62" text-anchor="middle">${pct==null?'–':Math.round(pct)+'%'}</text></svg>`}
 function renderMeCard(){
@@ -766,7 +781,7 @@ function renderMeCard(){
 async function loadMine(quiet){
   const me=getMe();if(!me||!SID)return;const box=$('#mine');if(!box)return;
   if(!quiet)box.innerHTML='<div class="spinner"></div>';
-  let r;try{r=await api({action:'me',phone:me.phone,name:me.name,device:DEVICE})}catch(e){r={ok:false,message:e.message}}
+  let r;try{r=await api({action:'me',id:me.id,key:me.key,phone:me.phone,name:me.name,device:DEVICE})}catch(e){r={ok:false,message:e.message}}
   if(!r.ok){box.innerHTML='<div class="msg">'+esc(r.message)+'</div>';return}
   const P=r.records.filter(x=>x.status==='present').length,E=r.records.filter(x=>x.status==='excused').length,A=r.records.length-P-E,n=r.records.length;
   const pct=n?P/n*100:null,adj=n?(P+E)/n*100:null;
@@ -776,8 +791,64 @@ async function loadMine(quiet){
     ${r.upcomingExcuses.length?`<p class="hint mt">Excused ahead: ${r.upcomingExcuses.map(d=>esc(niceDate(d))).join(', ')}</p>`:''}`;
   requestAnimationFrame(()=>requestAnimationFrame(()=>box.querySelectorAll('.ring .fg').forEach(c=>c.style.strokeDashoffset=c.dataset.off)));
 }
+/* ---------- my profile: name, number and photo, changed by the student ---------- */
+const okPhoto=p=>typeof p==='string'&&/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(p);
+function avatar(name,photo,cls){return okPhoto(photo)?`<img class="pic ${cls||''}" src="${photo}" alt="">`:`<span class="pic ${cls||''}" aria-hidden="true">${esc(initials(name))}</span>`}
+const myPhoto=()=>{const p=store.get('att-me-photo');return okPhoto(p)?p:''};
+function renderProfile(msg){
+  const box=$('#pfCard');if(!box)return;const me=getMe();
+  if(!me||!me.key){box.innerHTML=`<div class="card-h"><h2>My profile</h2></div><p class="lead">Your name, number and photo. Check in once on this phone, then you can change them here.</p>`;return}
+  box.innerHTML=`<div class="card-h"><h2>My profile</h2>${STATUS&&STATUS.selfEdit===false?'<span class="chip g">Changes off</span>':''}</div>
+    <div class="pfhead">${avatar(me.name,myPhoto(),'lg')}<div><h3>${esc(me.name)}</h3><div class="hint">${esc(me.id)} · ${esc(showPhone(me.phone))}</div></div></div>
+    ${msg?'<div class="msg good mt">'+esc(msg)+'</div>':''}
+    <button class="btn ghost wide mt" id="pfEdit">Edit my profile</button>`;
+  $('#pfEdit').onclick=()=>editProfile();
+}
+// any photo the phone gives (camera or gallery) becomes a 192 px square JPEG of about 10 KB
+async function squarePhoto(file){
+  const url=URL.createObjectURL(file);
+  try{const img=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>no(new Error('That file is not a photo.'));i.src=url});
+    const c=document.createElement('canvas');c.width=c.height=192;const x=c.getContext('2d'),m=Math.min(img.naturalWidth,img.naturalHeight);
+    x.fillStyle='#fff';x.fillRect(0,0,192,192);x.drawImage(img,(img.naturalWidth-m)/2,(img.naturalHeight-m)/2,m,m,0,0,192,192);
+    for(const q of [.82,.7,.55,.4]){const d=c.toDataURL('image/jpeg',q);if(d.length<=38000)return d}
+    throw new Error('That photo is too detailed. Try another one.')}
+  finally{URL.revokeObjectURL(url)}
+}
+async function editProfile(msg){
+  const me=getMe();if(!me||!me.key)return renderProfile();const box=$('#pfCard');
+  box.innerHTML='<div class="card-h"><h2>My profile</h2></div><div class="spinner"></div>';
+  const g=await stuApi({action:'profile',id:me.id,key:me.key,device:DEVICE},false);
+  if(!g.ok){if(g.reason==='key'){me.key='';setMe(me)}renderProfile();$('#pfCard').insertAdjacentHTML('beforeend','<div class="msg err mt">'+esc(g.message)+'</div>');return}
+  if(g.photo)store.set('att-me-photo',g.photo);else store.del('att-me-photo');
+  const photo=g.photo||'',st=g.student;
+  if(g.canEdit===false){box.innerHTML=`<div class="card-h"><h2>My profile</h2><span class="chip g">Changes off</span></div><p class="lead">Your instructor has turned off profile changes. Ask them if something is wrong.</p>`;return}
+  box.innerHTML=`<div class="card-h"><h2>Edit my profile</h2><span class="chip g">${esc(st.id)}</span></div>
+    <form id="pfForm" novalidate><div class="pfphoto"><span id="pfPic">${avatar(st.name,photo,'xl')}</span>
+      <div class="row" style="justify-content:center"><label class="btn ghost small" for="pfFile" tabindex="0">${photo?'Change photo':'Add a photo'}</label><button type="button" class="btn ghost small" id="pfDrop" ${photo?'':'hidden'}>Remove photo</button></div>
+      <input id="pfFile" type="file" accept="image/*" hidden><div class="hint">A clear photo of your face helps your instructor learn names.</div></div>
+    <div class="field"><label for="pfName">Name</label><input id="pfName" maxlength="60" autocomplete="name" value="${esc(st.name)}"></div>
+    <div class="field"><label for="pfPhone">Mobile number</label><input id="pfPhone" type="tel" inputmode="tel" maxlength="16" value="${esc(showPhone(st.phone))}"><div class="hint">You check in with this number.</div></div>
+    <div id="pfMsg">${msg?'<div class="msg err">'+esc(msg)+'</div>':''}</div>
+    <div class="row"><button class="btn big grow" id="pfSave">Save</button><button type="button" class="btn ghost big" id="pfCancel">Cancel</button></div></form>`;
+  let newPhoto=null;const err=t=>{$('#pfMsg').innerHTML=t?'<div class="msg err">'+esc(t)+'</div>':''};
+  const pic=p=>{$('#pfPic').innerHTML=avatar($('#pfName').value,p,'xl');$('#pfDrop').hidden=!p;$('label[for=pfFile]').textContent=p?'Change photo':'Add a photo'};
+  $('#pfFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;err('');
+    try{newPhoto=await squarePhoto(f);pic(newPhoto)}catch(x){err(x.message)}};
+  $('#pfDrop').onclick=()=>{newPhoto='';pic('')};
+  $('#pfCancel').onclick=()=>renderProfile();
+  $('#pfForm').onsubmit=async e=>{e.preventDefault();
+    const name=$('#pfName').value.trim().replace(/\s+/g,' '),phone=cleanPhone($('#pfPhone').value);
+    if(!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name))return err('Type your name with letters only.');
+    if(!phone)return err('Type your mobile number, like 0771234567.');
+    const body={action:'profileSave',id:st.id,key:me.key,name,phone,device:DEVICE};if(newPhoto!==null)body.photo=newPhoto;
+    const b=$('#pfSave');b.disabled=true;b.textContent='Saving…';
+    const r=await stuApi(body,false);
+    if(!r.ok){b.disabled=false;b.textContent='Save';return err(r.message)}
+    setMe(Object.assign({},me,r.student));if(newPhoto!==null){if(newPhoto)store.set('att-me-photo',newPhoto);else store.del('att-me-photo')}
+    renderMeCard();renderProfile('Saved.')};
+}
 async function startStudent(){
-  renderMeCard();
+  renderMeCard();renderProfile();
   $('#stCard').innerHTML=stepper(1)+'<div class="skel" style="height:28px;width:40%;margin-bottom:16px"></div><div class="skel" style="height:56px;margin-bottom:16px"></div><div class="skel" style="height:54px"></div>';
   await refreshStatus();
   const me=getMe();
@@ -786,6 +857,7 @@ async function startStudent(){
 }
 
 /* ---------- admin ---------- */
+let PHOTOS=null,photosAt=0;
 let TOKEN=sess.get('att-token'),QRKEY=sess.get('att-qrkey'),DATA=null,TAB='home',liveTimer=null,pollTimer=null,rView='summary';
 const RPT={th:Number(store.get('att-th')||80),useExc:store.get('att-useexc')!=='0',student:'',day:''};
 async function adminCall(body){
@@ -795,10 +867,10 @@ async function adminCall(body){
   return r;
 }
 // the page expects this server version; older Apps Script copies lack newer actions (like opening a past day)
-const SERVER_NEEDS=7;
+const SERVER_NEEDS=8;
 const oldServer=()=>!isDemo()&&DATA&&DATA.status&&(DATA.status.version||0)<SERVER_NEEDS;
 function oldServerHTML(){return `<div class="msg err mb" id="oldSrv"><b>Update the server code.</b> Your Google Apps Script still runs an older copy, so opening past days and other newer features will fail. In the Sheet open <b>Extensions › Apps Script</b>, replace everything in <code>Code.gs</code> with the new code and save. Then <b>Deploy › Manage deployments</b>, click the pencil, set <b>Version: New version</b> and <b>Deploy</b>. Do not make a new deployment, or the link changes. <button class="btn small" id="oldSrvCopy">Copy new server code</button></div>`}
-function logoutLocal(){TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
+function logoutLocal(){PHOTOS=null;photosAt=0;TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
 $('#loginForm').onsubmit=async e=>{
   e.preventDefault();const btn=$('#loginBtn');btn.disabled=true;btn.textContent='Checking…';$('#loginMsg').innerHTML='';
   const t0=Date.now();
@@ -872,6 +944,7 @@ async function copyServerCode(){try{const t=await (await fetch('attendance-serve
 /* Dashboard */
 const initials=n=>String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('');
 function paneHome(box){
+  if(!oldServer()&&!PHOTOS&&Date.now()-photosAt>300000)loadPhotos().then(()=>{if(TAB==='home'&&PHOTOS&&Object.keys(PHOTOS).length)renderPane()});
   const C=compute(),today=DATA.today,th=RPT.th/100,eff=r=>RPT.useExc?r.adj:r.raw;
   const active=DATA.students.filter(s=>s.active!=='no');
   const todayAtt=DATA.attendance.filter(r=>r.date===today).sort((a,b)=>a.time<b.time?1:-1);
@@ -902,12 +975,12 @@ function paneHome(box){
          ${days.length?`<div class="chart" role="img" aria-label="Attendance by class day">${days.map(x=>`<div class="col${x.v!=null&&x.v<th?' low':''}" tabindex="0"><span class="tip">${esc(niceDate(x.d))}: ${x.P} of ${x.n} (${x.v==null?'–':Math.round(x.v*100)+'%'})</span><i style="height:0" data-h="${x.v==null?0:Math.max(1,x.v*100)}%"></i><em>${esc(niceDate(x.d,false))}</em></div>`).join('')}<div class="thr" style="bottom:calc(26px + (100% - 50px) * ${th})"><span>${RPT.th}%</span></div></div>`:emptyHTML('No class days yet','The chart fills in after the first class.')}
        </div>
        <div class="card"><div class="card-h"><div><h3>Needs attention</h3><p class="hint">Below ${RPT.th}%${RPT.useExc?', counting approved excuses':''}. Lowest first.</p></div>${below.length>6?`<button class="btn ghost small" data-go="reports" data-view="pass">See all ${below.length}</button>`:''}</div>
-         ${below.length?`<div class="list">${below.slice(0,6).map(r=>`<div class="li risk"><div class="l"><span class="av">${esc(initials(r.s.name))}</span><div class="nm"><b>${esc(r.s.name)}</b><span>${esc(r.s.id)} · ${r.P} of ${r.n} classes${r.E?' · '+r.E+' excused':''}</span></div></div>${barHTML(eff(r))}<span class="chip ${eff(r)<.7?'x':'a'}">${pct(eff(r))}</span></div>`).join('')}</div>`:emptyHTML('Everyone is on track','Nobody is below '+RPT.th+'% right now.')}
+         ${below.length?`<div class="list">${below.slice(0,6).map(r=>`<div class="li risk"><div class="l">${avatar(r.s.name,PHOTOS&&PHOTOS[r.s.id])}<div class="nm"><b>${esc(r.s.name)}</b><span>${esc(r.s.id)} · ${r.P} of ${r.n} classes${r.E?' · '+r.E+' excused':''}</span></div></div>${barHTML(eff(r))}<span class="chip ${eff(r)<.7?'x':'a'}">${pct(eff(r))}</span></div>`).join('')}</div>`:emptyHTML('Everyone is on track','Nobody is below '+RPT.th+'% right now.')}
        </div>
      </div>
      <div class="stack">
        <div class="card"><div class="card-h"><div><h3>${todayAtt.length?'Checked in today':'Latest check-ins'}</h3><p class="hint">${recentDay?esc(niceDate(recentDay)):'Nothing yet'}</p></div><button class="btn small" data-go="live">${ICON.live}Live QR</button></div>
-         ${recent.length?`<div class="list">${recent.slice(0,8).map(r=>`<div class="li"><div class="l"><span class="av">${esc(initials(r.name))}</span><div class="nm"><b>${esc(r.name)}</b><span>${esc(r.id)}${r.method==='admin'?' · marked by you':''}</span></div></div><span class="hint">${esc(r.time)}</span></div>`).join('')}</div>${recent.length>8?`<p class="hint mt">and ${recent.length-8} more</p>`:''}`:emptyHTML('No check-ins yet','Names show here as students scan the QR.')}
+         ${recent.length?`<div class="list">${recent.slice(0,8).map(r=>`<div class="li"><div class="l">${avatar(r.name,PHOTOS&&PHOTOS[r.id])}<div class="nm"><b>${esc(r.name)}</b><span>${esc(r.id)}${r.method==='admin'?' · marked by you':''}</span></div></div><span class="hint">${esc(r.time)}</span></div>`).join('')}</div>${recent.length>8?`<p class="hint mt">and ${recent.length-8} more</p>`:''}`:emptyHTML('No check-ins yet','Names show here as students scan the QR.')}
        </div>
        <div class="card"><div class="card-h"><h3>Upcoming excused absences</h3><button class="btn ghost small" data-go="excuses">Manage</button></div>
          ${upcoming.length?`<div class="list">${upcoming.map(e=>`<div class="li"><div class="nm"><b>${esc(nameOf[e.id]||e.id)}</b><span>${esc(e.reason||'Excused')}</span></div><span class="chip e">${esc(niceDate(e.date))}</span></div>`).join('')}</div>`:emptyHTML('None planned','Add one when a student tells you they will miss a class.')}
@@ -931,6 +1004,7 @@ function checkinUrl(code){const u=new URL('attendance.html',location.href);u.sea
 let lastCount=-1;
 function paneLive(box){
   const s=DATA.status,slotSec=DATA.settings.slotSeconds||30;
+  if(!oldServer())loadPhotos(true).then(()=>{if(TAB==='live'){lastCount=-1;paintToday(DATA.attendance.filter(r=>r.date===DATA.today))}});
   box.innerHTML=`<div class="pane live">
     <div class="card qrbox"><div class="projtitle">Scan to <span>check in</span></div>
       <div class="qr" id="qr"></div><div class="codebig" id="codeTxt">······</div>
@@ -955,11 +1029,18 @@ function paneLive(box){
   pollTimer=setInterval(async()=>{const r=await timedCall({action:'today'}).catch(()=>null);if(r&&r.ok){STATUS=r.status;OFFSET=r.now-Date.now();paintPill();paintToday(r.present);paintLiveState()}},isDemo()?3000:8000);
 }
 function currentCode(){return codeFor(QRKEY,Math.floor(nowMs()/((DATA.settings.slotSeconds||30)*1000)))}
+// profile photos for the instructor screens, loaded once and refreshed when Students or Live QR opens
+async function loadPhotos(force){
+  if(!force&&Date.now()-photosAt<300000)return PHOTOS||{};
+  photosAt=Date.now();
+  try{const r=await adminCall({action:'photos'});if(r.ok)PHOTOS=r.photos||{}}catch(e){}
+  return PHOTOS||{};
+}
 function paintToday(list){
   const sorted=list.slice().sort((a,b)=>a.time<b.time?1:-1);
   const el=$('#names');if(!el)return;
   $('#cnt').textContent=list.length;
-  if(list.length!==lastCount){el.innerHTML=sorted.map((r,i)=>`<div style="animation-delay:${i<3?i*.06:0}s">${esc(r.name)}<span>${esc(r.time)}</span></div>`).join('')||'<p class="hint">Names appear here as students check in.</p>';lastCount=list.length}
+  if(list.length!==lastCount){el.innerHTML=sorted.map((r,i)=>`<div style="animation-delay:${i<3?i*.06:0}s"><b>${avatar(r.name,PHOTOS&&PHOTOS[r.id])}${esc(r.name)}</b><span>${esc(r.time)}</span></div>`).join('')||'<p class="hint">Names appear here as students check in.</p>';lastCount=list.length}
 }
 function paintLiveState(){
   const s=STATUS,el=$('#liveState');if(!el)return;
@@ -1199,6 +1280,7 @@ async function flushRegister(){
 /* Students */
 function paneStudents(box){
   const C=compute(),byId={};C.rows.forEach(r=>byId[r.s.id]=r);
+  if(!oldServer())loadPhotos().then(()=>{if(TAB==='students'&&$('#stBody'))draw()});
   box.innerHTML=`<div class="pane split wideleft">
    <div><div class="toolbar"><div class="search">${ICON.search}<input id="find" placeholder="Search name, ID or number" aria-label="Search"></div><span class="count" id="stN"></span></div>
     <div class="tblwrap"><table id="stT"><thead><tr><th data-sort="name">Student</th><th data-sort="id">ID</th><th data-sort="ph">Mobile</th><th class="num" data-sort="p">Present</th><th class="num" data-sort="pc">Attendance</th><th></th></tr></thead><tbody id="stBody"></tbody></table></div></div>
@@ -1207,15 +1289,21 @@ function paneStudents(box){
      <div class="field"><label for="fphone">Mobile number</label><input id="fphone" type="tel" inputmode="tel" maxlength="16" placeholder="07X XXX XXXX" required></div>
      <div class="field"><label for="fname">Name</label><input id="fname" maxlength="60" required></div>
      <label class="check"><input type="checkbox" id="factive" checked>Active (can check in)</label>
+     <div id="fprof" class="msg mb" hidden></div>
      <div class="row"><button class="btn">Save</button><button type="button" class="btn ghost" id="fclear">Clear</button><button type="button" class="btn red" id="fdel" hidden>Remove</button></div></form></div>
     <div class="card"><h3>Add many</h3><p class="hint mb">One per line: mobile number, name. Each gets the next ID.</p><textarea id="bulk" placeholder="0771234567, Kamal Perera&#10;0712345678, Nadeesha Silva"></textarea><button class="btn mt" id="bulkBtn">Add all</button></div></div></div>`;
   let editId='';
   const draw=()=>{const q=$('#find').value.trim().toLowerCase(),qd=q.replace(/\D/g,'');
-    $('#stBody').innerHTML=C.rows.filter(r=>!q||r.s.name.toLowerCase().includes(q)||r.s.id.toLowerCase().includes(q)||(qd.length>2&&(r.s.phone||'').includes(qd))).map(r=>`<tr><td class="name">${esc(r.s.name)}${r.s.active==='no'?' <span class="chip g">off</span>':''}${r.s.source==='self'?' <span class="hint">self</span>':''}</td><td>${esc(r.s.id)}</td><td>${r.s.phone?esc(showPhone(r.s.phone)):'<span class="chip a">add number</span>'}</td><td class="num">${r.P}</td><td class="num" data-v="${r.raw==null?-1:r.raw}">${pct(r.raw)}</td><td><button class="btn small ghost" data-id="${esc(r.s.id)}">Edit</button></td></tr>`).join('')||`<tr><td colspan="6">${q?emptyHTML('No matches','Try another name, ID or number.'):emptyHTML('No students yet','They register on their first check-in, or add them here.')}</td></tr>`;
+    $('#stBody').innerHTML=C.rows.filter(r=>!q||r.s.name.toLowerCase().includes(q)||r.s.id.toLowerCase().includes(q)||(qd.length>2&&(r.s.phone||'').includes(qd))).map(r=>`<tr><td class="name"><span class="nmrow">${avatar(r.s.name,PHOTOS&&PHOTOS[r.s.id])}<span>${esc(r.s.name)}${r.s.active==='no'?' <span class="chip g">off</span>':''}${r.s.source==='self'?' <span class="hint">self</span>':''}</span></span></td><td>${esc(r.s.id)}</td><td>${r.s.phone?esc(showPhone(r.s.phone)):'<span class="chip a">add number</span>'}</td><td class="num">${r.P}</td><td class="num" data-v="${r.raw==null?-1:r.raw}">${pct(r.raw)}</td><td><button class="btn small ghost" data-id="${esc(r.s.id)}">Edit</button></td></tr>`).join('')||`<tr><td colspan="6">${q?emptyHTML('No matches','Try another name, ID or number.'):emptyHTML('No students yet','They register on their first check-in, or add them here.')}</td></tr>`;
     $('#stN').textContent=C.rows.length+' student'+(C.rows.length===1?'':'s');sortable($('#stT'),'st');
-    $('#stBody').querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{const s=byId[b.dataset.id].s;editId=s.id;$('#fid').value=s.id;$('#fphone').value=showPhone(s.phone||'');$('#fname').value=s.name;$('#factive').checked=s.active!=='no';$('#stFormTitle').textContent='Edit '+s.name;$('#fdel').hidden=false;$('#fname').focus();$('#stForm').scrollIntoView({behavior:'smooth',block:'center'})})};
+    $('#stBody').querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{const s=byId[b.dataset.id].s;editId=s.id;$('#fid').value=s.id;$('#fphone').value=showPhone(s.phone||'');$('#fname').value=s.name;$('#factive').checked=s.active!=='no';$('#stFormTitle').textContent='Edit '+s.name;$('#fdel').hidden=false;profBox(s);$('#fname').focus();$('#stForm').scrollIntoView({behavior:'smooth',block:'center'})})};
   draw();$('#find').oninput=draw;
-  const clear=()=>{editId='';$('#stForm').reset();$('#fid').value=(DATA.nextIdPreview||'')+' (next, given on save)';$('#stFormTitle').textContent='Add a student';$('#fdel').hidden=true};
+  // the student's own photo and profile key, for the student being edited
+  function profBox(s){const el=$('#fprof'),p=PHOTOS&&PHOTOS[s.id];if(oldServer()){el.hidden=true;return}el.hidden=false;
+    el.innerHTML=`<div class="pfhead">${avatar(s.name,p,'lg')}<div><div class="hint mb">${p?'Photo added by the student.':'No photo yet. Students add one under My profile.'}</div><div class="row">${p?'<button type="button" class="btn small ghost" id="fpdel">Remove photo</button>':''}<button type="button" class="btn small ghost" id="fpkey">Sign out of profile</button></div></div></div>`;
+    const d=$('#fpdel');if(d)d.onclick=async()=>{if(!await ask({title:'Remove '+s.name+'’s photo?',text:'They can add a new one.',ok:'Remove photo',danger:true}))return;const r=await saveOp({action:'photo',id:s.id});if(r.ok){delete PHOTOS[s.id];toast('Photo removed');profBox(s);draw()}else toast(r.message,true)};
+    $('#fpkey').onclick=async()=>{if(!await ask({title:'Sign '+s.name+' out of their profile?',text:'For a lost or shared phone. Profile changes stop working on every phone until they check in again.',ok:'Sign out'}))return;const r=await saveOp({action:'profileKey',id:s.id});if(r.ok)toast('Signed out of profile');else toast(r.message,true)}}
+  const clear=()=>{editId='';$('#stForm').reset();$('#fprof').hidden=true;$('#fid').value=(DATA.nextIdPreview||'')+' (next, given on save)';$('#stFormTitle').textContent='Add a student';$('#fdel').hidden=true};
   $('#fclear').onclick=clear;
   $('#stForm').onsubmit=async e=>{e.preventDefault();const ph=cleanPhone($('#fphone').value);if(!ph)return toast('Type a mobile number like 0771234567',true);
     const r=await saveOp({action:'student',id:editId,phone:ph,name:$('#fname').value,active:$('#factive').checked});if(r.ok){toast(editId?'Saved':'Added as '+r.id);clear();loadData()}else toast(r.message,true)};
@@ -1492,6 +1580,7 @@ function paneSettings(box){
     <label class="check"><input type="checkbox" id="sDev" ${s.oneDevice?'checked':''}>One student per phone per day</label>
     <label class="check"><input type="checkbox" id="sReg" ${s.selfRegister?'checked':''}>New students can register on first check-in</label>
     <label class="check"><input type="checkbox" id="sFirst" ${s.fromFirst?'checked':''}>Count each student's classes from the day they joined</label>
+    <label class="check"><input type="checkbox" id="sEdit" ${s.selfEdit!==false?'checked':''}>Students can change their own name, number and photo</label>
     <button class="btn mt">Save settings</button></form></div>
    <div><div class="card" style="animation:none"><h3>Student ID format</h3><p class="hint mb">Set this before students register. IDs are given in order.</p>
     <form id="idForm"><div class="row"><div class="field grow"><label for="iPre">Prefix</label><input id="iPre" maxlength="10" autocapitalize="characters" value="${esc(s.idPrefix)}"></div><div class="field grow"><label for="iSuf">Suffix</label><input id="iSuf" maxlength="10" autocapitalize="characters" value="${esc(s.idSuffix)}"></div></div>
@@ -1510,7 +1599,7 @@ function paneSettings(box){
     if(DATA.students.length&&!await ask({title:'Save the new ID format?',text:'Existing students keep their IDs. Only new students get the new format.',ok:'Save format'}))return;
     const r=await saveOp({action:'settings',settings:f});if(r.ok){toast('ID format saved');loadData()}else toast(r.message,true)};
   $('#setForm').onsubmit=async e=>{e.preventDefault();
-    const settings={days:[...box.querySelectorAll('input[name=day]:checked')].map(x=>+x.value),start:$('#sStart').value,end:$('#sEnd').value,requireCode:$('#sCode').checked,oneDevice:$('#sDev').checked,selfRegister:$('#sReg').checked,fromFirst:$('#sFirst').checked};
+    const settings={days:[...box.querySelectorAll('input[name=day]:checked')].map(x=>+x.value),start:$('#sStart').value,end:$('#sEnd').value,requireCode:$('#sCode').checked,oneDevice:$('#sDev').checked,selfRegister:$('#sReg').checked,fromFirst:$('#sFirst').checked,selfEdit:$('#sEdit').checked};
     const r=await saveOp({action:'settings',settings});if(r.ok){toast('Settings saved');loadData()}else toast(r.message,true)};
 }
 
