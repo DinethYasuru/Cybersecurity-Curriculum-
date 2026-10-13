@@ -688,10 +688,14 @@ function cleanPhone(v){let d=String(v||'').replace(/\D/g,'');if(d.length===11&&d
 const showPhone=p=>p&&p.length===10?p.slice(0,3)+' '+p.slice(3,6)+' '+p.slice(6):p||'';
 const needCode=()=>!STATUS||STATUS.requireCode;
 // 70 students at once: if the server is busy or the network drops, wait a random moment and try again
+const OLD_STU='This part is not switched on yet. The attendance server needs an update from your instructor.';
 async function stuApi(body,label){
   const waits=[1500,3500,7000];let last;
   for(let i=0;i<=waits.length;i++){
-    try{const r=await api(body,25000);if(r.ok||r.reason!=='busy')return r;last=r}catch(e){last={ok:false,reason:e.code||'network',message:e.message}}
+    try{const r=await api(body,25000);
+      // students never sign in, so "log in again" means Apps Script runs older code without this step
+      if(!r.ok&&(r.reason==='auth'||r.reason==='action'))return Object.assign(r,{reason:'old',message:OLD_STU});
+      if(r.ok||r.reason!=='busy')return r;last=r}catch(e){last={ok:false,reason:e.code||'network',message:e.message}}
     // label false: a profile call, which must not take over the check-in card
     if(i<waits.length){if(label!==false)busy('Many students are checking in. Trying again…');await sleep(waits[i]+Math.random()*2000);if(label)busy(label)}
   }
@@ -817,6 +821,7 @@ function renderProfile(msg,err){
 }
 function renderProfileSignIn(msg,err,phone){
   const box=$('#pfCard'),ck=getMe();phone=phone||(ck&&ck.phone)||'';
+  if(!isDemo()&&STATUS&&(STATUS.version||0)<SERVER_NEEDS){box.innerHTML=`<div class="card-h"><h2>My profile</h2></div><p class="lead">Change your name, number or photo here soon.</p><div class="msg">${esc(OLD_STU)}</div>`;return}
   box.innerHTML=`<div class="card-h"><h2>My profile</h2><span class="chip g">Sign in</span></div>
     <p class="lead">Change your name, number or photo. Ask for a key first. Your instructor sends it to you on WhatsApp.</p>
     <form id="kqForm" novalidate><div class="field"><label for="kqPhone">Mobile number</label><input id="kqPhone" type="tel" inputmode="tel" maxlength="16" autocomplete="tel" placeholder="07X XXX XXXX" value="${esc(showPhone(phone))}"><div class="hint">The number you registered with.</div></div>
@@ -882,7 +887,7 @@ async function editProfile(msg){
 async function startStudent(){
   renderMeCard();renderProfile();
   $('#stCard').innerHTML=stepper(1)+'<div class="skel" style="height:28px;width:40%;margin-bottom:16px"></div><div class="skel" style="height:56px;margin-bottom:16px"></div><div class="skel" style="height:54px"></div>';
-  await refreshStatus();
+  await refreshStatus();if(!getProf())renderProfile();
   const me=getMe();
   if(CODE&&me&&me.phone&&SID){doLookup(me.phone);return}
   renderPhone();
