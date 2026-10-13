@@ -21,6 +21,9 @@
   After editing this code later: Deploy > Manage deployments > Edit > Version: New version.
 */
 
+// bump when the page needs new server actions; the page warns when Apps Script runs an older copy
+var SERVER_VERSION = 4;
+
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
   start: '09:00',
@@ -194,7 +197,7 @@ function AttendanceCore(rawEnv) {
   }
   function publicStatus(now) {
     var s = settings(), t = local(now, s), r = !isOpenToday(now, s) && reopened(now);
-    return { ok: true, now: now, today: t.date, time: t.time, open: isOpen(now, s), todayDone: todayDone(now, s),
+    return { ok: true, version: SERVER_VERSION, now: now, today: t.date, time: t.time, open: isOpen(now, s), todayDone: todayDone(now, s),
       extraUntil: extraWindow(now), nextOpen: nextOpen(now, s),
       reopen: r ? { date: r.date, until: r.until, noCode: !!r.noCode } : null, classDate: classDate(now, s),
       window: { days: s.days, start: s.start, end: s.end, tzName: s.tzName, tzOffset: s.tzOffset },
