@@ -990,7 +990,7 @@ function inboxBadge(){document.querySelectorAll('.ibadge').forEach(e=>e.remove()
   if(n)document.querySelectorAll('[data-k="inbox"],#bnav [data-k="more"]').forEach(e=>e.insertAdjacentHTML('beforeend',`<span class="nbadge ibadge">${n}</span>`))}
 const fmtCode=c=>String(c||'').slice(0,4)+'-'+String(c||'').slice(4);
 function keyMessage(r){const page=location.origin+location.pathname;
-  return `Hi ${r.name.split(' ')[0]}, your key for the Cyber Security class profile is ${fmtCode(r.code)}. Open ${page}, go to My profile, and type your number and this key. It works once, within 3 days.`}
+  return `Hi ${r.name.split(' ')[0]}, your profile key:\n\n*${fmtCode(r.code)}*\n\n1. Open ${page}\n2. Tap My profile\n3. Enter your mobile number and this key\n\nThe key works once, within 3 days.`}
 const waLink=r=>'https://wa.me/94'+String(r.phone||'').replace(/^0/,'')+'?text='+encodeURIComponent(keyMessage(r));
 let inboxAll=false;
 function paneInbox(box){
