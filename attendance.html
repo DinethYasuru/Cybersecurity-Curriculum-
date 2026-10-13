@@ -261,6 +261,37 @@ td.name .hint{font-weight:400}
 .reg td.tot{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 .reg th.today{color:var(--red)}
 .reg td.cell button.lk{opacity:.42;cursor:pointer}
+.reg td.cell button.pend{box-shadow:inset 0 0 0 2px var(--navy-100);outline:2px dashed var(--navy);outline-offset:-4px}
+.reg td.cell button.pfail{outline:2px solid var(--red);outline-offset:-3px}
+.nbadge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--red);color:#fff;font-family:'Outfit';font-size:.75rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;line-height:1}
+.bnav .nbadge{position:absolute;top:4px;right:calc(50% - 22px);margin:0}
+.bnav button{position:relative}
+.mini-spin{width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;animation:spin .8s linear infinite;flex:none}
+.btn.danger-t{color:var(--red);border-color:#f3c3cd}
+.nowrap{white-space:nowrap}
+.opscfg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 var(--s4)}
+table.ops tr.opr{cursor:pointer}
+table.ops tr.opr:hover td{background:#fafbfd}
+table.ops tr.open td{background:var(--navy-50)}
+table.ops .opdet{min-width:200px;max-width:300px;color:var(--ink-2);font-size:.92rem}
+table.ops .row{gap:6px;flex-wrap:nowrap}
+tr.opd td{background:#fbfcfe;padding:0}
+.opd-in{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:var(--s5);padding:var(--s4) var(--s5)}
+.opd-in h4{font-family:'Outfit';font-size:.85rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.opd-in pre{background:#fff;border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;font-size:.82rem;overflow:auto;max-height:220px;margin:0 0 12px;white-space:pre-wrap;word-break:break-word}
+.tl{list-style:none;padding:0;margin:0;display:grid;gap:8px;font-size:.92rem}
+.tl li{line-height:1.45}
+.sdg{width:100%;height:auto;display:block;margin:8px 0 12px}
+.sdg .sd rect{fill:#fff;stroke:var(--line-2);stroke-width:1.5}
+.sdg .sd text{font-family:'Outfit';font-weight:700;font-size:15px;fill:var(--navy)}
+.sdg .sd.s rect{fill:var(--navy-50);stroke:var(--navy-100)}
+.sdg .sd.d rect{fill:var(--navy);stroke:var(--navy)}.sdg .sd.d text{fill:#fff}
+.sdg .sd.f rect{fill:var(--red-50);stroke:#f3c3cd}.sdg .sd.f text{fill:var(--red)}
+.sdg .sd.b rect{fill:var(--red);stroke:var(--red)}.sdg .sd.b text{fill:#fff}
+.sdg .sda{fill:none;stroke:#5b6b86;stroke-width:1.6}.sdg .sda.dash{stroke-dasharray:5 4}
+.sdg .sdl{font-family:'DM Sans';font-size:12px;fill:#5b6b86}
+.sdwrap{overflow-x:auto}
+@media (max-width:860px){.opd-in{grid-template-columns:minmax(0,1fr);position:sticky;left:0;width:calc(100vw - 2*var(--gut) - 4px);padding:var(--s4)}.sdg{min-width:620px}}
 .reg td.cell button.lk:hover{opacity:.7}
 .reg th .thb{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:inherit;border-radius:6px;padding:2px 4px}
 .reg th .thb svg{width:12px;height:12px;flex:none}
@@ -493,6 +524,7 @@ const ICON={
   excuses:IC('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="m9 14 2 2 4-4"/>'),
   days:IC('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>'),
   log:IC('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'),
+  ops:IC('<path d="M3 12h4l3-8 4 16 3-8h4"/>'),
   settings:IC('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
   more:IC('<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>'),
   refresh:IC('<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>'),
@@ -575,14 +607,22 @@ async function loadDemo(){
   demoCore={handle:r=>make(env).handle(r),setPassword:p=>make(env).setPassword(p),load,save};
   return demoCore;
 }
-async function api(body){
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const netErr=(code,msg)=>{const e=new Error(msg);e.code=code;return e};
+async function api(body,ms){
   if(!SID)throw new Error('Attendance server is not set up yet.');
-  if(isDemo()){const c=await loadDemo();await new Promise(r=>setTimeout(r,350));return JSON.parse(JSON.stringify(c.handle(body)))}
-  const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),30000);
+  ms=ms||60000;
+  if(isDemo()){const c=await loadDemo();
+    // demo only: pretend the server is slow or down (Setup › Pretend the server is), for instructor actions
+    const f=body.token?sess.get('att-demo-fault'):'';
+    if(f==='down'||(f==='flaky'&&Math.random()<.5)){await sleep(700);throw netErr('network','Could not reach the attendance server. Check your internet and try again.')}
+    if(f==='slow'){if(ms<=12000){await sleep(ms);throw netErr('timeout','The server took too long to answer.')}await sleep(12000)}
+    await sleep(350);return JSON.parse(JSON.stringify(c.handle(body)))}
+  const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),ms);
   try{
     const r=await fetch('https://script.google.com/macros/s/'+SID+'/exec',{method:'POST',body:JSON.stringify(body),signal:ctl.signal,redirect:'follow'});
     const j=await r.json();return j;
-  }catch(e){throw new Error(e.name==='AbortError'?'The server took too long. Try again.':'Could not reach the attendance server. Check your internet and try again.')}
+  }catch(e){throw e.name==='AbortError'?netErr('timeout','The server took too long to answer.'):netErr('network','Could not reach the attendance server. Check your internet and try again.')}
   finally{clearTimeout(t)}
 }
 
@@ -739,16 +779,17 @@ async function adminCall(body){
   return r;
 }
 // the page expects this server version; older Apps Script copies lack newer actions (like opening a past day)
-const SERVER_NEEDS=5;
+const SERVER_NEEDS=6;
 const oldServer=()=>!isDemo()&&DATA&&DATA.status&&(DATA.status.version||0)<SERVER_NEEDS;
 function oldServerHTML(){return `<div class="msg err mb" id="oldSrv"><b>Update the server code.</b> Your Google Apps Script still runs an older copy, so opening past days and other newer features will fail. In the Sheet open <b>Extensions › Apps Script</b>, replace everything in <code>Code.gs</code> with the new code and save. Then <b>Deploy › Manage deployments</b>, click the pencil, set <b>Version: New version</b> and <b>Deploy</b>. Do not make a new deployment, or the link changes. <button class="btn small" id="oldSrvCopy">Copy new server code</button></div>`}
 function logoutLocal(){TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
 $('#loginForm').onsubmit=async e=>{
   e.preventDefault();const btn=$('#loginBtn');btn.disabled=true;btn.textContent='Checking…';$('#loginMsg').innerHTML='';
-  try{const r=await api({action:'login',password:$('#pw').value});
-    if(r.ok){TOKEN=r.token;QRKEY=r.qrKey;OFFSET=r.now-Date.now();sess.set('att-token',TOKEN);sess.set('att-qrkey',QRKEY);$('#pw').value='';showAdmin()}
+  const t0=Date.now();
+  try{const r=await api({action:'login',password:$('#pw').value});logRead('login',Date.now()-t0,r.ok?null:r.message);
+    if(r.ok){TOKEN=r.token;QRKEY=r.qrKey;OFFSET=r.now-Date.now();sess.set('att-token',TOKEN);sess.set('att-qrkey',QRKEY);$('#pw').value='';showAdmin();opsAfterLogin()}
     else $('#loginMsg').innerHTML='<div class="msg err">'+esc(r.message)+'</div>';
-  }catch(err){$('#loginMsg').innerHTML='<div class="msg err">'+esc(err.message)+'</div>'}
+  }catch(err){logRead('login',Date.now()-t0,err.message);$('#loginMsg').innerHTML='<div class="msg err">'+esc(err.message)+'</div>'}
   btn.disabled=false;btn.textContent='Log in';
 };
 $('#logout').onclick=async()=>{try{await api({action:'logout',token:TOKEN})}catch(e){}logoutLocal()};
@@ -756,17 +797,18 @@ $('#toSetup').onclick=()=>{location.hash='#setup'};
 $('#toStudent').onclick=()=>{location.hash=''};
 $('#toAdmin').onclick=()=>{location.hash='#admin'};
 
-const TABS=[['home','Dashboard','Overview'],['live','Live QR','Class'],['register','Register','Class'],['reports','Reports','Records'],['students','Students','Records'],['excuses','Excuses','Records'],['days','Class days','Records'],['log','Activity log','System'],['settings','Settings','System']];
+const TABS=[['home','Dashboard','Overview'],['live','Live QR','Class'],['register','Register','Class'],['reports','Reports','Records'],['students','Students','Records'],['excuses','Excuses','Records'],['days','Class days','Records'],['ops','Operations','System'],['log','Activity log','System'],['settings','Settings','System']];
 const PAGES={home:['Dashboard','Today at a glance, and who needs a nudge.'],live:['Live check-in','Show this on the projector. The code changes every few seconds so only people in the room can check in.'],
   register:['Register','The class sheet. Tap a cell to mark present, tap again for absent.'],reports:['Reports','Pass marks, per-student and per-day records, and exports.'],
   students:['Students','Everyone on the class list, with their IDs and mobile numbers.'],excuses:['Excused absences','Approved absences count toward the pass mark when you choose.'],
-  days:['Class days','Add a class nobody checked in to, or cancel a day so it does not count.'],log:['Activity log','Every check-in try and admin change, newest first.'],settings:['Settings','Check-in window, security checks and the student ID format.']};
+  days:['Class days','Add a class nobody checked in to, or cancel a day so it does not count.'],ops:['Operations','Every change you save, its status, and retries when the server is slow.'],log:['Activity log','Every check-in try and admin change, newest first.'],settings:['Settings','Check-in window, security checks and the student ID format.']};
 const BNAV=['home','live','register','reports'];
 function navHTML(){let g='';return TABS.map(([k,l,grp])=>{const h=grp!==g?'<h6>'+grp+'</h6>':'';g=grp;return h+`<button class="nav-i${k===TAB?' on':''}" data-k="${k}"${k===TAB?' aria-current="page"':''}>${ICON[k]}<span>${l}</span></button>`}).join('')}
 function paintNav(){
   $('#tabs').innerHTML=navHTML();
   $('#bnav').innerHTML=BNAV.map(k=>`<button data-k="${k}" class="${k===TAB?'on':''}">${ICON[k]}<span>${TABS.find(t=>t[0]===k)[1].replace('Dashboard','Home')}</span></button>`).join('')+`<button data-k="more" class="${BNAV.includes(TAB)?'':'on'}">${ICON.more}<span>More</span></button>`;
   $('#moreNav').innerHTML=navHTML()+`<h6>Account</h6><button class="nav-i" data-k="logout">${ICON.logout}<span>Log out</span></button>`;
+  opsPaint();
 }
 function goTab(k){if(k==='more'){$('#moreSheet').showModal();return}if(k==='logout'){$('#moreSheet').close();$('#logout').click();return}
   TAB=k;sess.set('att-tab',TAB);if($('#moreSheet').open)$('#moreSheet').close();paintNav();renderPane();window.scrollTo({top:0})}
@@ -774,7 +816,7 @@ function goTab(k){if(k==='more'){$('#moreSheet').showModal();return}if(k==='logo
 $('#moreSheet').addEventListener('click',e=>{if(e.target===$('#moreSheet'))$('#moreSheet').close()});
 const sig=d=>d?JSON.stringify([d.students,d.attendance,d.excuses,d.days,d.settings,d.status&&d.status.open,d.status&&d.status.todayDone,d.status&&d.status.openDay]):'';
 async function loadData(show,quiet){
-  const r=await adminCall({action:'data'});
+  let r;try{r=await timedCall({action:'data'})}catch(e){if(!quiet)toast(e.message+' Your changes are kept under Operations.',true);return false}
   if(!r.ok){if(r.reason!=='auth'&&!quiet)toast(r.message,true);return false}
   if(quiet&&sig(r)===sig(DATA)){STATUS=r.status;OFFSET=r.now-Date.now();paintPill();return true}
   DATA=r;STATUS=r.status;OFFSET=r.now-Date.now();paintPill();$('#winText').textContent=windowText(r.status.window);
@@ -794,18 +836,19 @@ function showAdmin(){
   $('#who').textContent=isDemo()?'Demo server on this device':'Google Sheet connected';
   paintNav();
   if(DATA)renderPane();else{paintHead();$('#paneBox').innerHTML=skeleton();loadData()}
+  pump();opsPaint()
 }
 function skeleton(){return '<div class="kpis">'+'<div class="skel" style="height:104px"></div>'.repeat(4)+'</div><div class="skel" style="height:320px"></div>'}
 TAB=sess.get('att-tab')||'home';if(!TABS.some(t=>t[0]===TAB))TAB='home';
 
 function stopLive(){clearInterval(liveTimer);clearInterval(pollTimer);liveTimer=pollTimer=null;document.body.classList.remove('present')}
 function paintHead(acts){const [t,d]=PAGES[TAB];document.title=t+' · Class Attendance';
-  $('#phead').innerHTML=`<div><h1>${esc(t)}</h1><p>${esc(d)}</p></div><div class="acts noprint" id="pacts">${acts||''}<button class="btn ghost" id="refresh">${ICON.refresh}<span>Refresh</span></button></div>`;
-  $('#refresh').onclick=()=>loadData(true)}
+  $('#phead').innerHTML=`<div><h1>${esc(t)}</h1><p>${esc(d)}</p></div><div class="acts noprint" id="pacts"><span id="opsChip"></span>${acts||''}<button class="btn ghost" id="refresh">${ICON.refresh}<span>Refresh</span></button></div>`;
+  $('#refresh').onclick=()=>loadData(true);opsPaint()}
 function renderPane(){
   stopLive();if(!DATA)return;paintHead();
   const box=$('#paneBox');
-  ({home:paneHome,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,log:paneLog,settings:paneSettings})[TAB](box);
+  ({home:paneHome,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,ops:paneOps,log:paneLog,settings:paneSettings})[TAB](box);
   if(oldServer()){box.insertAdjacentHTML('afterbegin',oldServerHTML());$('#oldSrvCopy').onclick=copyServerCode}
 }
 async function copyServerCode(){try{const t=await (await fetch('attendance-server.js',{cache:'no-store'})).text();await navigator.clipboard.writeText(t);toast('Server code copied')}catch(e){toast('Copy failed. Use "view" in Setup and copy by hand.',true)}}
@@ -893,7 +936,7 @@ function paneLive(box){
     if(slot!==lastSlot){lastSlot=slot;const code=codeFor(QRKEY,slot);$('#qr').innerHTML=qrSVG(checkinUrl(code))+($('#qr').classList.contains('off')?'<div class="over">Check-in closed</div>':'');$('#codeTxt').textContent=code}
   };
   tick();liveTimer=setInterval(tick,250);
-  pollTimer=setInterval(async()=>{const r=await adminCall({action:'today'}).catch(()=>null);if(r&&r.ok){STATUS=r.status;OFFSET=r.now-Date.now();paintPill();paintToday(r.present);paintLiveState()}},isDemo()?3000:8000);
+  pollTimer=setInterval(async()=>{const r=await timedCall({action:'today'}).catch(()=>null);if(r&&r.ok){STATUS=r.status;OFFSET=r.now-Date.now();paintPill();paintToday(r.present);paintLiveState()}},isDemo()?3000:8000);
 }
 function currentCode(){return codeFor(QRKEY,Math.floor(nowMs()/((DATA.settings.slotSeconds||30)*1000)))}
 function paintToday(list){
@@ -909,7 +952,7 @@ function paintLiveState(){
   el.className='msg'+(s.open?' good':'');
   el.innerHTML=s.open?(s.extraUntil?'Extra window open until '+esc(niceMs(s.extraUntil).split(', ')[1])+'.':'Open until '+esc(s.window.end)+'. Students scan the QR or type the code.'):'Closed now. Next: '+esc(s.nextOpen?niceMs(s.nextOpen):'not scheduled')+'.';
   $('#extraRow').innerHTML=s.extraUntil?'<button class="btn small ghost" data-m="0">Close extra window</button>':(s.open?'':'<span class="hint">Make-up class?</span><button class="btn small" data-m="30">Open for 30 min</button><button class="btn small ghost" data-m="60">60 min</button>');
-  $('#extraRow').querySelectorAll('button').forEach(b=>b.onclick=async()=>{const r=await adminCall({action:'extra',minutes:+b.dataset.m});if(r.ok){toast(+b.dataset.m?'Check-in open for '+b.dataset.m+' minutes':'Extra window closed');loadData()}else toast(r.message,true)});
+  $('#extraRow').querySelectorAll('button').forEach(b=>b.onclick=async()=>{const r=await saveOp({action:'extra',minutes:+b.dataset.m});if(r.ok){toast(+b.dataset.m?'Check-in open for '+b.dataset.m+' minutes':'Extra window closed');loadData()}else toast(r.message,true)});
 }
 /* Past days are locked. Opening one for a while lets the instructor fix its marks in Register. */
 const hhmm=ms=>{const e=localParts(ms);return p2(e.hh)+":"+p2(e.mm)};
@@ -927,10 +970,10 @@ async function openDayDialog(date){
     <span style="display:block;margin-top:14px"><label for="roMin">Keep it open for</label><select id="roMin"><option value="15">15 minutes</option><option value="30" selected>30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option></select></span>`;
   const ok=$('#dlgOk');ok.textContent='Open for editing';ok.className='btn';d.returnValue='';
   d.onclose=async()=>{const v=d.returnValue==='ok'?{date:$('#roDay').value,minutes:+$('#roMin').value}:null;$('#dlgP').textContent='';
-    if(!v)return;const r=await adminCall(Object.assign({action:'openDay'},v));
+    if(!v)return;const r=await saveOp(Object.assign({action:'openDay'},v));
     if(r.ok){toast(niceDate(v.date)+' is open for editing');TAB='register';sess.set('att-tab',TAB);paintNav();regScroll=null;loadData()}else toast(r.message,true)};
   d.showModal();setTimeout(()=>$('#roDay').focus(),30)}
-async function closeOpenDay(){const r=await adminCall({action:'openDay',minutes:0});if(r.ok){toast('Day locked again');loadData()}else toast(r.message,true)}
+async function closeOpenDay(){const r=await saveOp({action:'openDay',minutes:0});if(r.ok){toast('Day locked again');loadData()}else toast(r.message,true)}
 document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement)document.body.classList.remove('present')});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.body.classList.remove('present')});
 
@@ -1030,7 +1073,7 @@ function studentHTML(rb,C){
     const d=b.dataset.d,act=b.dataset.act;let body;
     if(act==='present'||act==='absent')body={action:'mark',id:r.s.id,date:d,present:act==='present',time:'',note:'admin'};
     else{let reason='';if(act==='excuse'){reason=await ask({title:'Excuse '+r.s.name+' on '+niceDate(d)+'?',text:'Excused days count toward the pass mark when "Count excused absences" is on.',label:'Reason (optional)',input:'Informed in advance',ok:'Save excuse'});if(reason===null)return}body={action:'excuse',id:r.s.id,date:d,excused:act==='excuse',reason}}
-    b.disabled=true;const res=await adminCall(body);if(res.ok){toast('Saved');loadData()}else{b.disabled=false;toast(res.message,true)}
+    b.disabled=true;const res=await saveOp(body);if(res.ok){toast('Saved');loadData()}else{b.disabled=false;toast(res.message,true)}
   });
   requestAnimationFrame(()=>requestAnimationFrame(()=>rb.querySelectorAll('.ring .fg').forEach(c=>c.style.strokeDashoffset=c.dataset.off)));
 }
@@ -1078,9 +1121,9 @@ function toProps(C){
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type+';charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast('Downloaded '+name)}
 
 /* Register: a class sheet, names down, class days across. Click = 1, double click = 0. */
-let regQueue={},regTimer=null,regBusy=false,regScroll=null,regQ='';
+let regQueue={},regTimer=null,regScroll=null,regQ='';
 function paneRegister(box){
-  const C=compute(),today=DATA.today,done=!!DATA.status.todayDone,od=openDayNow();
+  const C=compute(),today=DATA.today,done=!!DATA.status.todayDone,od=openDayNow(),PM=pendingMarks();opsRegSig=JSON.stringify(PM);
   const rows=C.rows.filter(r=>r.s.active!=='no'||C.held.some(d=>r.cells[d]==='P'));
   const days=C.held.slice();
   // during class, today's column shows even before anyone checks in
@@ -1093,14 +1136,14 @@ function paneRegister(box){
     <p class="hint mb">Tap a cell to mark <b>1</b>, tap again for <b>0</b>. Double tap always sets 0. QR check-ins show here as 1. ${done?'':'Today turns into 0 for anyone missing once the class ends at '+esc(DATA.settings.end)+'.'} Past days are locked: tap a past date to open it for editing.</p>
     ${od?`<div class="msg good"><b>${esc(niceDate(od.date))}</b> is open for editing until ${esc(hhmm(od.until))}. Mark it in the highlighted column. <button class="linkbtn" id="regOdClose">Lock now</button></div>`:''}
     ${rows.length&&days.length?`<div class="tblwrap grid reg"><table><thead><tr><th>Student</th>${days.map(d=>`<th class="num${d===today?' today':''}${od&&od.date===d?' opened':''}"${od&&od.date===d?' id="odCol"':''}>${d<today&&!(od&&od.date===d)?`<button class="thb" data-od="${d}" title="Locked. Open ${esc(niceDate(d))} for editing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>${esc(niceDate(d,false))}</button>`:esc(niceDate(d,false))}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>
-    ${rows.map(r=>`<tr data-q="${esc((r.s.name+' '+r.s.id).toLowerCase())}" data-ph="${esc(r.s.phone||'')}"><td class="name">${esc(r.s.name)}<br><span class="hint">${esc(r.s.id)}${r.s.phone?' · <span style="white-space:nowrap">'+esc(showPhone(r.s.phone))+'</span>':''}</span></td>${days.map(d=>{const c=r.cells[d]||'?';
+    ${rows.map(r=>`<tr data-q="${esc((r.s.name+' '+r.s.id).toLowerCase())}" data-ph="${esc(r.s.phone||'')}"><td class="name">${esc(r.s.name)}<br><span class="hint">${esc(r.s.id)}${r.s.phone?' · <span style="white-space:nowrap">'+esc(showPhone(r.s.phone))+'</span>':''}</span></td>${days.map(d=>{const c0=r.cells[d]||'?',pm=PM[r.s.id+'|'+d],c=pm?(pm.present?'P':c0==='P'?'A':c0):c0;
       const v=c==='P'?'1':c==='E'?'E':c==='?'?'…':c==='-'?'·':'0',cls=c==='P'?'v1':c==='E'?'vE':c==='?'?'vP':c==='-'?'vX':'v0';
       const a=C.att[r.s.id+'|'+d],lk=d<today&&!(od&&od.date===d);
-      return `<td class="cell${od&&od.date===d?' opened':''}"><button class="${cls}${lk?' lk':''}" data-id="${esc(r.s.id)}" data-d="${d}" title="${esc(r.s.name)}, ${esc(niceDate(d))}${a&&a.time?' · '+esc(a.time)+(a.method==='qr'?' QR':''):''}${c==='E'?' · excused':''}${c==='-'?' · before this student joined, tap to mark':''}">${v}</button></td>`}).join('')}<td class="tot">${r.P}/${r.n}</td></tr>`).join('')}
+      return `<td class="cell${od&&od.date===d?' opened':''}"><button class="${cls}${lk?' lk':''}${pm?(pm.bad?' pfail':' pend'):''}" data-id="${esc(r.s.id)}" data-d="${d}" title="${esc(r.s.name)}, ${esc(niceDate(d))}${a&&a.time?' · '+esc(a.time)+(a.method==='qr'?' QR':''):''}${c==='E'?' · excused':''}${c==='-'?' · before this student joined, tap to mark':''}${pm?(pm.bad?' · NOT SAVED, see Operations':' · saving'):''}">${v}</button></td>`}).join('')}<td class="tot">${r.P}/${r.n}</td></tr>`).join('')}
     <tr id="regNone" hidden><td colspan="${days.length+2}">${emptyHTML('No matches','Try part of the name, the ID or the mobile number.')}</td></tr>
     </tbody></table></div>`:'<p class="hint">'+(rows.length?'No class days yet. Add one above.':'No students yet. Add them under Students.')+'</p>'}
     <div class="row mt"><span class="hint" id="regState"></span></div></div>`;
-  $('#addDay').onsubmit=async e=>{e.preventDefault();const d=$('#newDay').value;if(!d)return;const r=await adminCall({action:'day',date:d,status:'held'});if(!r.ok){toast(r.message,true);return}
+  $('#addDay').onsubmit=async e=>{e.preventDefault();const d=$('#newDay').value;if(!d)return;const r=await saveOp({action:'day',date:d,status:'held'});if(!r.ok){toast(r.message,true);return}
     toast('Day added');await loadData();if(d<DATA.today&&!canEdit(d))openDayDialog(d)};
   box.querySelectorAll('[data-od]').forEach(b=>b.onclick=()=>openDayDialog(b.dataset.od));
   const oc=$('#regOdClose');if(oc)oc.onclick=closeOpenDay;
@@ -1119,7 +1162,7 @@ function paneRegister(box){
   // lock the column again on screen when the time runs out
   if(od){const left=od.until-nowMs();if(left>0)setTimeout(()=>{if(TAB==='register'&&DATA.status.openDay&&DATA.status.openDay.until===od.until)renderPane()},left+500)}
   // pick up new QR check-ins while the sheet is open
-  pollTimer=setInterval(()=>{if(!regBusy&&!Object.keys(regQueue).length&&!clickT)loadData(false,true)},isDemo()?5000:20000);
+  pollTimer=setInterval(()=>{if(!opsActiveN()&&!Object.keys(regQueue).length&&!clickT)loadData(false,true)},isDemo()?5000:20000);
   let clickT=null,lastBtn=null;
   const set=(b,present)=>{if(!canEdit(b.dataset.d))return;
     b.className=present?'v1':'v0';b.textContent=present?'1':'0';b.classList.add('saving');
@@ -1131,9 +1174,8 @@ function paneRegister(box){
     lastBtn=b;clickT=setTimeout(()=>{clickT=null;set(b,!b.classList.contains('v1'))},230)});
 }
 async function flushRegister(){
-  if(regBusy){clearTimeout(regTimer);regTimer=setTimeout(flushRegister,400);return}
-  const list=Object.values(regQueue);if(!list.length)return;regQueue={};regBusy=true;
-  const r=await adminCall({action:'marks',list}).catch(e=>({ok:false,message:e.message}));regBusy=false;
+  const list=Object.values(regQueue);if(!list.length)return;regQueue={};
+  const r=await saveOp({action:'marks',list});
   if(r.ok){const st=$('#regState');if(st)st.textContent='Saved';if(!Object.keys(regQueue).length)loadData()}
   else{toast(r.message||'Not saved',true);loadData()}
 }
@@ -1160,10 +1202,10 @@ function paneStudents(box){
   const clear=()=>{editId='';$('#stForm').reset();$('#fid').value=(DATA.nextIdPreview||'')+' (next, given on save)';$('#stFormTitle').textContent='Add a student';$('#fdel').hidden=true};
   $('#fclear').onclick=clear;
   $('#stForm').onsubmit=async e=>{e.preventDefault();const ph=cleanPhone($('#fphone').value);if(!ph)return toast('Type a mobile number like 0771234567',true);
-    const r=await adminCall({action:'student',id:editId,phone:ph,name:$('#fname').value,active:$('#factive').checked});if(r.ok){toast(editId?'Saved':'Added as '+r.id);clear();loadData()}else toast(r.message,true)};
-  $('#fdel').onclick=async()=>{if(!await ask({title:'Remove '+$('#fname').value+'?',text:'Students who already have attendance can only be switched off, not removed.',ok:'Remove',danger:true}))return;const r=await adminCall({action:'student',id:editId,remove:true});if(r.ok){toast('Removed');clear();loadData()}else toast(r.message,true)};
+    const r=await saveOp({action:'student',id:editId,phone:ph,name:$('#fname').value,active:$('#factive').checked});if(r.ok){toast(editId?'Saved':'Added as '+r.id);clear();loadData()}else toast(r.message,true)};
+  $('#fdel').onclick=async()=>{if(!await ask({title:'Remove '+$('#fname').value+'?',text:'Students who already have attendance can only be switched off, not removed.',ok:'Remove',danger:true}))return;const r=await saveOp({action:'student',id:editId,remove:true});if(r.ok){toast('Removed');clear();loadData()}else toast(r.message,true)};
   $('#bulkBtn').onclick=async()=>{const list=$('#bulk').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.split(/[,\t;]/);return {phone:m[0],name:m.slice(1).join(' ')}});if(!list.length)return;
-    const r=await adminCall({action:'bulk',list});if(r.ok){toast(r.added+' added'+(r.bad.length?', '+r.bad.length+' skipped':''),r.bad.length>0);if(r.bad.length)$('#bulk').value=r.bad.join('\n');else $('#bulk').value='';loadData()}else toast(r.message,true)};
+    const r=await saveOp({action:'bulk',list});if(r.ok){toast(r.added+' added'+(r.bad.length?', '+r.bad.length+' skipped':''),r.bad.length>0);if(r.bad.length)$('#bulk').value=r.bad.join('\n');else $('#bulk').value='';loadData()}else toast(r.message,true)};
 }
 
 /* Excuses */
@@ -1177,8 +1219,8 @@ function paneExcuses(box){
     <div class="field"><label for="exWhy">Reason</label><input id="exWhy" maxlength="160" placeholder="e.g. School exam, informed on WhatsApp"></div>
     <button class="btn" ${st.length?'':'disabled'}>Save excuse</button></form></div>
    <div><h3>Excuses (${list.length})</h3><div class="dates">${list.map(e=>`<div class="dl"><span><b>${esc(name[e.id]||e.id)}</b><br><span class="hint">${esc(niceDate(e.date))}${e.reason?' · '+esc(e.reason):''}</span></span><button class="btn small ghost" data-id="${esc(e.id)}" data-d="${esc(e.date)}">Remove</button></div>`).join('')||'<p class="hint">No excuses yet.</p>'}</div></div></div>`;
-  $('#exForm').onsubmit=async e=>{e.preventDefault();const r=await adminCall({action:'excuse',id:$('#exSt').value,date:$('#exDate').value,excused:true,reason:$('#exWhy').value});if(r.ok){toast('Excuse saved');loadData()}else toast(r.message,true)};
-  box.querySelectorAll('[data-d]').forEach(b=>b.onclick=async()=>{const r=await adminCall({action:'excuse',id:b.dataset.id,date:b.dataset.d,excused:false});if(r.ok){toast('Removed');loadData()}else toast(r.message,true)});
+  $('#exForm').onsubmit=async e=>{e.preventDefault();const r=await saveOp({action:'excuse',id:$('#exSt').value,date:$('#exDate').value,excused:true,reason:$('#exWhy').value});if(r.ok){toast('Excuse saved');loadData()}else toast(r.message,true)};
+  box.querySelectorAll('[data-d]').forEach(b=>b.onclick=async()=>{const r=await saveOp({action:'excuse',id:b.dataset.id,date:b.dataset.d,excused:false});if(r.ok){toast('Removed');loadData()}else toast(r.message,true)});
 }
 
 /* Class days */
@@ -1192,9 +1234,223 @@ function paneDays(box){
    <div><div class="tblwrap"><table><thead><tr><th>Day</th><th>Status</th><th class="num">Check-ins</th><th></th></tr></thead><tbody>
    ${days.map(d=>`<tr><td>${esc(niceDate(d.date))}${d.note?'<br><span class="hint">'+esc(d.note)+'</span>':''}</td><td>${d.status==='cancelled'?'<span class="chip a">Cancelled</span>':d.date>DATA.today?'<span class="chip g">Upcoming</span>':'<span class="chip p">Held</span>'}</td><td class="num">${counts[d.date]||0}</td><td><button class="btn small ghost" data-d="${d.date}" data-s="${d.status==='cancelled'?'held':'cancelled'}">${d.status==='cancelled'?'Restore':'Cancel'}</button></td></tr>`).join('')||'<tr><td colspan="4" class="hint">No class days yet.</td></tr>'}
    </tbody></table></div></div></div>`;
-  $('#dForm').querySelectorAll('button').forEach(b=>b.onclick=async e=>{e.preventDefault();if(!$('#dDate').value)return;const r=await adminCall({action:'day',date:$('#dDate').value,status:b.dataset.s,note:$('#dNote').value});if(r.ok){toast('Saved');loadData()}else toast(r.message,true)});
-  box.querySelectorAll('tbody [data-d]').forEach(b=>b.onclick=async()=>{if(b.dataset.s==='cancelled'&&counts[b.dataset.d]&&!await ask({title:'Cancel '+niceDate(b.dataset.d)+'?',text:'Its '+counts[b.dataset.d]+' check-ins stay saved but will not count.',ok:'Cancel day',danger:true}))return;const r=await adminCall({action:'day',date:b.dataset.d,status:b.dataset.s});if(r.ok){toast('Saved');loadData()}else toast(r.message,true)});
+  $('#dForm').querySelectorAll('button').forEach(b=>b.onclick=async e=>{e.preventDefault();if(!$('#dDate').value)return;const r=await saveOp({action:'day',date:$('#dDate').value,status:b.dataset.s,note:$('#dNote').value});if(r.ok){toast('Saved');loadData()}else toast(r.message,true)});
+  box.querySelectorAll('tbody [data-d]').forEach(b=>b.onclick=async()=>{if(b.dataset.s==='cancelled'&&counts[b.dataset.d]&&!await ask({title:'Cancel '+niceDate(b.dataset.d)+'?',text:'Its '+counts[b.dataset.d]+' check-ins stay saved but will not count.',ok:'Cancel day',danger:true}))return;const r=await saveOp({action:'day',date:b.dataset.d,status:b.dataset.s});if(r.ok){toast('Saved');loadData()}else toast(r.message,true)});
 }
+
+/* ---------- Operations: every change goes through a saved queue, so a slow or lost answer never loses data ----------
+   queued → sending → done
+   sending → slow (no answer yet, still waiting) → done, retrying, failed or blocked
+   sending → retrying (no answer, network error or server error) → sending again by itself after a wait
+   retrying → failed after the last automatic try; Retry → queued
+   sending → blocked (signed out, day locked, old server code); Unblock and retry → queued
+   queued → waiting while offline or signed out → queued again by itself
+   queued, waiting, retrying, failed, blocked → cancelled (Cancel) or replaced (a newer change to the same cell)
+   A record still sending when the page closed goes back to retrying on the next open. The server
+   remembers each operation id for 6 hours, so sending the same operation twice saves it once. */
+const OPS_KEY='att-ops',OPSCFG_KEY='att-ops-cfg';
+const OPS_DEF={keepDays:30,retries:3,slow:8,timeout:60,logReads:false};
+const OP_ACTIVE=['queued','waiting','sending','slow','retrying'],OP_ATTN=['failed','blocked'],OP_FINAL=['done','cancelled','superseded'];
+const OP_ST={queued:['Queued','g'],waiting:['Waiting','g'],sending:['Sending','p'],slow:['Slow','e'],retrying:['Retrying','e'],done:['Done','p'],failed:['Failed','a'],blocked:['Blocked','x'],cancelled:['Cancelled','g'],superseded:['Replaced','g']};
+let OPS=[],opsBusy=false,opsTimer=null,opsWait={},opsF='all',opsQ='',opsOpen=new Set();
+const opsCfg=()=>{let c={};try{c=JSON.parse(store.get(OPSCFG_KEY)||'{}')}catch(e){}return Object.assign({},OPS_DEF,c)};
+const secs=ms=>ms==null?'':ms<1000?ms+' ms':(ms/1000).toFixed(ms<10000?1:0)+' s';
+const mine=o=>o.sid===SID;
+function opHist(o,state,detail){const t=Date.now();o.state=state;o.updated=t;o.detail=detail;o.history.push({t,s:state,d:detail});if(o.history.length>60)o.history.splice(1,o.history.length-60)}
+function opsLoad(){try{OPS=JSON.parse(store.get(OPS_KEY)||'[]')}catch(e){OPS=[]}if(!Array.isArray(OPS))OPS=[];
+  // finished records older than the keep time go; unfinished ones stay until you deal with them
+  const cut=Date.now()-opsCfg().keepDays*864e5;OPS=OPS.filter(o=>!(OP_FINAL.includes(o.state)&&o.updated<cut));
+  OPS.forEach(o=>{if(o.state==='sending'||o.state==='slow'){o.nextAt=0;opHist(o,'retrying','The page closed before the server answered. Sending again. The server ignores a repeat of the same operation.')}});
+  opsSave()}
+function opsSave(){
+  try{localStorage.setItem(OPS_KEY,JSON.stringify(OPS))}catch(e){
+    // storage full: drop the oldest finished records and try once more
+    const fin=OPS.filter(o=>OP_FINAL.includes(o.state)).sort((a,b)=>a.updated-b.updated),drop=new Set(fin.slice(0,Math.max(20,fin.length>>1)).map(o=>o.id));
+    OPS=OPS.filter(o=>!drop.has(o.id));try{localStorage.setItem(OPS_KEY,JSON.stringify(OPS))}catch(e2){}}}
+function opName(id){const s=DATA&&DATA.students.find(x=>x.id===id);return s?s.name:id}
+function describeOp(b){const d=x=>x?niceDate(x):'';
+  switch(b.action){
+    case 'marks':{const l=b.list||[];return ['Register',l.length===1?opName(l[0].id)+' '+(l[0].present?'present':'absent')+' on '+d(l[0].date):l.length+' marks on '+[...new Set(l.map(m=>d(m.date)))].join(', ')]}
+    case 'mark':return ['Register',opName(b.id)+' '+(b.present?'present':'absent')+' on '+d(b.date)];
+    case 'excuse':return ['Excuses',(b.excused?'Excuse ':'Remove excuse for ')+opName(b.id)+' on '+d(b.date)];
+    case 'student':return ['Students',b.remove?'Remove '+opName(b.id):(b.id?'Update ':'Add ')+(b.name||opName(b.id))];
+    case 'bulk':return ['Students','Add '+(b.list||[]).length+' students from a list'];
+    case 'day':return ['Class days',d(b.date)+': '+(b.status==='held'?'held':b.status==='cancelled'?'cancelled':'removed')];
+    case 'extra':return ['Check-in',+b.minutes?'Open check-in for '+b.minutes+' min':'Close the extra window'];
+    case 'openDay':return ['Register',+b.minutes?'Open '+d(b.date)+' for editing ('+b.minutes+' min)':'Lock the open past day'];
+    case 'settings':return ['Settings','Save settings'];
+  }return ['Other',b.action]}
+const cellsOf=b=>b.action==='marks'?(b.list||[]):b.action==='mark'?[b]:[];
+// a newer change to the same register cell replaces any older one that has not gone out yet
+function supersede(o){const keys=new Set(cellsOf(o.body).map(m=>m.id+'|'+m.date));if(!keys.size)return;
+  OPS.forEach(x=>{if(x===o||!mine(x)||!['queued','waiting','retrying','failed','blocked'].includes(x.state))return;
+    if(x.body.action==='mark'){if(keys.has(x.body.id+'|'+x.body.date)){opHist(x,'superseded','A newer change to the same cell replaced this one.');settle(x,{ok:true,superseded:true})}return}
+    if(x.body.action!=='marks')return;const before=x.body.list.length;x.body.list=x.body.list.filter(m=>!keys.has(m.id+'|'+m.date));
+    if(x.body.list.length===before)return;
+    if(!x.body.list.length){opHist(x,'superseded','A newer change to the same cells replaced this one.');settle(x,{ok:true,superseded:true})}
+    else{x.label=describeOp(x.body)[1];opHist(x,x.state,(before-x.body.list.length)+' of its cells were replaced by a newer change.')}})}
+// queue a change; resolves with the server answer, or {ok:false,message} when it is kept for a retry
+function saveOp(body){
+  const [kind,label]=describeOp(body),now=Date.now();
+  const o={id:'op'+now.toString(36)+Math.random().toString(36).slice(2,8),sid:SID,kind,label,body:JSON.parse(JSON.stringify(body)),state:'queued',created:now,updated:now,attempts:0,history:[]};
+  opHist(o,'queued','Kept on this device. Waiting to send.');supersede(o);OPS.push(o);opsSave();opsPaint();
+  const p=new Promise(res=>{opsWait[o.id]=res});pump();return p}
+function settle(o,res){const f=opsWait[o.id];if(f){delete opsWait[o.id];f(res);return true}return false}
+async function pump(){
+  if(opsBusy)return;clearTimeout(opsTimer);
+  const pend=OPS.filter(o=>mine(o)&&['queued','waiting','retrying'].includes(o.state));if(!pend.length)return;
+  if(!TOKEN||!navigator.onLine){const why=!TOKEN?'Signed out. It sends after you sign in.':'No internet. It sends by itself when you are back online.';
+    pend.forEach(o=>{if(o.state!=='retrying'&&(o.state!=='waiting'||o.detail!==why))opHist(o,'waiting',why)});opsSave();opsPaint();
+    pend.filter(o=>opsWait[o.id]).forEach(o=>settle(o,{ok:false,pending:true,message:'Not saved yet: '+why+' It is kept under Operations.'}));return}
+  const now=Date.now(),ready=pend.filter(o=>o.state!=='retrying'||(o.nextAt||0)<=now).sort((a,b)=>a.created-b.created);
+  if(!ready.length){const next=Math.min(...pend.map(x=>x.nextAt||now));opsTimer=setTimeout(pump,Math.max(300,next-now));return}
+  opsBusy=true;try{await sendOp(ready[0])}finally{opsBusy=false}pump()}
+async function sendOp(o){
+  const cfg=opsCfg();o.attempts++;opHist(o,'sending','Try '+o.attempts+': sending to the server.');opsSave();opsPaint();
+  const t0=Date.now(),slowT=setTimeout(()=>{if(o.state==='sending'){opHist(o,'slow','No answer after '+cfg.slow+' s. Still waiting, up to '+cfg.timeout+' s.');opsSave();opsPaint()}},cfg.slow*1000);
+  let r=null,err=null;
+  try{r=await api(Object.assign({},o.body,{token:TOKEN,opId:o.id}),cfg.timeout*1000)}catch(e){err=e}
+  clearTimeout(slowT);o.ms=Date.now()-t0;
+  if(r&&r.ok){o.result=r;o.error=null;o.block=null;
+    opHist(o,'done','Saved in '+secs(o.ms)+(r.repeat?'. The server had already saved it on an earlier try.':'.'));opsSave();opsPaint();
+    if(!settle(o,r)){toast('Saved: '+o.label);loadData(false,true)}return}
+  let state='failed',detail,block=null,auto=false;
+  if(r){const m=r.message||'The server refused it.';o.error={reason:r.reason,message:m};
+    if(r.reason==='auth'){state='blocked';block='auth';detail='You were signed out. Sign in again and it sends.'}
+    else if(r.reason==='locked'){state='blocked';block='locked';detail='That day is locked. Open it for editing, then it sends.'}
+    else if(r.reason==='action'){state='blocked';block='server';detail='Apps Script runs older server code that does not know this change. Update the server code, then retry.'}
+    else if(r.reason==='error'){auto=true;detail='Server error: '+m}
+    else detail=m+' Fix it and press Retry, or Cancel.'}
+  else{auto=true;o.error={reason:(err&&err.code)||'network',message:err?err.message:'No answer.'};
+    detail=err&&err.code==='timeout'?'No answer after '+cfg.timeout+' s. It may have saved; sending again is safe.':'Could not reach the server.'}
+  if(auto){const left=1+cfg.retries-o.attempts;
+    if(left>0){const wait=[5,15,45,120,300][Math.min(o.attempts-1,4)];o.nextAt=Date.now()+wait*1000;state='retrying';detail+=' Trying again in '+wait+' s ('+left+(left===1?' try':' tries')+' left).'}
+    else detail+=' Gave up after '+o.attempts+(o.attempts===1?' try':' tries')+'. Press Retry.'}
+  o.block=block;opHist(o,state,detail);opsSave();opsPaint();
+  settle(o,{ok:false,reason:o.error.reason,pending:true,message:(state==='retrying'?'Not saved yet: ':'Not saved: ')+detail.split('. ')[0]+'. It is kept under Operations.'});
+  if(block==='auth'){logoutLocal();toast('Signed out. Your changes are kept and send after you sign in.',true)}}
+// failed reads (class data, live list, sign in) are logged too; with "log every refresh" on, so are good ones
+function logRead(action,ms,errMsg){
+  const cfg=opsCfg(),slow=ms>cfg.slow*1000;
+  // the live list refreshes every few seconds: repeat failures add to one record instead of flooding the list
+  const last=OPS.filter(o=>mine(o)&&o.read===action).pop();
+  if(errMsg&&last&&last.state==='failed'&&Date.now()-last.created<36e5){last.attempts++;last.ms=ms;opHist(last,'failed',errMsg+' ('+last.attempts+' times)');opsSave();opsPaint();return}
+  if(!errMsg&&last&&last.state==='failed'){opHist(last,'done','Worked again after '+last.attempts+(last.attempts===1?' failure.':' failures.'));opsSave();opsPaint()}
+  if(!errMsg&&!slow&&!cfg.logReads)return;
+  const label={data:'Load class data',today:'Refresh the live list',login:'Sign in'}[action]||action,now=Date.now();
+  const o={id:'rd'+now.toString(36)+Math.random().toString(36).slice(2,6),sid:SID,kind:action==='login'?'Sign in':'Sync',label,read:action,body:{action},created:now,updated:now,attempts:1,ms,history:[]};
+  opHist(o,errMsg?'failed':'done',errMsg?errMsg:(slow?'Slow: ':'')+'Answered in '+secs(ms)+'.');OPS.push(o);opsSave();opsPaint()}
+async function timedCall(body){const t0=Date.now();
+  try{const r=await adminCall(body);logRead(body.action,Date.now()-t0,r.ok?null:r.message);return r}
+  catch(e){logRead(body.action,Date.now()-t0,e.message);throw e}}
+const opFind=id=>OPS.find(o=>o.id===id);
+function retryOp(id){const o=opFind(id);if(!o)return;
+  if(o.read){opHist(o,'cancelled','Retried by hand.');opsSave();loadData(true);opsPaint();return}
+  o.nextAt=0;opHist(o,'queued','Retry pressed. Sending again.');opsSave();opsPaint();pump()}
+async function unblockOp(id){const o=opFind(id);if(!o)return;
+  if(o.block==='auth'){if(TOKEN){retryOp(id);return}toast('Sign in. Blocked changes send right after.');logoutLocal();return}
+  if(o.block==='locked'){const days=[...new Set(cellsOf(o.body).map(m=>m.date))].filter(d=>d<DATA.today);
+    for(const d of days){const r=await saveOp({action:'openDay',date:d,minutes:30});if(!r.ok){toast('Could not open '+niceDate(d)+': '+r.message,true);return}}
+    retryOp(id);loadData(false,true);return}
+  if(o.block==='server'){if(!await ask({title:'Update the server code first',text:'In the Sheet open Extensions › Apps Script, replace everything in Code.gs with the new code (Copy new server code is in the red box and under Setup), save, then Deploy › Manage deployments › pencil › Version: New version › Deploy. Retry after that.',ok:'I updated it, retry'}))return;retryOp(id);return}
+  retryOp(id)}
+async function cancelOp(id){const o=opFind(id);if(!o)return;
+  if(!await ask({title:'Cancel this change?',text:o.label+'. It will not be saved on the server. The record stays here as cancelled.',ok:'Cancel change',danger:true}))return;
+  opHist(o,'cancelled','Cancelled by you. Not saved.');opsSave();settle(o,{ok:false,message:'Cancelled.'});opsPaint()}
+// unblock everything that only waited for a sign in
+function opsAfterLogin(){OPS.filter(o=>mine(o)&&o.state==='blocked'&&o.block==='auth').forEach(o=>opHist(o,'queued','Signed in again. Sending.'));opsSave();pump()}
+const opsActiveN=()=>OPS.filter(o=>mine(o)&&OP_ACTIVE.includes(o.state)).length;
+const opsAttnN=()=>OPS.filter(o=>mine(o)&&!o.read&&OP_ATTN.includes(o.state)).length;
+// pending register marks, newest last, so the sheet shows what you tapped until the server confirms it
+function pendingMarks(){const m={};OPS.filter(o=>mine(o)&&(OP_ACTIVE.includes(o.state)||OP_ATTN.includes(o.state))).sort((a,b)=>a.created-b.created)
+  .forEach(o=>cellsOf(o.body).forEach(c=>{m[c.id+'|'+c.date]={present:!!c.present,bad:OP_ATTN.includes(o.state)}}));return m}
+let opsRaf=0,opsRegSig='';
+function opsPaint(){if(opsRaf)return;opsRaf=requestAnimationFrame(()=>{opsRaf=0;
+  const a=opsActiveN(),n=opsAttnN();
+  document.querySelectorAll('[data-k="ops"] .nbadge,[data-k="more"] .nbadge').forEach(e=>e.remove());
+  if(n)document.querySelectorAll('[data-k="ops"],#bnav [data-k="more"]').forEach(e=>e.insertAdjacentHTML('beforeend',`<span class="nbadge">${n}</span>`));
+  const c=$('#opsChip');if(c)c.innerHTML=n?`<button class="btn ghost danger-t" id="opsChipB">${n} not saved</button>`:a?`<button class="btn ghost" id="opsChipB"><span class="mini-spin"></span>Saving ${a}</button>`:'';
+  const cb=$('#opsChipB');if(cb)cb.onclick=()=>goTab('ops');
+  if(TAB==='ops'&&$('#opsBody'))paintOpsBody();
+  // the register shows unsaved cells; repaint it when one of them fails or clears
+  if(TAB==='register'){const s=JSON.stringify(pendingMarks());if(s!==opsRegSig){const was=opsRegSig;opsRegSig=s;if(was&&!Object.keys(regQueue).length)renderPane()}}})}
+window.addEventListener('online',()=>pump());
+window.addEventListener('beforeunload',e=>{if(opsActiveN()){e.preventDefault();e.returnValue=''}});
+
+/* Operations page */
+function opsList(){const q=opsQ.trim().toLowerCase();
+  return OPS.filter(o=>mine(o)&&(opsF==='all'||(opsF==='attn'?OP_ATTN.includes(o.state):opsF==='active'?OP_ACTIVE.includes(o.state):opsF==='done'?o.state==='done':['cancelled','superseded'].includes(o.state)))
+    &&(!q||(o.label+' '+o.kind+' '+o.state+' '+(o.detail||'')+' '+o.id).toLowerCase().includes(q))).sort((a,b)=>b.created-a.created)}
+const opTime=t=>{const p=localParts(t),d=p.y+'-'+p2(p.m+1)+'-'+p2(p.d);return (DATA&&d===DATA.today?'':niceDate(d,false)+' ')+p2(p.hh)+':'+p2(p.mm)+':'+p2(new Date(t).getSeconds())};
+function opActs(o){const id=esc(o.id);
+  if(o.read)return o.state==='failed'&&o.read!=='login'?`<button class="btn small" data-op="retry" data-id="${id}">Retry</button>`:'';
+  if(o.state==='failed')return `<button class="btn small" data-op="retry" data-id="${id}">Retry</button><button class="btn small ghost" data-op="cancel" data-id="${id}">Cancel</button>`;
+  if(o.state==='blocked')return `<button class="btn small" data-op="unblock" data-id="${id}">${o.block==='auth'?'Sign in and retry':o.block==='locked'?'Unblock day and retry':o.block==='server'?'Update server and retry':'Unblock and retry'}</button><button class="btn small ghost" data-op="cancel" data-id="${id}">Cancel</button>`;
+  if(o.state==='retrying'||o.state==='waiting'||o.state==='queued')return `${o.state!=='queued'?`<button class="btn small ghost" data-op="retry" data-id="${id}">Send now</button>`:''}<button class="btn small ghost" data-op="cancel" data-id="${id}">Cancel</button>`;
+  return ''}
+function opChip(o){const [l,c]=OP_ST[o.state]||[o.state,'g'];return `<span class="chip ${c}">${o.state==='sending'||o.state==='slow'?'<span class="mini-spin"></span>':''}${l}</span>`}
+function opDetailRow(o){const req=Object.assign({},o.body);delete req.token;
+  return `<tr class="opd"><td colspan="7"><div class="opd-in"><div><h4>History</h4><ol class="tl">${o.history.slice().reverse().map(h=>`<li><span class="chip ${(OP_ST[h.s]||['','g'])[1]}">${esc((OP_ST[h.s]||[h.s])[0])}</span> <b>${esc(opTime(h.t))}</b> ${esc(h.d)}</li>`).join('')}</ol></div>
+    <div><h4>What was sent</h4><pre>${esc(JSON.stringify(req,null,2))}</pre>${o.result||o.error?`<h4>Server answer</h4><pre>${esc(JSON.stringify(o.result||o.error,null,2))}</pre>`:''}<p class="hint">Operation ${esc(o.id)} · created ${esc(opTime(o.created))}</p></div></div></td></tr>`}
+function paintOpsBody(){
+  const all=OPS.filter(mine),day=Date.now()-864e5,done=all.filter(o=>o.state==='done'&&!o.read),recent=done.slice(-50),avg=recent.length?recent.reduce((s,o)=>s+(o.ms||0),0)/recent.length:null;
+  const slowest=recent.reduce((m,o)=>Math.max(m,o.ms||0),0),attn=opsAttnN(),act=opsActiveN();
+  $('#opsK').innerHTML=`<div class="kpi${attn?' r':''}"><span>Needs you</span><b>${attn}</b><small>Failed or blocked</small></div>
+    <div class="kpi"><span>In progress</span><b>${act}</b><small>Queued, sending or retrying</small></div>
+    <div class="kpi"><span>Saved, last 24 h</span><b>${done.filter(o=>o.updated>day).length}</b><small>${all.length} records kept</small></div>
+    <div class="kpi"><span>Server speed</span><b>${avg==null?'–':secs(Math.round(avg))}</b><small>${recent.length?'Average of the last '+recent.length+', slowest '+secs(slowest):'No saves yet'}</small></div>`;
+  const rows=opsList();$('#opsN').textContent=rows.length+' of '+all.length;
+  $('#opsRetryAll').hidden=!all.some(o=>o.state==='failed'&&!o.read);
+  $('#opsBody').innerHTML=rows.length?rows.slice(0,400).map(o=>`<tr class="opr${opsOpen.has(o.id)?' open':''}" data-id="${esc(o.id)}"><td class="nowrap">${esc(opTime(o.created))}</td><td><b>${esc(o.label)}</b><br><span class="hint">${esc(o.kind)}</span></td><td>${opChip(o)}</td><td class="num">${o.attempts||0}</td><td class="num nowrap">${esc(secs(o.ms))}</td><td class="opdet">${esc(o.detail||'')}</td><td class="noprint"><div class="row nowrap">${opActs(o)}</div></td></tr>${opsOpen.has(o.id)?opDetailRow(o):''}`).join('')
+    :`<tr><td colspan="7">${emptyHTML(opsF==='attn'?'Nothing needs you':'No operations yet',opsF==='attn'?'Every change reached the server.':'Changes you make show here with their status.')}</td></tr>`}
+function opsDiagram(){
+  const N=(x,y,t,c)=>`<g class="sd ${c}"><rect x="${x-62}" y="${y-19}" width="124" height="38" rx="10"/><text x="${x}" y="${y+5}" text-anchor="middle">${t}</text></g>`;
+  const A=(d,l,lx,ly,dash)=>`<path d="${d}" class="sda${dash?' dash':''}" marker-end="url(#sdh)"/>${l?`<text class="sdl" x="${lx}" y="${ly}" text-anchor="middle">${l}</text>`:''}`;
+  return `<div class="sdwrap"><svg class="sdg" viewBox="0 0 760 270" role="img" aria-label="Status flow of an operation"><defs><marker id="sdh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#5b6b86"/></marker></defs>
+    ${A('M147 60H198','','','')}${A('M327 60H378','','','')}${A('M507 60H558','','','')}
+    ${A('M265 41C265 6 625 6 625 39','answered',445,16)}
+    ${A('M78 79V131','offline',40,108)}${A('M92 131V81','back',122,108)}
+    ${A('M258 79V131','no answer / error',178,108)}${A('M272 131V81','auto, after a wait',352,108)}
+    ${A('M327 150H378','last try',352,140)}
+    ${A('M318 78L570 135','',0,0)}<text class="sdl" x="470" y="132" text-anchor="middle">signed out · day locked</text><text class="sdl" x="470" y="146" text-anchor="middle">· old server</text>
+    ${A('M445 169V222H10V60H21','',0,0,1)}${A('M625 169V222H448','',0,0,1)}<text class="sdl" x="300" y="240" text-anchor="middle">Retry · Unblock and retry → back to Queued</text>
+    ${N(85,60,'Queued','q')}${N(265,60,'Sending','s')}${N(445,60,'Slow','s')}${N(625,60,'Done','d')}
+    ${N(85,150,'Waiting','q')}${N(265,150,'Retrying','s')}${N(445,150,'Failed','f')}${N(625,150,'Blocked','b')}</svg></div>
+    <p class="hint">Anything not done yet can be cancelled. A newer tap on the same register cell replaces an older change that has not gone out (shown as Replaced). If the page closes while sending, it sends again next time; the server saves an operation only once.</p>`}
+function paneOps(box){
+  paintHead(`<button class="btn ghost" id="opsRetryAll" hidden>${ICON.refresh}<span>Retry all failed</span></button><button class="btn ghost" id="opsExport">${ICON.download}<span>Export</span></button>`);
+  const cfg=opsCfg(),sel=(id,v,opts)=>`<select id="${id}">${opts.map(([k,l])=>`<option value="${k}"${+k===+v?' selected':''}>${l}</option>`).join('')}</select>`;
+  box.innerHTML=`<div class="pane"><p class="hint mb">Every change this device sends to the server, with its status. Nothing is lost when the server is slow or the internet drops: changes wait here and send again. Records live on this device only.</p>
+    <div class="kpis" id="opsK"></div>
+    <div class="toolbar noprint"><div class="seg" id="opsSeg">${[['all','All'],['attn','Needs you'],['active','In progress'],['done','Done'],['off','Cancelled']].map(([k,l])=>`<button data-v="${k}" class="${opsF===k?'on':''}">${l}</button>`).join('')}</div>
+      <div class="search">${ICON.search}<input id="opsQ" type="search" placeholder="Search operations" aria-label="Search operations" autocomplete="off" value="${esc(opsQ)}"></div><span class="count" id="opsN"></span></div>
+    <div class="tblwrap"><table class="ops"><thead><tr><th>When</th><th>Operation</th><th>Status</th><th class="num">Tries</th><th class="num">Took</th><th>Detail</th><th class="noprint"><span class="sr">Actions</span></th></tr></thead><tbody id="opsBody"></tbody></table></div>
+    <p class="hint mt">Tap a row to see its full history and what was sent.</p>
+    <div class="card mt" style="animation:none"><h3>How the statuses work</h3>${opsDiagram()}</div>
+    <div class="card mt" style="animation:none"><h3>Operations settings</h3><form id="opsCfgF">
+      <div class="opscfg">
+        <div class="field"><label for="ocKeep">Keep finished records for</label>${sel('ocKeep',cfg.keepDays,[[7,'1 week'],[14,'2 weeks'],[30,'1 month'],[60,'2 months'],[90,'3 months']])}</div>
+        <div class="field"><label for="ocRetry">Automatic retries</label>${sel('ocRetry',cfg.retries,[[0,'None'],[1,'1'],[2,'2'],[3,'3'],[5,'5']])}</div>
+        <div class="field"><label for="ocSlow">Mark as slow after</label>${sel('ocSlow',cfg.slow,[[5,'5 seconds'],[8,'8 seconds'],[15,'15 seconds'],[30,'30 seconds']])}</div>
+        <div class="field"><label for="ocTime">Stop waiting for an answer after</label>${sel('ocTime',cfg.timeout,[[30,'30 seconds'],[60,'1 minute'],[120,'2 minutes'],[300,'5 minutes']])}</div></div>
+      <label class="check"><input type="checkbox" id="ocReads" ${cfg.logReads?'checked':''}>Also log every data refresh (failed and slow ones are always logged)</label>
+      <div class="row mt"><button class="btn">Save</button><button class="btn ghost" type="button" id="opsClear">Clear finished now</button></div>
+      <p class="hint mt">Unfinished records (failed, blocked, waiting) are never cleared on their own, so no change is dropped silently.</p></form></div>
+    </div>`;
+  paintOpsBody();
+  $('#opsSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;opsF=b.dataset.v;$('#opsSeg').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));paintOpsBody()};
+  $('#opsQ').oninput=e=>{opsQ=e.target.value;paintOpsBody()};
+  $('#opsBody').onclick=e=>{const b=e.target.closest('button[data-op]');
+    if(b){e.stopPropagation();const id=b.dataset.id;({retry:retryOp,unblock:unblockOp,cancel:cancelOp})[b.dataset.op](id);return}
+    const tr=e.target.closest('tr.opr');if(!tr||e.target.closest('.opd'))return;const id=tr.dataset.id;opsOpen.has(id)?opsOpen.delete(id):opsOpen.add(id);paintOpsBody()};
+  $('#opsRetryAll').onclick=()=>{OPS.filter(o=>mine(o)&&o.state==='failed'&&!o.read).forEach(o=>{o.nextAt=0;opHist(o,'queued','Retry all pressed. Sending again.')});opsSave();opsPaint();pump()};
+  $('#opsExport').onclick=()=>{const rows=[['created','kind','operation','status','tries','took_ms','detail','id']].concat(OPS.filter(mine).map(o=>[new Date(o.created).toISOString(),o.kind,o.label,o.state,o.attempts,o.ms||'',o.detail||'',o.id]));
+    download('operations-'+(DATA?DATA.today:'')+'.csv',toCsv(rows),'text/csv')};
+  $('#opsCfgF').onsubmit=e=>{e.preventDefault();store.set(OPSCFG_KEY,JSON.stringify({keepDays:+$('#ocKeep').value,retries:+$('#ocRetry').value,slow:+$('#ocSlow').value,timeout:+$('#ocTime').value,logReads:$('#ocReads').checked}));
+    const cut=Date.now()-opsCfg().keepDays*864e5;OPS=OPS.filter(o=>!(OP_FINAL.includes(o.state)&&o.updated<cut));opsSave();toast('Operations settings saved');paintOpsBody()};
+  $('#opsClear').onclick=async()=>{const n=OPS.filter(o=>mine(o)&&OP_FINAL.includes(o.state)).length;if(!n){toast('Nothing finished to clear');return}
+    if(!await ask({title:'Clear '+n+' finished records?',text:'Done, cancelled and replaced records go. Anything not saved yet stays.',ok:'Clear',danger:true}))return;
+    OPS=OPS.filter(o=>!(mine(o)&&OP_FINAL.includes(o.state)));opsSave();opsPaint();paintOpsBody();toast('Cleared')}}
 
 /* Log */
 let logFilter='rejected';
@@ -1233,10 +1489,10 @@ function paneSettings(box){
   ['#iPre','#iSuf','#iDig','#iStart'].forEach(k=>$(k).oninput=prev);
   $('#idForm').onsubmit=async e=>{e.preventDefault();const f=fmt();delete f.preview;
     if(DATA.students.length&&!await ask({title:'Save the new ID format?',text:'Existing students keep their IDs. Only new students get the new format.',ok:'Save format'}))return;
-    const r=await adminCall({action:'settings',settings:f});if(r.ok){toast('ID format saved');loadData()}else toast(r.message,true)};
+    const r=await saveOp({action:'settings',settings:f});if(r.ok){toast('ID format saved');loadData()}else toast(r.message,true)};
   $('#setForm').onsubmit=async e=>{e.preventDefault();
     const settings={days:[...box.querySelectorAll('input[name=day]:checked')].map(x=>+x.value),start:$('#sStart').value,end:$('#sEnd').value,requireCode:$('#sCode').checked,oneDevice:$('#sDev').checked,selfRegister:$('#sReg').checked,fromFirst:$('#sFirst').checked};
-    const r=await adminCall({action:'settings',settings});if(r.ok){toast('Settings saved');loadData()}else toast(r.message,true)};
+    const r=await saveOp({action:'settings',settings});if(r.ok){toast('Settings saved');loadData()}else toast(r.message,true)};
 }
 
 /* Setup + demo */
@@ -1255,6 +1511,7 @@ function renderSetup(){
    <div class="card redline"><h2>Try it now</h2><p class="lead">Demo mode runs the same server code inside this browser. Nothing leaves this device.</p>
     <div class="row"><button class="btn red" id="demoOn">${isDemo()?'Restart demo':'Start demo'}</button>${isDemo()?'<button class="btn ghost" id="demoOff">Leave demo</button>':''}</div>
     ${isDemo()?`<h3 class="mt">Pretend time</h3><div class="row"><button class="btn small ghost" data-shift="sat">Saturday 10:00</button><button class="btn small ghost" data-shift="sun">Sunday 10:00</button><button class="btn small ghost" data-shift="real">Real time</button></div>
+    <h3 class="mt">Pretend the server is</h3><div class="seg" id="faultSeg">${[['','Normal'],['slow','Slow (12 s)'],['flaky','Flaky'],['down','Down']].map(([k,l])=>`<button type="button" data-v="${k}" class="${(sess.get('att-demo-fault')||'')===k?'on':''}">${l}</button>`).join('')}</div><p class="hint mt">To try Operations: changes wait, retry and recover instead of getting lost.</p>
     <h3 class="mt">Sample class</h3><p class="hint mb">Adds 14 students and 6 past Saturdays so the reports have something to show.</p><button class="btn small" id="seed">Add sample class</button>
     <p class="hint mt">Demo password: <b>demo1234</b>. To test a student check-in, open <a href="${esc(page)}?s=demo" target="_blank" rel="noopener">the student page</a> in another tab and type the code from Live QR.</p>`:''}
     <h3 class="mt">What the checks stop</h3><ul class="steps"><li>Check-ins outside ${esc(STATUS?windowText(STATUS.window):'Saturdays, 09:00 to 13:00')} (server clock).</li><li>Checking in from home: the QR code changes every 30 s.</li><li>Two check-ins for one student on one day.</li><li>One phone checking in several friends.</li><li>One mobile number registered twice, or a student marked without confirming their ID and name.</li><li>Anyone changing records without the admin password.</li></ul></div></div>`;
@@ -1269,6 +1526,7 @@ function renderSetup(){
     try{const c=await loadDemo();c.setPassword('demo1234');TOKEN=null;sess.del('att-token');DATA=null;showDemoBar(true);await refreshStatus();toast('Demo ready. Password demo1234');renderSetup()}
     catch(e){toast('Demo needs the page served from GitHub Pages or a web server.',true)}};
   const off=$('#demoOff');if(off)off.onclick=()=>{store.del('att-demo');store.del('att-server');SID=scriptIdFrom(SERVER_URL);TOKEN=null;sess.del('att-token');DATA=null;showDemoBar(false);refreshStatus();renderSetup()};
+  const fs=$('#faultSeg');if(fs)fs.onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.v)sess.set('att-demo-fault',b.dataset.v);else sess.del('att-demo-fault');fs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));toast('Server: '+b.textContent)};
   $('#setupBox').querySelectorAll('[data-shift]').forEach(b=>b.onclick=async()=>{const c=await loadDemo(),d=c.load();
     if(b.dataset.shift==='real')d.shift=0;else{const want=b.dataset.shift==='sat'?6:0;const t=localParts(Date.now());let add=(want-t.wd+7)%7;
       const target=Date.UTC(t.y,t.m,t.d+add,10,0)-330*60000;d.shift=target-Date.now()}
@@ -1294,6 +1552,7 @@ function route(){
 }
 window.addEventListener('hashchange',route);
 showDemoBar(isDemo());
+opsLoad();
 if(location.hash==='#admin'||location.hash==='#setup')refreshStatus();
 route();
 </script>

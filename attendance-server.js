@@ -22,7 +22,7 @@
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 5;
+var SERVER_VERSION = 6;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -437,6 +437,7 @@ function AttendanceCore(rawEnv) {
     return fail('action', 'Unknown action.');
   }
 
+  var WRITES = { mark: 1, marks: 1, excuse: 1, student: 1, bulk: 1, day: 1, extra: 1, openDay: 1, settings: 1 };
   function handle(req) {
     req = req || {};
     var now = env.now();
@@ -448,7 +449,14 @@ function AttendanceCore(rawEnv) {
       if (req.action === 'me') return me(req, now);
       if (req.action === 'login') return login(req, now);
       if (!adminOk(req)) return fail('auth', 'Please log in again.');
-      return env.lock(function () { return admin(req, now); });
+      return env.lock(function () {
+        // the page retries a save when an answer gets lost; the same operation id returns the first answer
+        var key = req.opId && WRITES[req.action] ? 'op:' + String(req.opId).slice(0, 40) : '';
+        if (key) { var seen = env.cacheGet(key); if (seen) { var o = JSON.parse(seen); o.repeat = true; return o; } }
+        var res = admin(req, now);
+        if (key && res && res.ok) env.cachePut(key, JSON.stringify(res), 21600);
+        return res;
+      });
     } catch (e) {
       return fail('error', 'Server error: ' + (e && e.message ? e.message : e));
     }
