@@ -1040,26 +1040,37 @@ function toProps(C){
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type+';charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast('Downloaded '+name)}
 
 /* Register: a class sheet, names down, class days across. Click = 1, double click = 0. */
-let regQueue={},regTimer=null,regBusy=false,regScroll=null;
+let regQueue={},regTimer=null,regBusy=false,regScroll=null,regQ='';
 function paneRegister(box){
   const C=compute(),today=DATA.today,done=!!DATA.status.todayDone;
   const rows=C.rows.filter(r=>r.s.active!=='no'||C.held.some(d=>r.cells[d]==='P'));
   const days=C.held.slice();
   // during class, today's column shows even before anyone checks in
   if(DATA.status.open&&!days.includes(today))days.push(today);
+  const hadFocus=document.activeElement&&document.activeElement.id==='regQ';
   box.innerHTML=`<div class="pane">
+    ${rows.length?`<div class="toolbar noprint"><div class="search">${ICON.search}<input id="regQ" type="search" placeholder="Search name, ID or mobile number" aria-label="Search students" autocomplete="off" value="${esc(regQ)}"></div><span class="count" id="regN"></span></div>`:''}
     <div class="row mb" style="justify-content:space-between"><div class="legend"><span><b class="v1" style="background:var(--navy);color:#fff">1</b>Present</span><span><b style="color:var(--red);border:1px solid var(--line)">0</b>Absent</span><span><b style="color:var(--navy);background:#eef2f8">E</b>Excused</span><span><b style="color:#b8c1d1;border:1px solid var(--line)">…</b>Class not over</span></div>
       <form id="addDay" class="row noprint"><input type="date" id="newDay" max="${today}" value="${today}" style="width:auto" aria-label="Class day"><button class="btn small ghost">Add day</button></form></div>
     <p class="hint mb">Tap a cell to mark <b>1</b>, tap again for <b>0</b>. Double tap always sets 0. QR check-ins show here as 1. ${done?'':'Today turns into 0 for anyone missing once the class ends at '+esc(DATA.settings.end)+'.'}</p>
     ${rows.length&&days.length?`<div class="tblwrap grid reg"><table><thead><tr><th>Student</th>${days.map(d=>`<th class="num${d===today?' today':''}">${esc(niceDate(d,false))}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>
-    ${rows.map(r=>`<tr><td class="name">${esc(r.s.name)}<br><span class="hint">${esc(r.s.id)}</span></td>${days.map(d=>{const c=r.cells[d]||'?';
+    ${rows.map(r=>`<tr data-q="${esc((r.s.name+' '+r.s.id).toLowerCase())}" data-ph="${esc(r.s.phone||'')}"><td class="name">${esc(r.s.name)}<br><span class="hint">${esc(r.s.id)}${r.s.phone?' · <span style="white-space:nowrap">'+esc(showPhone(r.s.phone))+'</span>':''}</span></td>${days.map(d=>{const c=r.cells[d]||'?';
       const v=c==='P'?'1':c==='E'?'E':c==='?'?'…':c==='-'?'·':'0',cls=c==='P'?'v1':c==='E'?'vE':c==='?'?'vP':c==='-'?'vX':'v0';
       const a=C.att[r.s.id+'|'+d];
       return `<td class="cell"><button class="${cls}" data-id="${esc(r.s.id)}" data-d="${d}" title="${esc(r.s.name)}, ${esc(niceDate(d))}${a&&a.time?' · '+esc(a.time)+(a.method==='qr'?' QR':''):''}${c==='E'?' · excused':''}">${v}</button></td>`}).join('')}<td class="tot">${r.P}/${r.n}</td></tr>`).join('')}
+    <tr id="regNone" hidden><td colspan="${days.length+2}">${emptyHTML('No matches','Try part of the name, the ID or the mobile number.')}</td></tr>
     </tbody></table></div>`:'<p class="hint">'+(rows.length?'No class days yet. Add one above.':'No students yet. Add them under Students.')+'</p>'}
     <div class="row mt"><span class="hint" id="regState"></span></div></div>`;
   $('#addDay').onsubmit=async e=>{e.preventDefault();const d=$('#newDay').value;if(!d)return;const r=await adminCall({action:'day',date:d,status:'held'});if(r.ok){toast('Day added');loadData()}else toast(r.message,true)};
   const tbl=box.querySelector('.reg');if(!tbl)return;
+  // live filter: name, student ID or mobile number (any format, e.g. 077 123 or +9477)
+  const filter=()=>{const q=regQ.trim().toLowerCase();let d=q.replace(/\D/g,'');if(d.startsWith('94')&&d.length>2)d='0'+d.slice(2);
+    let n=0;tbl.querySelectorAll('tbody tr[data-q]').forEach(tr=>{const hit=!q||q.split(/\s+/).every(w=>tr.dataset.q.includes(w))||(d.length>=3&&tr.dataset.ph.includes(d));tr.hidden=!hit;if(hit)n++});
+    $('#regNone').hidden=n>0;$('#regN').textContent=q?n+' of '+rows.length:rows.length+' students'};
+  const qi=$('#regQ');filter();
+  qi.oninput=()=>{regQ=qi.value;filter()};
+  qi.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();const tr=tbl.querySelector('tbody tr[data-q]:not([hidden])');if(tr){const b=[...tr.querySelectorAll('button[data-id]:not(.vX)')].pop();if(b){b.focus();b.scrollIntoView({block:'nearest',inline:'nearest'})}}}else if(e.key==='Escape'){qi.value='';regQ='';filter()}};
+  if(hadFocus){qi.focus();qi.setSelectionRange(qi.value.length,qi.value.length)}
   tbl.scrollLeft=regScroll==null?tbl.scrollWidth:regScroll;tbl.onscroll=()=>{regScroll=tbl.scrollLeft};
   // pick up new QR check-ins while the sheet is open
   pollTimer=setInterval(()=>{if(!regBusy&&!Object.keys(regQueue).length&&!clickT)loadData(false,true)},isDemo()?5000:20000);
