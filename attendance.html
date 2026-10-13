@@ -358,6 +358,9 @@ tr.opd td{background:#fbfcfe;padding:0}
 .names{display:flex;flex-direction:column;gap:6px;max-height:440px;overflow:auto;margin-top:var(--s3)}
 .names div{display:flex;justify-content:space-between;gap:10px;padding:10px 14px;border-radius:var(--r-sm);background:var(--canvas);animation:slidein .5s var(--ease) both;font-size:1rem}
 .names div span{color:var(--muted);font-variant-numeric:tabular-nums}
+.inb{flex-wrap:wrap;gap:10px}
+.inb-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.kcode{font:700 1.15rem 'Outfit';letter-spacing:.12em;color:var(--navy);background:var(--navy-50);padding:4px 10px;border-radius:8px}
 .names div b{display:flex;align-items:center;gap:10px;font-weight:500}
 /* profile photos: a round picture, or initials when there is none */
 .pic{--sz:36px;width:var(--sz);height:var(--sz);border-radius:50%;flex:none;display:inline-grid;place-items:center;object-fit:cover;background:var(--navy-50);color:var(--navy);font:600 calc(var(--sz)*.38)/1 'Outfit';border:2px solid #fff;box-shadow:0 0 0 1px var(--navy-100);vertical-align:middle}
@@ -542,6 +545,7 @@ const ICON={
   days:IC('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>'),
   log:IC('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'),
   ops:IC('<path d="M3 12h4l3-8 4 16 3-8h4"/>'),
+  inbox:IC('<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/>'),
   settings:IC('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
   more:IC('<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>'),
   refresh:IC('<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>'),
@@ -764,14 +768,14 @@ async function doConfirm(st){
   busy('Marking your attendance…');
   const r=await stuApi({action:'checkin',phone:st.phone,id:st.id,code:CODE,device:DEVICE},'Marking your attendance…');
   if(!r.ok)return fail(r);
-  // the check-in also gives this phone the key to the student's own profile
-  const old=getMe();setMe(Object.assign({},r.student,{key:r.key||(old&&old.id===r.student.id?old.key:'')}));done(r);
+  setMe(r.student);done(r);
 }
 function done(r){
   CODE='';
   $('#stCard').innerHTML=`${stepper(3)}<div class="result">${OK_SVG}<div class="headline">${r.already?'Already checked in':'You’re in, '+esc(r.student.name.split(' ')[0])+'!'}</div><p>${esc(r.student.id)} · ${esc(niceDate(r.date))} at ${esc(r.time)}${r.already?'<br>One check-in per day is enough.':''}</p></div>`;
   if(navigator.vibrate)navigator.vibrate(60);
-  renderMeCard();renderProfile();loadMine(true);
+  renderMeCard();loadMine(true);
+  if(!getProf())renderProfile();// only fills in the number for asking a key; the profile stays signed out
 }
 function ringSVG(pct){const r=45,C=2*Math.PI*r,off=C*(1-(pct||0)/100);return `<svg class="ring" viewBox="0 0 110 110"><circle class="bg" cx="55" cy="55" r="${r}"/><circle class="fg" cx="55" cy="55" r="${r}" stroke-dasharray="${C}" stroke-dashoffset="${C}" data-off="${off}"/><text x="55" y="62" text-anchor="middle">${pct==null?'–':Math.round(pct)+'%'}</text></svg>`}
 function renderMeCard(){
@@ -783,7 +787,7 @@ function renderMeCard(){
 async function loadMine(quiet){
   const me=getMe();if(!me||!SID)return;const box=$('#mine');if(!box)return;
   if(!quiet)box.innerHTML='<div class="spinner"></div>';
-  let r;try{r=await api({action:'me',id:me.id,key:me.key,phone:me.phone,name:me.name,device:DEVICE})}catch(e){r={ok:false,message:e.message}}
+  let r;try{r=await api({action:'me',phone:me.phone,name:me.name,device:DEVICE})}catch(e){r={ok:false,message:e.message}}
   if(!r.ok){box.innerHTML='<div class="msg">'+esc(r.message)+'</div>';return}
   const P=r.records.filter(x=>x.status==='present').length,E=r.records.filter(x=>x.status==='excused').length,A=r.records.length-P-E,n=r.records.length;
   const pct=n?P/n*100:null,adj=n?(P+E)/n*100:null;
@@ -797,14 +801,40 @@ async function loadMine(quiet){
 const okPhoto=p=>typeof p==='string'&&/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(p);
 function avatar(name,photo,cls){return okPhoto(photo)?`<img class="pic ${cls||''}" src="${photo}" alt="">`:`<span class="pic ${cls||''}" aria-hidden="true">${esc(initials(name))}</span>`}
 const myPhoto=()=>{const p=store.get('att-me-photo');return okPhoto(p)?p:''};
-function renderProfile(msg){
-  const box=$('#pfCard');if(!box)return;const me=getMe();
-  if(!me||!me.key){box.innerHTML=`<div class="card-h"><h2>My profile</h2></div><p class="lead">Your name, number and photo. Check in once on this phone, then you can change them here.</p>`;return}
-  box.innerHTML=`<div class="card-h"><h2>My profile</h2>${STATUS&&STATUS.selfEdit===false?'<span class="chip g">Changes off</span>':''}</div>
+// the profile sign-in is its own thing, kept apart from check-in: a key the instructor sends on WhatsApp
+const getProf=()=>{try{const m=JSON.parse(store.get('att-prof')||'null');return m&&m.key?m:null}catch(e){return null}};
+const setProf=m=>{if(m)store.set('att-prof',JSON.stringify(m));else{store.del('att-prof');store.del('att-me-photo')}};
+function renderProfile(msg,err){
+  const box=$('#pfCard');if(!box)return;const me=getProf();
+  if(!me)return renderProfileSignIn(msg,err);
+  box.innerHTML=`<div class="card-h"><h2>My profile</h2>${STATUS&&STATUS.selfEdit===false?'<span class="chip g">Changes off</span>':'<span class="chip p">Signed in</span>'}</div>
     <div class="pfhead">${avatar(me.name,myPhoto(),'lg')}<div><h3>${esc(me.name)}</h3><div class="hint">${esc(me.id)} · ${esc(showPhone(me.phone))}</div></div></div>
     ${msg?'<div class="msg good mt">'+esc(msg)+'</div>':''}
-    <button class="btn ghost wide mt" id="pfEdit">Edit my profile</button>`;
+    <button class="btn ghost wide mt" id="pfEdit">Edit my profile</button>
+    <p class="hint mt" style="text-align:center"><button class="linkbtn" id="pfOut">Sign out of my profile on this phone</button></p>`;
   $('#pfEdit').onclick=()=>editProfile();
+  $('#pfOut').onclick=()=>{setProf(null);renderProfile()};
+}
+function renderProfileSignIn(msg,err,phone){
+  const box=$('#pfCard'),ck=getMe();phone=phone||(ck&&ck.phone)||'';
+  box.innerHTML=`<div class="card-h"><h2>My profile</h2><span class="chip g">Sign in</span></div>
+    <p class="lead">Change your name, number or photo. Ask for a key first. Your instructor sends it to you on WhatsApp.</p>
+    <form id="kqForm" novalidate><div class="field"><label for="kqPhone">Mobile number</label><input id="kqPhone" type="tel" inputmode="tel" maxlength="16" autocomplete="tel" placeholder="07X XXX XXXX" value="${esc(showPhone(phone))}"><div class="hint">The number you registered with.</div></div>
+    <div class="field"><label for="kqCode">Key</label><input id="kqCode" class="code" maxlength="9" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX"><div class="hint">8 letters and numbers from your instructor.</div></div>
+    <div id="kqMsg">${err?'<div class="msg err">'+esc(err)+'</div>':msg?'<div class="msg good">'+esc(msg)+'</div>':''}</div>
+    <div class="row"><button class="btn grow" id="kqIn">Sign in</button><button type="button" class="btn ghost grow" id="kqAsk">Ask for a key</button></div></form>`;
+  const ph=()=>cleanPhone($('#kqPhone').value);
+  $('#kqAsk').onclick=async()=>{const p=ph();if(!p)return renderProfileSignIn(null,'Type your mobile number, like 0771234567.',$('#kqPhone').value);
+    const b=$('#kqAsk');b.disabled=true;b.textContent='Sending…';
+    const r=await stuApi({action:'keyRequest',phone:p,device:DEVICE},false);
+    r.ok?renderProfileSignIn(r.message,null,p):renderProfileSignIn(null,r.message,p)};
+  $('#kqForm').onsubmit=async e=>{e.preventDefault();const p=ph(),code=$('#kqCode').value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(!p)return renderProfileSignIn(null,'Type your mobile number, like 0771234567.',$('#kqPhone').value);
+    if(code.length!==8)return renderProfileSignIn(null,'Type the 8-letter key from your instructor. No key yet? Press Ask for a key.',p);
+    const b=$('#kqIn');b.disabled=true;b.textContent='Checking…';
+    const r=await stuApi({action:'keySignIn',phone:p,code,device:DEVICE},false);
+    if(!r.ok)return renderProfileSignIn(null,r.message,p);
+    store.del('att-me-photo');setProf(Object.assign({},r.student,{key:r.key}));editProfile()};
 }
 // any photo the phone gives (camera or gallery) becomes a 192 px square JPEG of about 10 KB
 async function squarePhoto(file){
@@ -817,10 +847,10 @@ async function squarePhoto(file){
   finally{URL.revokeObjectURL(url)}
 }
 async function editProfile(msg){
-  const me=getMe();if(!me||!me.key)return renderProfile();const box=$('#pfCard');
+  const me=getProf();if(!me)return renderProfile();const box=$('#pfCard');
   box.innerHTML='<div class="card-h"><h2>My profile</h2></div><div class="spinner"></div>';
   const g=await stuApi({action:'profile',id:me.id,key:me.key,device:DEVICE},false);
-  if(!g.ok){if(g.reason==='key'){me.key='';setMe(me)}renderProfile();$('#pfCard').insertAdjacentHTML('beforeend','<div class="msg err mt">'+esc(g.message)+'</div>');return}
+  if(!g.ok){if(g.reason==='key'){setProf(null);return renderProfile(null,g.message)}renderProfile();$('#pfCard').insertAdjacentHTML('beforeend','<div class="msg err mt">'+esc(g.message)+'</div>');return}
   if(g.photo)store.set('att-me-photo',g.photo);else store.del('att-me-photo');
   const photo=g.photo||'',st=g.student;
   if(g.canEdit===false){box.innerHTML=`<div class="card-h"><h2>My profile</h2><span class="chip g">Changes off</span></div><p class="lead">Your instructor has turned off profile changes. Ask them if something is wrong.</p>`;return}
@@ -845,8 +875,8 @@ async function editProfile(msg){
     const body={action:'profileSave',id:st.id,key:me.key,name,phone,device:DEVICE};if(newPhoto!==null)body.photo=newPhoto;
     const b=$('#pfSave');b.disabled=true;b.textContent='Saving…';
     const r=await stuApi(body,false);
-    if(!r.ok){b.disabled=false;b.textContent='Save';return err(r.message)}
-    setMe(Object.assign({},me,r.student));if(newPhoto!==null){if(newPhoto)store.set('att-me-photo',newPhoto);else store.del('att-me-photo')}
+    if(!r.ok){if(r.reason==='key'){setProf(null);return renderProfile(null,r.message)}b.disabled=false;b.textContent='Save';return err(r.message)}
+    setProf(Object.assign({},me,r.student));const ck=getMe();if(ck&&(ck.id===me.id||ck.phone===me.phone))setMe(Object.assign({},ck,r.student));if(newPhoto!==null){if(newPhoto)store.set('att-me-photo',newPhoto);else store.del('att-me-photo')}
     renderMeCard();renderProfile('Saved.')};
 }
 async function startStudent(){
@@ -869,7 +899,7 @@ async function adminCall(body){
   return r;
 }
 // the page expects this server version; older Apps Script copies lack newer actions (like opening a past day)
-const SERVER_NEEDS=8;
+const SERVER_NEEDS=9;
 const oldServer=()=>!isDemo()&&DATA&&DATA.status&&(DATA.status.version||0)<SERVER_NEEDS;
 function oldServerHTML(){return `<div class="msg err mb" id="oldSrv"><b>Update the server code.</b> Your Google Apps Script still runs an older copy, so opening past days and other newer features will fail. In the Sheet open <b>Extensions › Apps Script</b>, replace everything in <code>Code.gs</code> with the new code and save. Then <b>Deploy › Manage deployments</b>, click the pencil, set <b>Version: New version</b> and <b>Deploy</b>. Do not make a new deployment, or the link changes. <button class="btn small" id="oldSrvCopy">Copy new server code</button></div>`}
 function logoutLocal(){PHOTOS=null;photosAt=0;TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
@@ -887,8 +917,8 @@ $('#toSetup').onclick=()=>{location.hash='#setup'};
 $('#toStudent').onclick=()=>{location.hash=''};
 $('#toAdmin').onclick=()=>{location.hash='#admin'};
 
-const TABS=[['home','Dashboard','Overview'],['live','Live QR','Class'],['register','Register','Class'],['reports','Reports','Records'],['students','Students','Records'],['excuses','Excuses','Records'],['days','Class days','Records'],['ops','Operations','System'],['log','Activity log','System'],['settings','Settings','System']];
-const PAGES={home:['Dashboard','Today at a glance, and who needs a nudge.'],live:['Live check-in','Show this on the projector. The code changes every few seconds so only people in the room can check in.'],
+const TABS=[['home','Dashboard','Overview'],['inbox','Inbox','Overview'],['live','Live QR','Class'],['register','Register','Class'],['reports','Reports','Records'],['students','Students','Records'],['excuses','Excuses','Records'],['days','Class days','Records'],['ops','Operations','System'],['log','Activity log','System'],['settings','Settings','System']];
+const PAGES={home:['Dashboard','Today at a glance, and who needs a nudge.'],inbox:['Inbox','Students asking for a profile key. Send each one their code on WhatsApp.'],live:['Live check-in','Show this on the projector. The code changes every few seconds so only people in the room can check in.'],
   register:['Register','The class sheet. Tap a cell to mark present, tap again for absent.'],reports:['Reports','Pass marks, per-student and per-day records, and exports.'],
   students:['Students','Everyone on the class list, with their IDs and mobile numbers.'],excuses:['Excused absences','Approved absences count toward the pass mark when you choose.'],
   days:['Class days','Add a class nobody checked in to, or cancel a day so it does not count.'],ops:['Operations','Every change you save, its status, and retries when the server is slow.'],log:['Activity log','Every check-in try and admin change, newest first.'],settings:['Settings','Check-in window, security checks and the student ID format.']};
@@ -904,7 +934,7 @@ function goTab(k){if(k==='more'){$('#moreSheet').showModal();return}if(k==='logo
   TAB=k;sess.set('att-tab',TAB);if($('#moreSheet').open)$('#moreSheet').close();paintNav();renderPane();window.scrollTo({top:0})}
 ['#tabs','#bnav','#moreNav'].forEach(id=>$(id).addEventListener('click',e=>{const b=e.target.closest('button[data-k]');if(b)goTab(b.dataset.k)}));
 $('#moreSheet').addEventListener('click',e=>{if(e.target===$('#moreSheet'))$('#moreSheet').close()});
-const sig=d=>d?JSON.stringify([d.students,d.attendance,d.excuses,d.days,d.settings,d.status&&d.status.open,d.status&&d.status.todayDone,d.status&&d.status.openDay]):'';
+const sig=d=>d?JSON.stringify([d.requests,d.students,d.attendance,d.excuses,d.days,d.settings,d.status&&d.status.open,d.status&&d.status.todayDone,d.status&&d.status.openDay]):'';
 async function loadData(show,quiet){
   let r;try{r=await timedCall({action:'data'})}catch(e){if(!quiet)toast(e.message+' Your changes are kept under Operations.',true);return false}
   if(!r.ok){if(r.reason!=='auth'&&!quiet)toast(r.message,true);return false}
@@ -938,9 +968,41 @@ function paintHead(acts){const [t,d]=PAGES[TAB];document.title=t+' · Class Atte
 function renderPane(){
   stopLive();if(!DATA)return;paintHead();
   const box=$('#paneBox');
-  ({home:paneHome,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,ops:paneOps,log:paneLog,settings:paneSettings})[TAB](box);
+  ({home:paneHome,inbox:paneInbox,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,ops:paneOps,log:paneLog,settings:paneSettings})[TAB](box);
   if(oldServer()){box.insertAdjacentHTML('afterbegin',oldServerHTML());$('#oldSrvCopy').onclick=copyServerCode}
+  inboxBadge();
+  const n=inboxN();if(n&&TAB==='home'){box.insertAdjacentHTML('afterbegin',`<div class="msg mb" id="inbNote"><b>${n} student${n===1?'':'s'}</b> asked for a profile key. <button class="btn small" id="inbGo">Open Inbox</button></div>`);$('#inbGo').onclick=()=>goTab('inbox')}
 }
+/* Inbox: students who asked for a profile key. Send the code on WhatsApp; it works once, for 3 days. */
+const REQ_MS=3*864e5;
+const reqLive=r=>(r.status==='new'||r.status==='sent')&&nowMs()-Number(r.at)<REQ_MS;
+const inboxN=()=>DATA&&DATA.requests?DATA.requests.filter(r=>r.status==='new'&&nowMs()-Number(r.at)<REQ_MS).length:0;
+function inboxBadge(){document.querySelectorAll('.ibadge').forEach(e=>e.remove());const n=inboxN();
+  if(n)document.querySelectorAll('[data-k="inbox"],#bnav [data-k="more"]').forEach(e=>e.insertAdjacentHTML('beforeend',`<span class="nbadge ibadge">${n}</span>`))}
+const fmtCode=c=>String(c||'').slice(0,4)+'-'+String(c||'').slice(4);
+function keyMessage(r){const page=location.origin+location.pathname;
+  return `Hi ${r.name.split(' ')[0]}, your key for the Cyber Security class profile is ${fmtCode(r.code)}. Open ${page}, go to My profile, and type your number and this key. It works once, within 3 days.`}
+const waLink=r=>'https://wa.me/94'+String(r.phone||'').replace(/^0/,'')+'?text='+encodeURIComponent(keyMessage(r));
+let inboxAll=false;
+function paneInbox(box){
+  const all=(DATA.requests||[]).slice().sort((a,b)=>Number(b.at)-Number(a.at)),list=inboxAll?all:all.filter(reqLive);
+  const ST={new:['New','x'],sent:['Sent','p'],used:['Signed in','p'],dismissed:['Dismissed','g']};
+  const chip=r=>{const st=r.status!=='used'&&r.status!=='dismissed'&&!reqLive(r)?['Expired','g']:ST[r.status]||[r.status,'g'];return `<span class="chip ${st[1]}">${esc(st[0])}</span>`};
+  box.innerHTML=`<div class="pane"><div class="toolbar"><div class="seg" role="tablist"><button class="${inboxAll?'':'on'}" data-f="0">Waiting (${all.filter(reqLive).length})</button><button class="${inboxAll?'on':''}" data-f="1">All, last 30 days (${all.length})</button></div></div>
+    <p class="hint mb">A student asks for a key under <b>My profile</b> on the check-in page. Send them the code below on WhatsApp. It works once, within 3 days, and only with their own number. To give a key without a request, use Students › Edit › Give a profile key.</p>
+    <div class="list">${list.map(r=>`<div class="li inb"><div class="l">${avatar(r.name,PHOTOS&&PHOTOS[r.id])}<div class="nm"><b>${esc(r.name)}</b><span>${esc(r.id)} · ${esc(showPhone(r.phone))} · asked ${esc(niceMs(Number(r.at)))}</span></div></div>
+      <div class="inb-r">${chip(r)}${reqLive(r)?`<code class="kcode">${esc(fmtCode(r.code))}</code>
+        <a class="btn small" href="${esc(waLink(r))}" target="_blank" rel="noopener" data-sent="${esc(r.rid)}">Send on WhatsApp</a>
+        <button class="btn small ghost" data-copy="${esc(r.rid)}">Copy message</button>
+        <button class="btn small ghost" data-dis="${esc(r.rid)}">Dismiss</button>`:''}</div></div>`).join('')||emptyHTML(inboxAll?'No requests yet':'Nothing waiting','When a student asks for a profile key, it shows here.')}</div></div>`;
+  box.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{inboxAll=b.dataset.f==='1';paneInbox(box)});
+  const find=rid=>all.find(r=>r.rid===rid);
+  const mark=async(rid,status)=>{const r=await saveOp({action:'keyReq',rid,status});if(r.ok){const x=find(rid);if(x&&r.request)Object.assign(x,r.request);inboxBadge();if(TAB==='inbox')paneInbox(box)}else toast(r.message,true)};
+  box.querySelectorAll('[data-sent]').forEach(a=>a.addEventListener('click',()=>{const x=find(a.dataset.sent);if(x&&x.status==='new')mark(x.rid,'sent')}));
+  box.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async()=>{const x=find(b.dataset.copy);try{await navigator.clipboard.writeText(keyMessage(x));toast('Message copied. Paste it in any chat.');if(x.status==='new')mark(x.rid,'sent')}catch(e){toast('Copy failed. The key is '+fmtCode(x.code),true)}});
+  box.querySelectorAll('[data-dis]').forEach(b=>b.onclick=async()=>{const x=find(b.dataset.dis);if(!await ask({title:'Dismiss '+x.name+'’s request?',text:'The key stops working. They can ask again.',ok:'Dismiss',danger:true}))return;mark(x.rid,'dismissed')});
+}
+
 async function copyServerCode(){try{const t=await (await fetch('attendance-server.js',{cache:'no-store'})).text();await navigator.clipboard.writeText(t);toast('Server code copied')}catch(e){toast('Copy failed. Use "view" in Setup and copy by hand.',true)}}
 
 /* Dashboard */
@@ -1302,9 +1364,10 @@ function paneStudents(box){
   draw();$('#find').oninput=draw;
   // the student's own photo and profile key, for the student being edited
   function profBox(s){const el=$('#fprof'),p=PHOTOS&&PHOTOS[s.id];if(oldServer()){el.hidden=true;return}el.hidden=false;
-    el.innerHTML=`<div class="pfhead">${avatar(s.name,p,'lg')}<div><div class="hint mb">${p?'Photo added by the student.':'No photo yet. Students add one under My profile.'}</div><div class="row">${p?'<button type="button" class="btn small ghost" id="fpdel">Remove photo</button>':''}<button type="button" class="btn small ghost" id="fpkey">Sign out of profile</button></div></div></div>`;
+    el.innerHTML=`<div class="pfhead">${avatar(s.name,p,'lg')}<div><div class="hint mb">${p?'Photo added by the student.':'No photo yet. Students add one under My profile.'}</div><div class="row">${p?'<button type="button" class="btn small ghost" id="fpdel">Remove photo</button>':''}<button type="button" class="btn small ghost" id="fpgive">Give a profile key</button><button type="button" class="btn small ghost" id="fpkey">Sign out of profile</button></div></div></div>`;
     const d=$('#fpdel');if(d)d.onclick=async()=>{if(!await ask({title:'Remove '+s.name+'’s photo?',text:'They can add a new one.',ok:'Remove photo',danger:true}))return;const r=await saveOp({action:'photo',id:s.id});if(r.ok){delete PHOTOS[s.id];toast('Photo removed');profBox(s);draw()}else toast(r.message,true)};
-    $('#fpkey').onclick=async()=>{if(!await ask({title:'Sign '+s.name+' out of their profile?',text:'For a lost or shared phone. Profile changes stop working on every phone until they check in again.',ok:'Sign out'}))return;const r=await saveOp({action:'profileKey',id:s.id});if(r.ok)toast('Signed out of profile');else toast(r.message,true)}}
+    $('#fpgive').onclick=async()=>{const r=await saveOp({action:'keyIssue',id:s.id});if(r.ok){toast('Key made. Send it from the Inbox.');await loadData();goTab('inbox')}else toast(r.message,true)};
+    $('#fpkey').onclick=async()=>{if(!await ask({title:'Sign '+s.name+' out of their profile?',text:'For a lost or shared phone. Profile changes stop working on every phone until they get a new key from you.',ok:'Sign out'}))return;const r=await saveOp({action:'profileKey',id:s.id});if(r.ok)toast('Signed out of profile');else toast(r.message,true)}}
   const clear=()=>{editId='';$('#stForm').reset();$('#fprof').hidden=true;$('#fid').value=(DATA.nextIdPreview||'')+' (next, given on save)';$('#stFormTitle').textContent='Add a student';$('#fdel').hidden=true};
   $('#fclear').onclick=clear;
   $('#stForm').onsubmit=async e=>{e.preventDefault();const ph=cleanPhone($('#fphone').value);if(!ph)return toast('Type a mobile number like 0771234567',true);
@@ -1385,6 +1448,10 @@ function describeOp(b){const d=x=>x?niceDate(x):'';
     case 'extra':return ['Check-in',+b.minutes?'Open check-in for '+b.minutes+' min':'Close the extra window'];
     case 'openDay':return ['Register',+b.minutes?'Open '+d(b.date)+' for editing ('+b.minutes+' min)':'Lock the open past day'];
     case 'settings':return ['Settings','Save settings'];
+    case 'keyReq':{const r=DATA&&(DATA.requests||[]).find(x=>x.rid===b.rid);return ['Inbox',(b.status==='sent'?'Key sent to ':b.status==='dismissed'?'Dismiss key for ':'Key request ')+(r?r.name:'')]}
+    case 'keyIssue':return ['Inbox','Make a profile key for '+opName(b.id)];
+    case 'photo':return ['Students','Remove photo of '+opName(b.id)];
+    case 'profileKey':return ['Students','Sign '+opName(b.id)+' out of profile'];
   }return ['Other',b.action]}
 const cellsOf=b=>b.action==='marks'?(b.list||[]):b.action==='mark'?[b]:[];
 // a newer change to the same register cell replaces any older one that has not gone out yet
@@ -1474,8 +1541,8 @@ function pendingMarks(){const m={};OPS.filter(o=>mine(o)&&(OP_ACTIVE.includes(o.
 let opsRaf=0,opsRegSig='';
 function opsPaint(){if(opsRaf)return;opsRaf=requestAnimationFrame(()=>{opsRaf=0;
   const a=opsActiveN(),n=opsAttnN();
-  document.querySelectorAll('[data-k="ops"] .nbadge,[data-k="more"] .nbadge').forEach(e=>e.remove());
-  if(n)document.querySelectorAll('[data-k="ops"],#bnav [data-k="more"]').forEach(e=>e.insertAdjacentHTML('beforeend',`<span class="nbadge">${n}</span>`));
+  document.querySelectorAll('[data-k="ops"] .nbadge,[data-k="more"] .nbadge:not(.ibadge)').forEach(e=>e.remove());
+  if(n)document.querySelectorAll('[data-k="ops"],#bnav [data-k="more"]').forEach(e=>{if(!e.querySelector('.nbadge'))e.insertAdjacentHTML('beforeend',`<span class="nbadge">${n}</span>`)});
   const c=$('#opsChip');if(c)c.innerHTML=n?`<button class="btn ghost danger-t" id="opsChipB">${n} not saved</button>`:a?`<button class="btn ghost" id="opsChipB"><span class="mini-spin"></span>Saving ${a}</button>`:'';
   const cb=$('#opsChipB');if(cb)cb.onclick=()=>goTab('ops');
   if(TAB==='ops'&&$('#opsBody'))paintOpsBody();

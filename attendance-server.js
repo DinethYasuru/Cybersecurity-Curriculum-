@@ -30,7 +30,7 @@
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 8;
+var SERVER_VERSION = 9;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -41,7 +41,7 @@ var DEFAULT_SETTINGS = {
   requireCode: true,    // must scan the live QR (or type its code) in the room
   selfRegister: true,   // new students may register themselves (mobile number + name) on first check-in
   oneDevice: true,      // one student per phone per day
-  selfEdit: true,       // students may change their own name, number and photo (after one check-in on that phone)
+  selfEdit: true,       // students may change their own name, number and photo (after signing in with a key from the instructor)
   fromFirst: true,      // count a student's classes from the day they joined, not from week 1
   slotSeconds: 30,      // QR code changes every 30 s
   codeSlots: 5,         // a code stays valid for 5 slots (about 2.5 min)
@@ -57,10 +57,11 @@ var TABLES = {
   excuses:    ['date', 'id', 'reason', 'added'],
   days:       ['date', 'status', 'note'],
   log:        ['ts', 'date', 'time', 'action', 'id', 'name', 'device', 'result', 'detail'],
-  profiles:   ['id', 'photo', 'updated']   // profile photos, kept apart so the Students tab stays small and fast
+  profiles:   ['id', 'photo', 'updated'],  // profile photos, kept apart so the Students tab stays small and fast
+  requests:   ['rid', 'id', 'name', 'phone', 'at', 'code', 'status', 'updated']   // profile key requests: the instructor's inbox
 };
 
-var SHEET_NAMES = { students: 'Students', attendance: 'Attendance', excuses: 'Excuses', days: 'Days', log: 'Log', profiles: 'Profiles' };
+var SHEET_NAMES = { students: 'Students', attendance: 'Attendance', excuses: 'Excuses', days: 'Days', log: 'Log', profiles: 'Profiles', requests: 'Key requests' };
 var BACKUPS_KEPT = 30;
 
 var CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -191,9 +192,10 @@ function AttendanceCore(rawEnv) {
   function maskName(n) { return cleanName(n).split(' ').map(function (w) { return w.slice(0, 2) + (w.length > 2 ? new Array(w.length - 1).join('*') : ''); }).join(' '); }
   function cleanDevice(v) { return String(v || '').replace(/[^a-z0-9]/gi, '').slice(0, 40); }
 
-  // Profile key: a check-in on a phone gives it a key for that student (an HMAC of the ID with a server
-  // secret). Changing a profile needs the key, so knowing someone's number and name is not enough.
-  // The instructor can cancel one student's key (Students > Edit > Sign out of profile).
+  // Profile key: separate from check-in. A student types their number and asks for a key; the request
+  // lands in the instructor's Inbox with a short sign-in code, which the instructor sends on WhatsApp.
+  // The code (once, within 3 days) gives the phone the long key (an HMAC of the ID with a server
+  // secret) that profile changes need. Students > Edit > Sign out of profile cancels every key of one student.
   function keyVersions() { try { return JSON.parse(env.getProp('stuKv') || '{}'); } catch (e) { return {}; } }
   function stuKey(id) {
     var sec = env.getProp('stuSecret');
@@ -290,13 +292,13 @@ function AttendanceCore(rawEnv) {
       if (r.id === st.id) mine = r;
       else if (s.oneDevice && r.device && r.device === device) other = r;
     });
-    if (mine) { L('duplicate', 'already at ' + mine.time); return { ok: true, already: true, date: t.date, time: mine.time, student: studentOut(st), key: stuKey(st.id) }; }
+    if (mine) { L('duplicate', 'already at ' + mine.time); return { ok: true, already: true, date: t.date, time: mine.time, student: studentOut(st) }; }
     if (other) { L('rejected', 'device used by ' + other.id); return fail('shared', 'This phone already checked in another student today. Use your own phone, or ask your instructor.'); }
 
     env.append('attendance', { date: t.date, id: st.id, name: st.name, time: t.time, device: device, method: s.requireCode ? 'qr' : 'open', note: '' });
     if (!env.read('days').some(function (r) { return r.date === t.date; })) env.append('days', { date: t.date, status: 'held', note: '' });
     L('accepted', '');
-    return { ok: true, date: t.date, time: t.time, student: studentOut(st), key: stuKey(st.id) };
+    return { ok: true, date: t.date, time: t.time, student: studentOut(st) };
   }
 
   function me(req, now) {
@@ -321,10 +323,46 @@ function AttendanceCore(rawEnv) {
   function profileStudent(req) {
     var id = cleanId(req.id);
     if (rateLimited('pf:' + id, 30, 3600)) return { err: fail('slow', 'Too many tries. Wait an hour.') };
-    if (!keyOk(id, req.key)) return { err: fail('key', 'Check in once on this phone to change your profile.') };
+    var KEY = 'Sign in again: ask your instructor for a new key.';
+    if (!keyOk(id, req.key)) return { err: fail('key', KEY) };
     var st = env.read('students').filter(function (r) { return r.id === id; })[0];
-    if (!st) return { err: fail('key', 'Check in once on this phone to change your profile.') };
+    if (!st || String(st.active) === 'no') return { err: fail('key', KEY) };
     return { st: st };
+  }
+  // step 1: "send me a key". The answer is the same whether or not the number is registered, so it
+  // can't be used to find out who is in the class.
+  var REQ_DAYS = 3;
+  function newCode() { var r = env.random(), c = ''; for (var i = 0; i < 8; i++) c += CODE_ALPHABET.charAt(parseInt(r.substr(i * 2, 2), 16) & 31); return c; }
+  function keyRequest(req, now) {
+    var s = settings(), phone = cleanPhone(req.phone), device = cleanDevice(req.device);
+    if (!/^[a-z0-9]{8,40}$/i.test(device)) return fail('device', 'Open this page in a normal browser tab and try again.');
+    if (!phone) return fail('phone', 'Type your mobile number, like 0771234567.');
+    if (rateLimited('kr:' + device, 6, 3600) || rateLimited('kp:' + phone, 3, 3600)) return fail('slow', 'Too many requests. Try again in an hour, or message your instructor.');
+    if (!s.selfEdit) return fail('off', 'Your instructor has turned off profile changes.');
+    var SENT = { ok: true, message: 'Request sent. Your instructor will send your key on WhatsApp. Then type it here.' };
+    var st = byPhone(phone);
+    if (!st || String(st.active) === 'no') { log(now, s, 'key request', phone, '', device, 'rejected', 'unknown number'); return SENT; }
+    var rows = env.read('requests'), open = rows.filter(function (r) { return r.id === st.id && r.status !== 'used' && r.status !== 'dismissed' && now - Number(r.at) < REQ_DAYS * 86400000; })[0];
+    if (open) { log(now, s, 'key request', st.id, st.name, device, 'duplicate', 'already waiting'); return SENT; }
+    var rid = env.random().slice(0, 12);
+    env.append('requests', { rid: rid, id: st.id, name: st.name, phone: st.phone, at: String(now), code: newCode(), status: 'new', updated: String(now) });
+    log(now, s, 'key request', st.id, st.name, device, 'accepted', rid);
+    return SENT;
+  }
+  // step 2: the student types the code the instructor sent
+  function keySignIn(req, now) {
+    var s = settings(), phone = cleanPhone(req.phone), device = cleanDevice(req.device), code = String(req.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!phone) return fail('phone', 'Type your mobile number, like 0771234567.');
+    if (rateLimited('ks:' + phone, 6, 900) || rateLimited('kd:' + device, 10, 900)) return fail('slow', 'Too many tries. Wait 15 minutes.');
+    var st = byPhone(phone), BAD = fail('code', 'That key is not right for this number, or it has expired. Ask your instructor for a new one.');
+    if (!st || String(st.active) === 'no' || code.length !== 8) { log(now, s, 'key sign-in', phone, '', device, 'rejected', 'bad key'); return BAD; }
+    var rows = env.read('requests'), hit = null;
+    rows.forEach(function (r) { if (r.id === st.id && r.code === code && r.status !== 'used' && r.status !== 'dismissed' && now - Number(r.at) < REQ_DAYS * 86400000) hit = r; });
+    if (!hit) { log(now, s, 'key sign-in', st.id, st.name, device, 'rejected', 'bad key'); return BAD; }
+    hit.status = 'used'; hit.updated = String(now);
+    env.write('requests', rows);
+    log(now, s, 'key sign-in', st.id, st.name, device, 'accepted', hit.rid);
+    return { ok: true, student: studentOut(st), key: stuKey(st.id) };
   }
   function photoOf(id) { var p = env.read('profiles').filter(function (r) { return r.id === id; })[0]; return p ? p.photo : ''; }
   function profileGet(req, now) {
@@ -423,6 +461,7 @@ function AttendanceCore(rawEnv) {
       return { ok: true, now: now, today: t.date, settings: s, status: publicStatus(now),
         students: env.read('students'), attendance: env.read('attendance'), excuses: env.read('excuses'),
         days: env.read('days'), log: lg.slice(Math.max(0, lg.length - 400)), backup: backupInfo(),
+        requests: env.read('requests').filter(function (r) { return now - Number(r.at) < 30 * 86400000; }),
         nextIdPreview: formatId(s, Math.max(Number(env.getProp('idNext') || 0), Number(s.idStart) || 1)) };
     }
     if (a === 'photos') {
@@ -436,10 +475,34 @@ function AttendanceCore(rawEnv) {
       env.write('profiles', env.read('profiles').filter(function (r) { return r.id !== id; }));
       A('photo removed'); return { ok: true };
     }
+    if (a === 'keyReq') {
+      // inbox: mark a request sent (you messaged the code) or dismissed (the code stops working)
+      rows = env.read('requests');
+      var rq = rows.filter(function (r) { return r.rid === String(req.rid || ''); })[0];
+      if (!rq) return fail('input', 'That request is gone.');
+      if (req.status !== 'sent' && req.status !== 'dismissed' && req.status !== 'new') return fail('input', 'Pick sent or dismissed.');
+      if (rq.status === 'used') return { ok: true, request: rq };
+      rq.status = req.status; rq.updated = String(now);
+      env.write('requests', rows);
+      log(now, s, a, rq.id, rq.name, 'admin', 'done', req.status); return { ok: true, request: rq };
+    }
+    if (a === 'keyIssue') {
+      // give a student a code without waiting for them to ask
+      var sk = env.read('students').filter(function (r) { return r.id === id; })[0];
+      if (!sk || !sk.phone) return fail('input', 'This student needs a mobile number first.');
+      rows = env.read('requests');
+      rows.forEach(function (r) { if (r.id === id && (r.status === 'new' || r.status === 'sent')) { r.status = 'dismissed'; r.updated = String(now); } });
+      var nr = { rid: env.random().slice(0, 12), id: id, name: sk.name, phone: sk.phone, at: String(now), code: newCode(), status: 'new', updated: String(now) };
+      rows.push(nr); env.write('requests', rows);
+      A('key code made'); return { ok: true, request: nr };
+    }
     if (a === 'profileKey') {
       // a lost or shared phone: the old key stops working; the student checks in again to get a new one
       if (!validId(id)) return fail('input', 'Pick a student.');
       var kv = keyVersions(); kv[id] = (kv[id] || 0) + 1; env.setProp('stuKv', JSON.stringify(kv));
+      var rq2 = env.read('requests'), ch = false;
+      rq2.forEach(function (r) { if (r.id === id && (r.status === 'new' || r.status === 'sent')) { r.status = 'dismissed'; r.updated = String(now); ch = true; } });
+      if (ch) env.write('requests', rq2);
       A('profile key reset'); return { ok: true };
     }
     if (a === 'export') {
@@ -584,7 +647,7 @@ function AttendanceCore(rawEnv) {
 
   function backupInfo() { try { return JSON.parse(env.getProp('backup') || 'null') || { auto: false }; } catch (e) { return { auto: false }; } }
 
-  var WRITES = { mark: 1, marks: 1, excuse: 1, student: 1, bulk: 1, day: 1, extra: 1, openDay: 1, settings: 1, photo: 1, profileKey: 1 };
+  var WRITES = { mark: 1, marks: 1, excuse: 1, student: 1, bulk: 1, day: 1, extra: 1, openDay: 1, settings: 1, photo: 1, profileKey: 1, keyReq: 1, keyIssue: 1 };
   // reading and backups don't wait for the lock, so the live screen never slows check-in down
   var NOLOCK = { data: 1, today: 1, logout: 1, export: 1, backup: 1, backupAuto: 1, photos: 1 };
   function handle(req) {
@@ -597,6 +660,8 @@ function AttendanceCore(rawEnv) {
       if (req.action === 'checkin') return env.lock(function () { return checkin(req, now); });
       if (req.action === 'me') return me(req, now);
       if (req.action === 'profile') return profileGet(req, now);
+      if (req.action === 'keyRequest') return env.lock(function () { return keyRequest(req, now); });
+      if (req.action === 'keySignIn') return env.lock(function () { return keySignIn(req, now); });
       if (req.action === 'profileSave') return env.lock(function () { return profileSave(req, now); });
       if (req.action === 'login') return login(req, now);
       if (!adminOk(req)) return fail('auth', 'Please log in again.');
@@ -624,7 +689,7 @@ function AttendanceCore(rawEnv) {
 // Speed: Sheets reads are slow (about 0.2 s each), so each tab except Log is also kept in the script
 // cache. Every write gives the tab a new "generation"; a copy saved under an older generation is never
 // read again, so a slow reader can't put back stale data. Typing in the Sheet does the same (onEdit).
-var CACHED_TABS = { students: 1, attendance: 1, excuses: 1, days: 1 };
+var CACHED_TABS = { students: 1, attendance: 1, excuses: 1, days: 1, requests: 1 };
 var CACHE_SECONDS = 21600, CHUNK = 90000;
 function tabGen_(cache, t, fresh) {
   var g = fresh ? null : cache.get('g:' + t);
