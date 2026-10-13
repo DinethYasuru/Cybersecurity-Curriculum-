@@ -732,8 +732,13 @@ const RPT={th:Number(store.get('att-th')||80),useExc:store.get('att-useexc')!=='
 async function adminCall(body){
   const r=await api(Object.assign({token:TOKEN},body));
   if(!r.ok&&r.reason==='auth'){logoutLocal();toast('Session ended. Log in again.',true)}
+  if(!r.ok&&r.reason==='action')r.message='Apps Script still runs the old server code. Paste the new code and deploy a new version (see the red box at the top).';
   return r;
 }
+// the page expects this server version; older Apps Script copies lack late check-in and other new actions
+const SERVER_NEEDS=4;
+const oldServer=()=>!isDemo()&&DATA&&DATA.status&&(DATA.status.version||0)<SERVER_NEEDS;
+function oldServerHTML(){return `<div class="msg err mb" id="oldSrv"><b>Update the server code.</b> Your Google Apps Script still runs an older copy, so late check-in and newer features will fail. In the Sheet open <b>Extensions › Apps Script</b>, replace everything in <code>Code.gs</code> with the new code and save. Then <b>Deploy › Manage deployments</b>, click the pencil, set <b>Version: New version</b> and <b>Deploy</b>. Do not make a new deployment, or the link changes. <button class="btn small" id="oldSrvCopy">Copy new server code</button></div>`}
 function logoutLocal(){TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
 $('#loginForm').onsubmit=async e=>{
   e.preventDefault();const btn=$('#loginBtn');btn.disabled=true;btn.textContent='Checking…';$('#loginMsg').innerHTML='';
@@ -798,7 +803,9 @@ function renderPane(){
   stopLive();if(!DATA)return;paintHead();
   const box=$('#paneBox');
   ({home:paneHome,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,log:paneLog,settings:paneSettings})[TAB](box);
+  if(oldServer()){box.insertAdjacentHTML('afterbegin',oldServerHTML());$('#oldSrvCopy').onclick=copyServerCode}
 }
+async function copyServerCode(){try{const t=await (await fetch('attendance-server.js',{cache:'no-store'})).text();await navigator.clipboard.writeText(t);toast('Server code copied')}catch(e){toast('Copy failed. Use "view" in Setup and copy by hand.',true)}}
 
 /* Dashboard */
 const initials=n=>String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('');
@@ -910,6 +917,7 @@ function paintLiveState(){
 function pastClassDays(){const t=DATA.today;return DATA.days.filter(d=>d.status!=='cancelled'&&d.date<t).map(d=>d.date).sort().reverse()}
 async function reopenDialog(date){
   const days=pastClassDays();
+  if(oldServer()){toast('Update the server code first (red box at the top).',true);return}
   if(!days.length){toast('No past class days yet. Add one in Register first.',true);return}
   if(DATA.status.open&&!DATA.status.reopen){toast('Check-in is open for today now. Reopen a past class after it closes.',true);return}
   const d=$('#dlg');$('#dlgT').textContent='Reopen a past class';$('#dlgF').hidden=true;$('#dlgP').hidden=false;
@@ -1245,7 +1253,7 @@ function renderSetup(){
     <h3 class="mt">Sample class</h3><p class="hint mb">Adds 14 students and 6 past Saturdays so the reports have something to show.</p><button class="btn small" id="seed">Add sample class</button>
     <p class="hint mt">Demo password: <b>demo1234</b>. To test a student check-in, open <a href="${esc(page)}?s=demo" target="_blank" rel="noopener">the student page</a> in another tab and type the code from Live QR.</p>`:''}
     <h3 class="mt">What the checks stop</h3><ul class="steps"><li>Check-ins outside ${esc(STATUS?windowText(STATUS.window):'Saturdays, 09:00 to 13:00')} (server clock).</li><li>Checking in from home: the QR code changes every 30 s.</li><li>Two check-ins for one student on one day.</li><li>One phone checking in several friends.</li><li>One mobile number registered twice, or a student marked without confirming their ID and name.</li><li>Anyone changing records without the admin password.</li></ul></div></div>`;
-  $('#copyCode').onclick=async()=>{try{const t=await (await fetch('attendance-server.js',{cache:'no-store'})).text();await navigator.clipboard.writeText(t);toast('Server code copied')}catch(e){toast('Copy failed. Use "view" and copy by hand.',true)}};
+  $('#copyCode').onclick=copyServerCode;
   $('#toLogin').onclick=()=>{location.hash='#admin'};
   $('#srvForm').onsubmit=async e=>{e.preventDefault();const id=scriptIdFrom($('#srv').value);if(!id||id==='demo'){$('#srvMsg').innerHTML='<div class="msg err">That does not look like a Web app URL. It ends with /exec.</div>';return}
     const old=SID;SID=id;$('#srvMsg').innerHTML='<div class="spinner"></div>';
