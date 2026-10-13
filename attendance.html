@@ -604,7 +604,11 @@ function randHex(n){const a=new Uint8Array(n);crypto.getRandomValues(a);return A
 const params=new URLSearchParams(location.search);
 function scriptIdFrom(v){v=String(v||'').trim();if(v==='demo')return 'demo';const m=v.match(/\/s\/([A-Za-z0-9_-]{20,})\//)||v.match(/^([A-Za-z0-9_-]{20,})$/);return m?m[1]:''}
 // a QR link wins, then what Setup saved on this device (or demo), then the class server built in above
-let SID=scriptIdFrom(params.get('s'))||scriptIdFrom(store.get('att-server'))||scriptIdFrom(SERVER_URL);
+// With the class server built in, every device uses it (or demo mode). A server id saved earlier on a phone,
+// from an old QR or an old deployment, could point at an older copy of the code, so it is not used then.
+const BUILT_IN=scriptIdFrom(SERVER_URL),wantDemo=params.get('s')==='demo'||(!params.get('s')&&store.get('att-server')==='demo');
+let SID=BUILT_IN?(wantDemo?'demo':BUILT_IN):scriptIdFrom(params.get('s'))||scriptIdFrom(store.get('att-server'));
+if(BUILT_IN&&!wantDemo&&store.get('att-server')&&store.get('att-server')!==BUILT_IN)store.del('att-server');
 if(params.get('s')&&SID)store.set('att-server',SID);
 const isDemo=()=>SID==='demo';
 let demoCore=null;
@@ -821,7 +825,7 @@ function renderProfile(msg,err){
 }
 function renderProfileSignIn(msg,err,phone){
   const box=$('#pfCard'),ck=getMe();phone=phone||(ck&&ck.phone)||'';
-  if(!isDemo()&&STATUS&&(STATUS.version||0)<SERVER_NEEDS){box.innerHTML=`<div class="card-h"><h2>My profile</h2></div><p class="lead">Change your name, number or photo here soon.</p><div class="msg">${esc(OLD_STU)}</div>`;return}
+  if(!isDemo()&&STATUS&&(STATUS.version||0)<SERVER_NEEDS){box.innerHTML=`<div class="card-h"><h2>My profile</h2></div><p class="lead">Change your name, number or photo here soon.</p><div class="msg">${esc(OLD_STU)}</div><p class="hint mt">Server version ${esc(STATUS.version||'old')}, this page needs ${SERVER_NEEDS}.</p>`;return}
   box.innerHTML=`<div class="card-h"><h2>My profile</h2><span class="chip g">Sign in</span></div>
     <p class="lead">Change your name, number or photo. Ask for a key first. Your instructor sends it to you on WhatsApp.</p>
     <form id="kqForm" novalidate><div class="field"><label for="kqPhone">Mobile number</label><input id="kqPhone" type="tel" inputmode="tel" maxlength="16" autocomplete="tel" placeholder="07X XXX XXXX" value="${esc(showPhone(phone))}"><div class="hint">The number you registered with.</div></div>
