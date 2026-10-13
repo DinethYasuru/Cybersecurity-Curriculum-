@@ -260,9 +260,14 @@ td.name .hint{font-weight:400}
 .reg td.cell button.saving{opacity:.55}
 .reg td.tot{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 .reg th.today{color:var(--red)}
-.thb{all:unset;cursor:pointer;border-bottom:1px dashed currentColor;padding:2px 0}
-.thb:hover{color:var(--navy)}
-.thb:focus-visible{box-shadow:var(--ring);border-radius:4px}
+.reg td.cell button.lk{opacity:.42;cursor:pointer}
+.reg td.cell button.lk:hover{opacity:.7}
+.reg th .thb{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:inherit;border-radius:6px;padding:2px 4px}
+.reg th .thb svg{width:12px;height:12px;flex:none}
+.reg th .thb:hover{background:var(--navy-50);color:var(--navy)}
+.reg th .thb:focus-visible{box-shadow:0 0 0 3px var(--navy)}
+.reg th.opened{background:var(--navy-50);color:var(--navy)}
+.reg td.cell.opened{background:#f6f8fc}
 .legend{display:flex;gap:var(--s4);flex-wrap:wrap;align-items:center;color:var(--muted);font-size:.9rem}
 .row>.legend{flex:1 1 260px}
 .legend b{display:inline-flex;align-items:center;justify-content:center;width:28px;height:24px;border-radius:6px;font-family:'Outfit';margin-right:6px}
@@ -599,13 +604,11 @@ async function refreshStatus(){
   catch(e){setPill('closed','Offline: '+e.message.replace(/\.$/,''));return null}
 }
 function setPill(cls,txt){const p=$('#pill');p.className='pill '+cls;p.querySelector('span').textContent=txt}
-const hhmm=ms=>{const e=localParts(ms);return p2(e.hh)+':'+p2(e.mm)};
 function paintPill(){
   if(!STATUS)return;const s=STATUS,n=nowMs();
-  if(s.reopen){setPill('open','Reopened for '+niceDate(s.reopen.date)+' · until '+hhmm(s.reopen.until))}
-  else if(s.open){const t=localParts(n);setPill('open','Open now · '+p2(t.hh)+':'+p2(t.mm)+' · closes '+(s.extraUntil?(()=>{const e=localParts(s.extraUntil);return p2(e.hh)+':'+p2(e.mm)})():s.window.end))}
+  if(s.open){const t=localParts(n);setPill('open','Open now · '+p2(t.hh)+':'+p2(t.mm)+' · closes '+(s.extraUntil?(()=>{const e=localParts(s.extraUntil);return p2(e.hh)+':'+p2(e.mm)})():s.window.end))}
   else setPill('closed',s.nextOpen?'Closed · opens '+niceMs(s.nextOpen):'Closed');
-  const hl=$('#heroLead');if(hl)hl.textContent=s.reopen?'Check-in is reopened for the class on '+niceDate(s.reopen.date)+', until '+hhmm(s.reopen.until)+'. If you forgot to check in that day, do it now.'+(s.reopen.noCode?'':' Use the code on the classroom screen.'):s.open?'Check-in is open until '+(s.extraUntil?(()=>{const e=localParts(s.extraUntil);return p2(e.hh)+':'+p2(e.mm)})():s.window.end)+'. Scan the QR on the classroom screen, then confirm it is you.':'Check-in is closed right now.'+(s.nextOpen?' It opens '+niceMs(s.nextOpen)+'.':'')+' You can still see your attendance record.';
+  const hl=$('#heroLead');if(hl)hl.textContent=s.open?'Check-in is open until '+(s.extraUntil?(()=>{const e=localParts(s.extraUntil);return p2(e.hh)+':'+p2(e.mm)})():s.window.end)+'. Scan the QR on the classroom screen, then confirm it is you.':'Check-in is closed right now.'+(s.nextOpen?' It opens '+niceMs(s.nextOpen)+'.':'')+' You can still see your attendance record.';
 }
 setInterval(paintPill,15000);
 
@@ -693,7 +696,7 @@ async function doConfirm(st){
 }
 function done(r){
   CODE='';
-  $('#stCard').innerHTML=`${stepper(3)}<div class="result">${OK_SVG}<div class="headline">${r.already?'Already checked in':'You’re in, '+esc(r.student.name.split(' ')[0])+'!'}</div><p>${esc(r.student.id)} · ${r.late?'marked present for the class on '+esc(niceDate(r.date))+' (checked in today at '+esc(r.time)+')':esc(niceDate(r.date))+' at '+esc(r.time)}${r.already?'<br>One check-in per day is enough.':''}</p></div>`;
+  $('#stCard').innerHTML=`${stepper(3)}<div class="result">${OK_SVG}<div class="headline">${r.already?'Already checked in':'You’re in, '+esc(r.student.name.split(' ')[0])+'!'}</div><p>${esc(r.student.id)} · ${esc(niceDate(r.date))} at ${esc(r.time)}${r.already?'<br>One check-in per day is enough.':''}</p></div>`;
   if(navigator.vibrate)navigator.vibrate(60);
   renderMeCard();loadMine(true);
 }
@@ -735,10 +738,10 @@ async function adminCall(body){
   if(!r.ok&&r.reason==='action')r.message='Apps Script still runs the old server code. Paste the new code and deploy a new version (see the red box at the top).';
   return r;
 }
-// the page expects this server version; older Apps Script copies lack late check-in and other new actions
-const SERVER_NEEDS=4;
+// the page expects this server version; older Apps Script copies lack newer actions (like opening a past day)
+const SERVER_NEEDS=5;
 const oldServer=()=>!isDemo()&&DATA&&DATA.status&&(DATA.status.version||0)<SERVER_NEEDS;
-function oldServerHTML(){return `<div class="msg err mb" id="oldSrv"><b>Update the server code.</b> Your Google Apps Script still runs an older copy, so late check-in and newer features will fail. In the Sheet open <b>Extensions › Apps Script</b>, replace everything in <code>Code.gs</code> with the new code and save. Then <b>Deploy › Manage deployments</b>, click the pencil, set <b>Version: New version</b> and <b>Deploy</b>. Do not make a new deployment, or the link changes. <button class="btn small" id="oldSrvCopy">Copy new server code</button></div>`}
+function oldServerHTML(){return `<div class="msg err mb" id="oldSrv"><b>Update the server code.</b> Your Google Apps Script still runs an older copy, so opening past days and other newer features will fail. In the Sheet open <b>Extensions › Apps Script</b>, replace everything in <code>Code.gs</code> with the new code and save. Then <b>Deploy › Manage deployments</b>, click the pencil, set <b>Version: New version</b> and <b>Deploy</b>. Do not make a new deployment, or the link changes. <button class="btn small" id="oldSrvCopy">Copy new server code</button></div>`}
 function logoutLocal(){TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
 $('#loginForm').onsubmit=async e=>{
   e.preventDefault();const btn=$('#loginBtn');btn.disabled=true;btn.textContent='Checking…';$('#loginMsg').innerHTML='';
@@ -769,7 +772,7 @@ function goTab(k){if(k==='more'){$('#moreSheet').showModal();return}if(k==='logo
   TAB=k;sess.set('att-tab',TAB);if($('#moreSheet').open)$('#moreSheet').close();paintNav();renderPane();window.scrollTo({top:0})}
 ['#tabs','#bnav','#moreNav'].forEach(id=>$(id).addEventListener('click',e=>{const b=e.target.closest('button[data-k]');if(b)goTab(b.dataset.k)}));
 $('#moreSheet').addEventListener('click',e=>{if(e.target===$('#moreSheet'))$('#moreSheet').close()});
-const sig=d=>d?JSON.stringify([d.students,d.attendance,d.excuses,d.days,d.settings,d.status&&d.status.open,d.status&&d.status.todayDone]):'';
+const sig=d=>d?JSON.stringify([d.students,d.attendance,d.excuses,d.days,d.settings,d.status&&d.status.open,d.status&&d.status.todayDone,d.status&&d.status.openDay]):'';
 async function loadData(show,quiet){
   const r=await adminCall({action:'data'});
   if(!r.ok){if(r.reason!=='auth'&&!quiet)toast(r.message,true);return false}
@@ -814,7 +817,7 @@ function paneHome(box){
   const active=DATA.students.filter(s=>s.active!=='no');
   const todayAtt=DATA.attendance.filter(r=>r.date===today).sort((a,b)=>a.time<b.time?1:-1);
   const todayExc=DATA.excuses.filter(e=>e.date===today);
-  const isClass=(DATA.status.open&&!DATA.status.reopen)||C.held.includes(today);
+  const isClass=DATA.status.open||C.held.includes(today);
   const counted=C.rows.filter(r=>r.n>0);
   const avg=counted.length?counted.reduce((a,r)=>a+r.raw,0)/counted.length:null;
   const below=counted.filter(r=>eff(r)<th-1e-9).sort((a,b)=>eff(a)-eff(b));
@@ -826,9 +829,9 @@ function paneHome(box){
   const recentDay=todayAtt.length?today:(recent[0]&&recent[0].date);
   const upcoming=DATA.excuses.filter(e=>e.date>=today).sort((a,b)=>a.date<b.date?-1:1).slice(0,5);
   const nameOf={};DATA.students.forEach(s=>nameOf[s.id]=s.name);
-  const s=DATA.status;
-  paintHead(`<button class="btn ghost" id="roBtn">${ICON.days}<span>Reopen a past class</span></button>`);$('#roBtn').onclick=()=>reopenDialog();
-  box.innerHTML=`${s.reopen?`<div class="msg good mb">Late check-in is open for the class on <b>${esc(niceDate(s.reopen.date))}</b> until ${esc(hhmm(s.reopen.until))}${s.reopen.noCode?', without the room code':''}. <button class="linkbtn" id="dashRoClose">Close now</button></div>`:''}<div class="kpis">
+  const s=DATA.status,od=openDayNow();
+  paintHead(`<button class="btn ghost" id="odBtn">${ICON.days}<span>Open a past day</span></button>`);$('#odBtn').onclick=()=>openDayDialog();
+  box.innerHTML=`${od?`<div class="msg good mb"><b>${esc(niceDate(od.date))}</b> is open for editing in Register until ${esc(hhmm(od.until))}. <button class="linkbtn" id="dashGoReg">Go to Register</button> · <button class="linkbtn" id="dashOdClose">Lock now</button></div>`:''}<div class="kpis">
      <div class="kpi"><small>${esc(niceDate(today))}</small><b>${isClass?todayAtt.length:'–'}${isClass?'<span style="font-size:.5em;color:var(--muted)"> / '+active.length+'</span>':''}</b><span>${isClass?'Present today':'No class today'}</span></div>
      <div class="kpi${isClass&&absentToday?' r':''}"><small>${isClass?(s.todayDone?'Class over':'Class in progress'):'Next: '+esc(s.nextOpen?niceMs(s.nextOpen):'not set')}</small><b>${isClass?absentToday:'–'}</b><span>${isClass?(s.todayDone?'Absent today':'Not checked in yet'):'Absent today'}</span></div>
      <div class="kpi"><small>${C.held.length} class day${C.held.length===1?'':'s'} so far</small><b>${pct(avg)}</b><span>Average attendance</span></div>
@@ -852,8 +855,8 @@ function paneHome(box){
        </div>
      </div>
    </div>`;
-  const dc=$('#dashRoClose');if(dc)dc.onclick=closeReopen;
   box.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{if(b.dataset.view)rView=b.dataset.view;goTab(b.dataset.go)});
+  const gr=$('#dashGoReg');if(gr){gr.onclick=()=>goTab('register');$('#dashOdClose').onclick=closeOpenDay}
   requestAnimationFrame(()=>requestAnimationFrame(()=>{box.querySelectorAll('.chart .col i').forEach(i=>i.style.height=i.dataset.h);box.querySelectorAll('.bar i').forEach(i=>i.style.width=i.dataset.w)}));
   pollTimer=setInterval(()=>loadData(false,true),isDemo()?6000:30000);
 }
@@ -875,7 +878,7 @@ function paneLive(box){
       <div class="timer"><svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="11" stroke="#e3e7ee"/><circle id="tmr" cx="14" cy="14" r="11" stroke="#002868" stroke-dasharray="69.1" transform="rotate(-90 14 14)"/></svg><span id="tmrTxt">New code every ${slotSec} s</span></div>
       <div class="row mt noproj" style="justify-content:center"><button class="btn" id="proj">Show on projector</button><button class="btn ghost" id="copyLink">Copy link</button></div>
     </div>
-    <div class="card redline"><div class="badge" id="liveDay">${s.reopen?'Reopened · '+esc(niceDate(s.reopen.date)):'Today · '+esc(niceDate(DATA.today))}</div>
+    <div class="card redline"><div class="badge">Today · ${esc(niceDate(DATA.today))}</div>
       <div class="row" style="align-items:flex-end;gap:14px;margin-top:6px"><div class="count" id="cnt">0</div><div class="hint" style="font-size:1.1rem;margin-bottom:8px">checked in</div></div>
       <div id="liveState" class="msg"></div>
       <div class="names" id="names"></div>
@@ -883,14 +886,14 @@ function paneLive(box){
     </div></div>`;
   $('#proj').onclick=()=>{document.body.classList.add('present');const el=document.documentElement;if(el.requestFullscreen)el.requestFullscreen().catch(()=>{})};
   $('#copyLink').onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(checkinUrl(currentCode())).then(()=>toast('Link copied. It works for about 2 minutes.'))};
-  const cd=s.classDate||DATA.today;lastCount=-1;paintToday(DATA.attendance.filter(r=>r.date===cd));paintLiveState();
+  lastCount=-1;paintToday(DATA.attendance.filter(r=>r.date===DATA.today));paintLiveState();
   let lastSlot=null;
   const tick=()=>{const n=nowMs(),slot=Math.floor(n/(slotSec*1000)),left=slotSec-(n/1000%slotSec);
     const tm=$('#tmr');if(!tm)return stopLive();tm.style.strokeDashoffset=69.1*(1-left/slotSec);
     if(slot!==lastSlot){lastSlot=slot;const code=codeFor(QRKEY,slot);$('#qr').innerHTML=qrSVG(checkinUrl(code))+($('#qr').classList.contains('off')?'<div class="over">Check-in closed</div>':'');$('#codeTxt').textContent=code}
   };
   tick();liveTimer=setInterval(tick,250);
-  pollTimer=setInterval(async()=>{const r=await adminCall({action:'today'}).catch(()=>null);if(r&&r.ok){const was=STATUS&&STATUS.classDate;STATUS=r.status;OFFSET=r.now-Date.now();paintPill();if(was!==r.status.classDate){loadData();return}paintToday(r.present);paintLiveState()}},isDemo()?3000:8000);
+  pollTimer=setInterval(async()=>{const r=await adminCall({action:'today'}).catch(()=>null);if(r&&r.ok){STATUS=r.status;OFFSET=r.now-Date.now();paintPill();paintToday(r.present);paintLiveState()}},isDemo()?3000:8000);
 }
 function currentCode(){return codeFor(QRKEY,Math.floor(nowMs()/((DATA.settings.slotSeconds||30)*1000)))}
 function paintToday(list){
@@ -904,35 +907,30 @@ function paintLiveState(){
   $('#qr').classList.toggle('off',!s.open);
   const ov=$('#qr .over');if(!s.open&&!ov)$('#qr').insertAdjacentHTML('beforeend','<div class="over">Check-in closed</div>');if(s.open&&ov)ov.remove();
   el.className='msg'+(s.open?' good':'');
-  const pt=$('.projtitle');if(pt)pt.innerHTML=s.reopen?'Late check-in for <span>'+esc(niceDate(s.reopen.date))+'</span>':'Scan to <span>check in</span>';
-  if(s.reopen){el.innerHTML='Reopened for the class on <b>'+esc(niceDate(s.reopen.date))+'</b> until '+esc(hhmm(s.reopen.until))+'. Check-ins now count for that day'+(s.reopen.noCode?', and students do not need the room code.':'.');
-    $('#extraRow').innerHTML=`<button class="btn small ghost" id="roClose">Close now</button>${s.reopen.noCode?'<button class="btn small" id="roLink">Copy link to share</button>':''}`;
-    $('#roClose').onclick=closeReopen;const rl=$('#roLink');if(rl)rl.onclick=copyPlainLink;return}
   el.innerHTML=s.open?(s.extraUntil?'Extra window open until '+esc(niceMs(s.extraUntil).split(', ')[1])+'.':'Open until '+esc(s.window.end)+'. Students scan the QR or type the code.'):'Closed now. Next: '+esc(s.nextOpen?niceMs(s.nextOpen):'not scheduled')+'.';
-  $('#extraRow').innerHTML=s.extraUntil?'<button class="btn small ghost" data-m="0">Close extra window</button>':(s.open?'':'<span class="hint">Make-up class?</span><button class="btn small" data-m="30">Open for 30 min</button><button class="btn small ghost" data-m="60">60 min</button><button class="btn small ghost" id="roOpen" data-x="1">Reopen a past class</button>');
-  const ro=$('#roOpen');if(ro)ro.onclick=()=>reopenDialog();
-  $('#extraRow').querySelectorAll('button[data-m]').forEach(b=>b.onclick=async()=>{const r=await adminCall({action:'extra',minutes:+b.dataset.m});if(r.ok){toast(+b.dataset.m?'Check-in open for '+b.dataset.m+' minutes':'Extra window closed');loadData()}else toast(r.message,true)});
+  $('#extraRow').innerHTML=s.extraUntil?'<button class="btn small ghost" data-m="0">Close extra window</button>':(s.open?'':'<span class="hint">Make-up class?</span><button class="btn small" data-m="30">Open for 30 min</button><button class="btn small ghost" data-m="60">60 min</button>');
+  $('#extraRow').querySelectorAll('button').forEach(b=>b.onclick=async()=>{const r=await adminCall({action:'extra',minutes:+b.dataset.m});if(r.ok){toast(+b.dataset.m?'Check-in open for '+b.dataset.m+' minutes':'Extra window closed');loadData()}else toast(r.message,true)});
 }
-/* Reopen a past class: check-ins for a set time count for that day (students who forgot) */
+/* Past days are locked. Opening one for a while lets the instructor fix its marks in Register. */
+const hhmm=ms=>{const e=localParts(ms);return p2(e.hh)+":"+p2(e.mm)};
 function pastClassDays(){const t=DATA.today;return DATA.days.filter(d=>d.status!=='cancelled'&&d.date<t).map(d=>d.date).sort().reverse()}
-async function reopenDialog(date){
-  const days=pastClassDays();
+const openDayNow=()=>{const o=DATA&&DATA.status&&DATA.status.openDay;return o&&o.until>nowMs()?o:null};
+const canEdit=d=>d===DATA.today||(openDayNow()||{}).date===d;
+async function openDayDialog(date){
+  if($('#dlg').open)return;
   if(oldServer()){toast('Update the server code first (red box at the top).',true);return}
-  if(!days.length){toast('No past class days yet. Add one in Register first.',true);return}
-  if(DATA.status.open&&!DATA.status.reopen){toast('Check-in is open for today now. Reopen a past class after it closes.',true);return}
-  const d=$('#dlg');$('#dlgT').textContent='Reopen a past class';$('#dlgF').hidden=true;$('#dlgP').hidden=false;
-  $('#dlgP').innerHTML=`For students who forgot to check in. While it is open, check-ins count for the day you pick, and each one is marked as a late check-in in the log.
+  const days=pastClassDays();
+  if(!days.length){toast('No past class days yet. Add one with the date box above the sheet.',true);return}
+  const d=$('#dlg');$('#dlgT').textContent='Open a past day for editing';$('#dlgF').hidden=true;$('#dlgP').hidden=false;
+  $('#dlgP').innerHTML=`Past days are locked so marks don't change by accident. Open one to mark or fix attendance for it here in Register. Only you can change it. Students can't check in for past days.
     <span style="display:block;margin-top:16px"><label for="roDay">Class day</label><select id="roDay">${days.map(x=>`<option value="${x}"${x===date?' selected':''}>${esc(niceDate(x))}</option>`).join('')}</select></span>
-    <span style="display:block;margin-top:14px"><label for="roMin">Open for</label><select id="roMin"><option value="15">15 minutes</option><option value="30" selected>30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></span>
-    <label class="check" style="margin-top:14px"><input type="checkbox" id="roNoCode">Students outside the room can check in too (no QR code). You share the page link.</label>`;
-  const ok=$('#dlgOk');ok.textContent='Reopen';ok.className='btn';d.returnValue='';
-  d.onclose=async()=>{const v=d.returnValue==='ok'?{date:$('#roDay').value,minutes:+$('#roMin').value,noCode:$('#roNoCode').checked}:null;$('#dlgP').textContent='';
-    if(!v)return;const r=await adminCall(Object.assign({action:'reopen'},v));
-    if(r.ok){toast('Reopened '+niceDate(v.date)+' for '+(v.minutes>=60?v.minutes/60+' h':v.minutes+' min'));if(v.noCode)copyPlainLink();TAB='live';sess.set('att-tab',TAB);paintNav();loadData()}else toast(r.message,true)};
+    <span style="display:block;margin-top:14px"><label for="roMin">Keep it open for</label><select id="roMin"><option value="15">15 minutes</option><option value="30" selected>30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option></select></span>`;
+  const ok=$('#dlgOk');ok.textContent='Open for editing';ok.className='btn';d.returnValue='';
+  d.onclose=async()=>{const v=d.returnValue==='ok'?{date:$('#roDay').value,minutes:+$('#roMin').value}:null;$('#dlgP').textContent='';
+    if(!v)return;const r=await adminCall(Object.assign({action:'openDay'},v));
+    if(r.ok){toast(niceDate(v.date)+' is open for editing');TAB='register';sess.set('att-tab',TAB);paintNav();regScroll=null;loadData()}else toast(r.message,true)};
   d.showModal();setTimeout(()=>$('#roDay').focus(),30)}
-async function closeReopen(){const r=await adminCall({action:'reopen',minutes:0});if(r.ok){toast('Late check-in closed');loadData()}else toast(r.message,true)}
-function copyPlainLink(){const u=new URL('attendance.html',location.href);u.search='';u.hash='';u.searchParams.set('s',SID);
-  if(navigator.clipboard)navigator.clipboard.writeText(u.toString()).then(()=>toast('Page link copied. Share it with the students who forgot.')).catch(()=>{})}
+async function closeOpenDay(){const r=await adminCall({action:'openDay',minutes:0});if(r.ok){toast('Day locked again');loadData()}else toast(r.message,true)}
 document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement)document.body.classList.remove('present')});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.body.classList.remove('present')});
 
@@ -1023,10 +1021,11 @@ function studentHTML(rb,C){
    <p class="mb">With excuses: <b>${pct(r.adj)}</b> · Result at ${RPT.th}%: <span class="chip ${RES[r.res][0]}">${RES[r.res][1]}</span></p>
    <div class="tblwrap"><table><thead><tr><th>Day</th><th>Status</th><th>Time</th><th>How</th><th class="noprint">Change</th></tr></thead><tbody>
    ${C.held.slice().reverse().map(d=>{const a=C.att[r.s.id+'|'+d],e=C.exc[r.s.id+'|'+d],c=r.cells[d];
-     return `<tr><td>${esc(niceDate(d))}</td><td>${c==='P'?'<span class="chip p">Present</span>':c==='E'?'<span class="chip e">Excused</span>':c==='-'?'<span class="chip g">Before start</span>':c==='?'?'<span class="chip g">Class not over</span>':'<span class="chip a">Absent</span>'}${e?' <span class="hint">'+esc(e.reason||'')+'</span>':''}</td><td>${a?esc(a.time):''}</td><td>${a?esc(a.method==='admin'?'Marked by you':a.method==='qr'?'QR':a.method==='reopen'?'Late check-in':a.method):''}</td>
-     <td class="noprint"><div class="row">${a?`<button class="btn small ghost" data-act="absent" data-d="${d}">Mark absent</button>`:`<button class="btn small ghost" data-act="present" data-d="${d}">Mark present</button>`}${!a?(e?`<button class="btn small ghost" data-act="unexcuse" data-d="${d}">Remove excuse</button>`:`<button class="btn small ghost" data-act="excuse" data-d="${d}">Excuse</button>`):''}</div></td></tr>`}).join('')||'<tr><td colspan="5" class="hint">No class days yet.</td></tr>'}
+     return `<tr><td>${esc(niceDate(d))}</td><td>${c==='P'?'<span class="chip p">Present</span>':c==='E'?'<span class="chip e">Excused</span>':c==='-'?'<span class="chip g">Before start</span>':c==='?'?'<span class="chip g">Class not over</span>':'<span class="chip a">Absent</span>'}${e?' <span class="hint">'+esc(e.reason||'')+'</span>':''}</td><td>${a?esc(a.time):''}</td><td>${a?esc(a.method==='admin'?'Marked by you':a.method==='qr'?'QR':a.method):''}</td>
+     <td class="noprint"><div class="row">${!canEdit(d)?`<button class="btn small ghost" data-od="${d}" title="Past days are locked">Open day to change</button>`:a?`<button class="btn small ghost" data-act="absent" data-d="${d}">Mark absent</button>`:`<button class="btn small ghost" data-act="present" data-d="${d}">Mark present</button>`}${!a?(e?`<button class="btn small ghost" data-act="unexcuse" data-d="${d}">Remove excuse</button>`:`<button class="btn small ghost" data-act="excuse" data-d="${d}">Excuse</button>`):''}</div></td></tr>`}).join('')||'<tr><td colspan="5" class="hint">No class days yet.</td></tr>'}
    </tbody></table></div>${extra.length?`<p class="hint mt">Upcoming excused: ${extra.map(e=>esc(niceDate(e.date))+(e.reason?' ('+esc(e.reason)+')':'')).join(', ')}</p>`:''}</div>`;
   $('#stSel').onchange=e=>{RPT.student=e.target.value;renderPane()};
+  rb.querySelectorAll('[data-od]').forEach(b=>b.onclick=()=>openDayDialog(b.dataset.od));
   rb.querySelectorAll('[data-act]').forEach(b=>b.onclick=async()=>{
     const d=b.dataset.d,act=b.dataset.act;let body;
     if(act==='present'||act==='absent')body={action:'mark',id:r.s.id,date:d,present:act==='present',time:'',note:'admin'};
@@ -1081,29 +1080,30 @@ function download(name,text,type){const a=document.createElement('a');a.href=URL
 /* Register: a class sheet, names down, class days across. Click = 1, double click = 0. */
 let regQueue={},regTimer=null,regBusy=false,regScroll=null,regQ='';
 function paneRegister(box){
-  const C=compute(),today=DATA.today,done=!!DATA.status.todayDone;
+  const C=compute(),today=DATA.today,done=!!DATA.status.todayDone,od=openDayNow();
   const rows=C.rows.filter(r=>r.s.active!=='no'||C.held.some(d=>r.cells[d]==='P'));
   const days=C.held.slice();
   // during class, today's column shows even before anyone checks in
-  if(DATA.status.open&&!DATA.status.reopen&&!days.includes(today))days.push(today);
+  if(DATA.status.open&&!days.includes(today))days.push(today);
   const hadFocus=document.activeElement&&document.activeElement.id==='regQ';
   box.innerHTML=`<div class="pane">
     ${rows.length?`<div class="toolbar noprint"><div class="search">${ICON.search}<input id="regQ" type="search" placeholder="Search name, ID or mobile number" aria-label="Search students" autocomplete="off" value="${esc(regQ)}"></div><span class="count" id="regN"></span></div>`:''}
     <div class="row mb" style="justify-content:space-between"><div class="legend"><span><b class="v1" style="background:var(--navy);color:#fff">1</b>Present</span><span><b style="color:var(--red);border:1px solid var(--line)">0</b>Absent</span><span><b style="color:var(--navy);background:#eef2f8">E</b>Excused</span><span><b style="color:#b8c1d1;border:1px solid var(--line)">…</b>Class not over</span></div>
       <form id="addDay" class="row noprint"><input type="date" id="newDay" max="${today}" value="${today}" style="width:auto" aria-label="Class day"><button class="btn small ghost">Add day</button></form></div>
-    <p class="hint mb">Tap a cell to mark <b>1</b>, tap again for <b>0</b>. Double tap always sets 0. Past days can be changed here at any time. QR check-ins show here as 1. ${done?'':'Today turns into 0 for anyone missing once the class ends at '+esc(DATA.settings.end)+'.'} Students forgot to check in? Tap a date to reopen check-in for that day.</p>
-    ${DATA.status.reopen?`<div class="msg good">Late check-in is open for <b>${esc(niceDate(DATA.status.reopen.date))}</b> until ${esc(hhmm(DATA.status.reopen.until))}. <button class="linkbtn" id="regRoClose">Close now</button></div>`:''}
-    ${rows.length&&days.length?`<div class="tblwrap grid reg"><table><thead><tr><th>Student</th>${days.map(d=>`<th class="num${d===today?' today':''}">${d<today?`<button class="thb" data-ro="${d}" title="Reopen check-in for ${esc(niceDate(d))}">${esc(niceDate(d,false))}</button>`:esc(niceDate(d,false))}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>
+    <p class="hint mb">Tap a cell to mark <b>1</b>, tap again for <b>0</b>. Double tap always sets 0. QR check-ins show here as 1. ${done?'':'Today turns into 0 for anyone missing once the class ends at '+esc(DATA.settings.end)+'.'} Past days are locked: tap a past date to open it for editing.</p>
+    ${od?`<div class="msg good"><b>${esc(niceDate(od.date))}</b> is open for editing until ${esc(hhmm(od.until))}. Mark it in the highlighted column. <button class="linkbtn" id="regOdClose">Lock now</button></div>`:''}
+    ${rows.length&&days.length?`<div class="tblwrap grid reg"><table><thead><tr><th>Student</th>${days.map(d=>`<th class="num${d===today?' today':''}${od&&od.date===d?' opened':''}"${od&&od.date===d?' id="odCol"':''}>${d<today&&!(od&&od.date===d)?`<button class="thb" data-od="${d}" title="Locked. Open ${esc(niceDate(d))} for editing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>${esc(niceDate(d,false))}</button>`:esc(niceDate(d,false))}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>
     ${rows.map(r=>`<tr data-q="${esc((r.s.name+' '+r.s.id).toLowerCase())}" data-ph="${esc(r.s.phone||'')}"><td class="name">${esc(r.s.name)}<br><span class="hint">${esc(r.s.id)}${r.s.phone?' · <span style="white-space:nowrap">'+esc(showPhone(r.s.phone))+'</span>':''}</span></td>${days.map(d=>{const c=r.cells[d]||'?';
       const v=c==='P'?'1':c==='E'?'E':c==='?'?'…':c==='-'?'·':'0',cls=c==='P'?'v1':c==='E'?'vE':c==='?'?'vP':c==='-'?'vX':'v0';
-      const a=C.att[r.s.id+'|'+d];
-      return `<td class="cell"><button class="${cls}" data-id="${esc(r.s.id)}" data-d="${d}" title="${esc(r.s.name)}, ${esc(niceDate(d))}${a&&a.time?' · '+esc(a.time)+(a.method==='qr'?' QR':a.method==='reopen'?' late check-in':''):''}${c==='E'?' · excused':''}">${v}</button></td>`}).join('')}<td class="tot">${r.P}/${r.n}</td></tr>`).join('')}
+      const a=C.att[r.s.id+'|'+d],lk=d<today&&!(od&&od.date===d);
+      return `<td class="cell${od&&od.date===d?' opened':''}"><button class="${cls}${lk&&c!=='-'?' lk':''}" data-id="${esc(r.s.id)}" data-d="${d}" title="${esc(r.s.name)}, ${esc(niceDate(d))}${a&&a.time?' · '+esc(a.time)+(a.method==='qr'?' QR':''):''}${c==='E'?' · excused':''}">${v}</button></td>`}).join('')}<td class="tot">${r.P}/${r.n}</td></tr>`).join('')}
     <tr id="regNone" hidden><td colspan="${days.length+2}">${emptyHTML('No matches','Try part of the name, the ID or the mobile number.')}</td></tr>
     </tbody></table></div>`:'<p class="hint">'+(rows.length?'No class days yet. Add one above.':'No students yet. Add them under Students.')+'</p>'}
     <div class="row mt"><span class="hint" id="regState"></span></div></div>`;
-  box.querySelectorAll('[data-ro]').forEach(b=>b.onclick=()=>reopenDialog(b.dataset.ro));
-  const rc=$('#regRoClose');if(rc)rc.onclick=closeReopen;
-  $('#addDay').onsubmit=async e=>{e.preventDefault();const d=$('#newDay').value;if(!d)return;const r=await adminCall({action:'day',date:d,status:'held'});if(r.ok){toast('Day added');loadData()}else toast(r.message,true)};
+  $('#addDay').onsubmit=async e=>{e.preventDefault();const d=$('#newDay').value;if(!d)return;const r=await adminCall({action:'day',date:d,status:'held'});if(!r.ok){toast(r.message,true);return}
+    toast('Day added');await loadData();if(d<DATA.today&&!canEdit(d))openDayDialog(d)};
+  box.querySelectorAll('[data-od]').forEach(b=>b.onclick=()=>openDayDialog(b.dataset.od));
+  const oc=$('#regOdClose');if(oc)oc.onclick=closeOpenDay;
   const tbl=box.querySelector('.reg');if(!tbl)return;
   // live filter: name, student ID or mobile number (any format, e.g. 077 123 or +9477)
   const filter=()=>{const q=regQ.trim().toLowerCase();let d=q.replace(/\D/g,'');if(d.startsWith('94')&&d.length>2)d='0'+d.slice(2);
@@ -1111,17 +1111,22 @@ function paneRegister(box){
     $('#regNone').hidden=n>0;$('#regN').textContent=q?n+' of '+rows.length:rows.length+' students'};
   const qi=$('#regQ');filter();
   qi.oninput=()=>{regQ=qi.value;filter()};
-  qi.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();const tr=tbl.querySelector('tbody tr[data-q]:not([hidden])');if(tr){const b=[...tr.querySelectorAll('button[data-id]:not(.vX)')].pop();if(b){b.focus();b.scrollIntoView({block:'nearest',inline:'nearest'})}}}else if(e.key==='Escape'){qi.value='';regQ='';filter()}};
+  qi.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();const tr=tbl.querySelector('tbody tr[data-q]:not([hidden])');if(tr){const b=[...tr.querySelectorAll('button[data-id]:not(.vX):not(.lk)')].pop();if(b){b.focus();b.scrollIntoView({block:'nearest',inline:'nearest'})}}}else if(e.key==='Escape'){qi.value='';regQ='';filter()}};
   if(hadFocus){qi.focus();qi.setSelectionRange(qi.value.length,qi.value.length)}
   tbl.scrollLeft=regScroll==null?tbl.scrollWidth:regScroll;tbl.onscroll=()=>{regScroll=tbl.scrollLeft};
+  // bring the opened past day into view
+  const oc2=$('#odCol');if(oc2&&regScroll==null){tbl.scrollLeft=Math.max(0,oc2.offsetLeft-tbl.clientWidth/2+oc2.offsetWidth/2);regScroll=tbl.scrollLeft}
+  // lock the column again on screen when the time runs out
+  if(od){const left=od.until-nowMs();if(left>0)setTimeout(()=>{if(TAB==='register'&&DATA.status.openDay&&DATA.status.openDay.until===od.until)renderPane()},left+500)}
   // pick up new QR check-ins while the sheet is open
   pollTimer=setInterval(()=>{if(!regBusy&&!Object.keys(regQueue).length&&!clickT)loadData(false,true)},isDemo()?5000:20000);
   let clickT=null,lastBtn=null;
-  const set=(b,present)=>{if(b.classList.contains('vX'))return;
+  const set=(b,present)=>{if(b.classList.contains('vX')||!canEdit(b.dataset.d))return;
     b.className=present?'v1':'v0';b.textContent=present?'1':'0';b.classList.add('saving');
     regQueue[b.dataset.id+'|'+b.dataset.d]={id:b.dataset.id,date:b.dataset.d,present};
     $('#regState').textContent='Saving…';clearTimeout(regTimer);regTimer=setTimeout(flushRegister,700)};
   tbl.addEventListener('click',e=>{const b=e.target.closest('button[data-id]');if(!b||b.classList.contains('vX'))return;
+    if(!canEdit(b.dataset.d)){openDayDialog(b.dataset.d);return}
     if(clickT&&lastBtn===b){clearTimeout(clickT);clickT=null;set(b,false);return}
     lastBtn=b;clickT=setTimeout(()=>{clickT=null;set(b,!b.classList.contains('v1'))},230)});
 }
