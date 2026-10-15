@@ -370,6 +370,23 @@ tr.opd td{background:#fbfcfe;padding:0}
 .names{display:flex;flex-direction:column;gap:6px;max-height:440px;overflow:auto;margin-top:var(--s3)}
 .names div{display:flex;justify-content:space-between;gap:10px;padding:10px 14px;border-radius:var(--r-sm);background:var(--canvas);animation:slidein .5s var(--ease) both;font-size:1rem}
 .names div span{color:var(--muted);font-variant-numeric:tabular-nums}
+.names .offs{font-family:'Outfit';font-size:.72rem;font-weight:600;color:var(--red);border:1px solid currentColor;border-radius:999px;padding:1px 8px;margin-left:8px}
+body.present .names .offs{display:none}
+.alerts{display:flex;flex-direction:column;gap:10px}
+.alert{border:1px solid var(--line);border-left:4px solid var(--red);border-radius:var(--r-sm);padding:12px 14px;background:#fff}
+.alert b{display:block;font-family:'Outfit';font-weight:600;color:var(--ink)}
+.alert p{margin:2px 0 6px;color:var(--muted);font-size:.9rem}
+.alert .who{display:flex;flex-wrap:wrap;gap:6px}
+.alert .who span{font-size:.85rem;background:var(--canvas);border-radius:999px;padding:2px 10px}
+.missing summary{cursor:pointer;font-family:'Outfit';font-weight:600;color:var(--navy);list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.missing summary::-webkit-details-marker{display:none}
+.missing summary .chip{background:#fbe9ec;color:var(--red)}
+.missing .mlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;margin-top:10px;max-height:300px;overflow:auto}
+.missing .mlist div{padding:8px 12px;border-radius:var(--r-sm);background:var(--canvas);font-size:.95rem;display:flex;align-items:center;gap:8px}
+.missing .mlist small{color:var(--muted);margin-left:auto;font-variant-numeric:tabular-nums}
+.live>#missCard,.live>#liveAlerts{grid-column:1/-1}
+#missCard:empty,#dashAlerts:empty{display:none}
+.reg .cell button.off{box-shadow:inset 0 -3px 0 var(--red)}
 .inb{flex-wrap:wrap;gap:10px}
 .inb-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .kcode{font:700 1.15rem 'Outfit';letter-spacing:.12em;color:var(--navy);background:var(--navy-50);padding:4px 10px;border-radius:8px}
@@ -498,6 +515,20 @@ body.present{background:#fff}
   .risk{grid-template-columns:minmax(0,1fr) auto}
   .risk .bar{display:none}
 }
+#printSheet{display:none}
+#printSheet .ph{display:flex;align-items:center;gap:14px;border-bottom:3px solid #002868;padding-bottom:10px;margin-bottom:12px}
+#printSheet .ph img{height:54px}
+#printSheet h1{font-family:'Outfit';font-size:20pt;color:#002868;margin:0}
+#printSheet .ph p{margin:2px 0 0;color:#444;font-size:10pt}
+#printSheet .sum{font-size:10pt;margin:0 0 10px;color:#222}
+#printSheet table{width:100%;border-collapse:collapse;font-size:10.5pt}
+#printSheet th{background:#002868;color:#fff;text-align:left;padding:6px 8px;font-family:'Outfit';font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+#printSheet td{border-bottom:1px solid #c9d0dc;padding:7px 8px;height:22px;vertical-align:middle}
+#printSheet td.n{width:28px;color:#666}#printSheet td.st{width:120px}#printSheet td.sg{width:34%}
+#printSheet td.ab{color:#BF0A30;font-weight:600}
+#printSheet .foot{display:flex;justify-content:space-between;gap:40px;margin-top:36px;font-size:10pt}
+#printSheet .foot div{flex:1;border-top:1px solid #333;padding-top:4px}
+@media print{body.printing>*:not(#printSheet){display:none!important}body.printing #printSheet{display:block}@page{margin:14mm}}
 @media print{.topbar,.side,.bnav,.demo,.toast,.noprint,footer{display:none!important}.console{display:block}.work,.page{padding:0}.card,.kpi{box-shadow:none}.tblwrap{overflow:visible;max-height:none;box-shadow:none}th{position:static}body{background:#fff}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.result path{stroke-dashoffset:0}}
 </style>
@@ -766,7 +797,7 @@ let urlCode=(params.get('c')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0
 if(params.get('c')){const u=new URL(location.href);u.searchParams.delete('c');history.replaceState(null,'',u.pathname+u.search+u.hash)}
 const OK_SVG='<svg class="mark ok" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48"/><path d="M28 52l15 15 30-32"/></svg>';
 const BAD_SVG='<svg class="mark bad" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48"/><path d="M33 33l34 34M67 33L33 67"/></svg>';
-let CODE=urlCode;
+let CODE=urlCode,TICKET='';
 // Sri Lankan numbers: 0771234567, +94 77 123 4567 and 94771234567 all become 0771234567 (same rule as the server)
 function cleanPhone(v){let d=String(v||'').replace(/\D/g,'');if(d.length===11&&d.startsWith('94'))d='0'+d.slice(2);if(d.length===9&&d[0]!=='0')d='0'+d;return /^0\d{9}$/.test(d)?d:''}
 const showPhone=p=>p&&p.length===10?p.slice(0,3)+' '+p.slice(3,6)+' '+p.slice(6):p||'';
@@ -853,7 +884,7 @@ function renderQuick(me,msg){
   $('#qkOther').onclick=()=>renderPhone(null,true);
 }
 function fail(r,retry){
-  if(r.reason==='code')CODE='';
+  if(r.reason==='code'){CODE='';TICKET=''}
   $('#stCard').innerHTML=`${stepper(r.reason==='closed'?1:2)}<div class="result">${BAD_SVG}<div class="headline">${r.reason==='closed'?'Check-in is closed':'Not checked in'}</div><p>${esc(r.message||'Something went wrong.')}${r.nextOpen?'<br>Opens '+esc(niceMs(r.nextOpen))+'.':''}</p><button class="btn big mt" id="again">Try again</button></div>`;
   $('#again').onclick=retry||(()=>renderPhone());
 }
@@ -864,6 +895,7 @@ async function doLookup(raw){
   busy('Finding you…',1);
   const r=await stuApi({action:'lookup',phone,code:CODE,device:DEVICE},'Finding you…');
   if(!r.ok)return fail(r);
+  TICKET=r.ticket||'';
   // the server shows only part of the name until the student confirms; this phone may know the full one
   const me=getMe();
   if(r.student){r.student.phone=phone;if(me&&me.phone===phone&&me.id===r.student.id)r.student.name=me.name}
@@ -885,8 +917,9 @@ function renderRegister(phone,msg,example){
     const name=$('#sname').value.trim().replace(/\s+/g,' ');
     if(!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name))return renderRegister(phone,'Type your name with letters only.',example);
     busy('Registering…');
-    const r=await stuApi({action:'register',phone,name,code:CODE,device:DEVICE},'Registering…');
+    const r=await stuApi({action:'register',phone,name,code:CODE,ticket:TICKET,device:DEVICE},'Registering…');
     if(!r.ok)return fail(r,()=>renderRegister(phone,null,example));
+    if(r.ticket)TICKET=r.ticket;
     renderConfirm(r.student,!r.existing)};
 }
 function renderConfirm(st,isNew){
@@ -902,14 +935,14 @@ function renderConfirm(st,isNew){
 }
 async function doConfirm(st){
   busy('Marking your attendance…');
-  const r=await stuApi({action:'checkin',phone:st.phone,id:st.id,code:CODE,device:DEVICE},'Marking your attendance…');
+  const r=await stuApi({action:'checkin',phone:st.phone,id:st.id,code:CODE,ticket:TICKET,device:DEVICE},'Marking your attendance…');
   // the saved details no longer match the class list: forget them so the number is typed again
   if(!r.ok&&(r.reason==='changed'||r.reason==='unknown')){store.del('att-me');renderMeCard()}
   if(!r.ok)return fail(r);
   setMe(r.student);done(r);
 }
 function done(r){
-  CODE='';
+  CODE='';TICKET='';
   $('#stCard').innerHTML=`${stepper(3)}<div class="result">${OK_SVG}<div class="headline">${r.already?'Already checked in':'You’re in, '+esc(r.student.name.split(' ')[0])+'!'}</div><p>${esc(r.student.id)} · ${esc(niceDate(r.date))} at ${esc(r.time)}${r.already?'<br>One check-in per day is enough.':''}</p></div>`;
   if(navigator.vibrate)navigator.vibrate(60);
   renderMeCard();loadMine(true);
@@ -1208,7 +1241,7 @@ function paneHome(box){
   const nameOf={};DATA.students.forEach(s=>nameOf[s.id]=s.name);
   const s=DATA.status,od=openDayNow();
   paintHead(`<button class="btn ghost" id="odBtn">${ICON.days}<span>Open a past day</span></button>`);$('#odBtn').onclick=()=>openDayDialog();
-  box.innerHTML=`${od?`<div class="msg good mb"><b>${esc(niceDate(od.date))}</b> is open for editing in Register until ${esc(hhmm(od.until))}. <button class="linkbtn" id="dashGoReg">Go to Register</button> · <button class="linkbtn" id="dashOdClose">Lock now</button></div>`:''}<div class="kpis">
+  box.innerHTML=`${od?`<div class="msg good mb"><b>${esc(niceDate(od.date))}</b> is open for editing in Register until ${esc(hhmm(od.until))}. <button class="linkbtn" id="dashGoReg">Go to Register</button> · <button class="linkbtn" id="dashOdClose">Lock now</button></div>`:''}<div id="dashAlerts" class="mb"></div><div class="kpis">
      <div class="kpi"><small>${esc(niceDate(today))}</small><b>${isClass?todayAtt.length:'–'}${isClass?'<span style="font-size:.5em;color:var(--muted)"> / '+active.length+'</span>':''}</b><span>${isClass?'Present today':'No class today'}</span></div>
      <div class="kpi${isClass&&absentToday?' r':''}"><small>${isClass?(s.todayDone?'Class over':'Class in progress'):'Next: '+esc(s.nextOpen?niceMs(s.nextOpen):'not set')}</small><b>${isClass?absentToday:'–'}</b><span>${isClass?(s.todayDone?'Absent today':'Not checked in yet'):'Absent today'}</span></div>
      <div class="kpi"><small>${C.held.length} class day${C.held.length===1?'':'s'} so far</small><b>${pct(avg)}</b><span>Average attendance</span></div>
@@ -1232,6 +1265,7 @@ function paneHome(box){
        </div>
      </div>
    </div>`;
+  paintAlerts($('#dashAlerts'),DATA.alerts);
   box.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{if(b.dataset.view)rView=b.dataset.view;goTab(b.dataset.go)});
   const gr=$('#dashGoReg');if(gr){gr.onclick=()=>goTab('register');$('#dashOdClose').onclick=closeOpenDay}
   requestAnimationFrame(()=>requestAnimationFrame(()=>{box.querySelectorAll('.chart .col i').forEach(i=>i.style.height=i.dataset.h);box.querySelectorAll('.bar i').forEach(i=>i.style.width=i.dataset.w)}));
@@ -1261,17 +1295,21 @@ function paneLive(box){
       <div id="liveState" class="msg"></div>
       <div class="names" id="names"></div>
       <div class="row mt noproj" id="extraRow"></div>
-    </div></div>`;
+    </div>
+    <div class="card noproj missing" id="missCard"></div>
+    <div class="noproj" id="liveAlerts"></div></div>`;
   $('#proj').onclick=()=>{document.body.classList.add('present');const el=document.documentElement;if(el.requestFullscreen)el.requestFullscreen().catch(()=>{})};
-  $('#copyLink').onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(checkinUrl(currentCode())).then(()=>toast('Link copied. It works for about 2 minutes.'))};
-  lastCount=-1;paintToday(DATA.attendance.filter(r=>r.date===DATA.today));paintLiveState();
+  $('#copyLink').onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(checkinUrl(currentCode())).then(()=>toast('Link copied. It works for about a minute.'))};
+  lastCount=-1;paintToday(DATA.attendance.filter(r=>r.date===DATA.today));paintLiveState();paintAlerts($('#liveAlerts'),DATA.alerts);
   let lastSlot=null;
   const tick=()=>{const n=nowMs(),slot=Math.floor(n/(slotSec*1000)),left=slotSec-(n/1000%slotSec);
     const tm=$('#tmr');if(!tm)return stopLive();tm.style.strokeDashoffset=69.1*(1-left/slotSec);
     if(slot!==lastSlot){lastSlot=slot;const code=codeFor(QRKEY,slot);$('#qr').innerHTML=qrSVG(checkinUrl(code))+($('#qr').classList.contains('off')?'<div class="over">Check-in closed</div>':'');$('#codeTxt').textContent=code}
   };
   tick();liveTimer=setInterval(tick,250);
-  pollTimer=setInterval(async()=>{const r=await timedCall({action:'today'}).catch(()=>null);if(r&&r.ok){STATUS=r.status;OFFSET=r.now-Date.now();paintPill();paintToday(r.present);paintLiveState()}},isDemo()?3000:8000);
+  // live:1 tells the server this screen is in the room, so it learns the classroom network
+  const poll=async()=>{const r=await timedCall({action:'today',live:1}).catch(()=>null);if(r&&r.ok){STATUS=r.status;OFFSET=r.now-Date.now();paintPill();if(r.alerts)DATA.alerts=r.alerts;paintToday(r.present);paintLiveState();paintAlerts($('#liveAlerts'),r.alerts)}};
+  poll();pollTimer=setInterval(poll,isDemo()?3000:8000);
 }
 function currentCode(){return codeFor(QRKEY,Math.floor(nowMs()/((DATA.settings.slotSeconds||30)*1000)))}
 // profile photos for the instructor screens, loaded once and refreshed when Students or Live QR opens
@@ -1285,7 +1323,21 @@ function paintToday(list){
   const sorted=list.slice().sort((a,b)=>a.time<b.time?1:-1);
   const el=$('#names');if(!el)return;
   $('#cnt').textContent=list.length;
-  if(list.length!==lastCount){el.innerHTML=sorted.map((r,i)=>`<div style="animation-delay:${i<3?i*.06:0}s"><b>${avatar(r.name,PHOTOS&&PHOTOS[r.id])}${esc(r.name)}</b><span>${esc(r.time)}</span></div>`).join('')||'<p class="hint">Names appear here as students check in.</p>';lastCount=list.length}
+  const sig=list.length+'|'+list.filter(r=>r.note==='off-site').length;
+  if(sig!==lastCount){el.innerHTML=sorted.map((r,i)=>`<div style="animation-delay:${i<3?i*.06:0}s"><b>${avatar(r.name,PHOTOS&&PHOTOS[r.id])}${esc(r.name)}${r.note==='off-site'?'<span class="offs" title="Not on the classroom network">off-site</span>':''}</b><span>${esc(r.time)}</span></div>`).join('')||'<p class="hint">Names appear here as students check in.</p>';lastCount=sig;paintMissing(list)}
+}
+// roll call: active students who haven't checked in and aren't excused today
+function paintMissing(list){
+  const el=$('#missCard');if(!el)return;
+  const here=new Set(list.map(r=>r.id)),exc=new Set(DATA.excuses.filter(e=>e.date===DATA.today).map(e=>e.id));
+  const last={};DATA.attendance.forEach(r=>{if(r.date<DATA.today&&(!last[r.id]||r.date>last[r.id]))last[r.id]=r.date});
+  const miss=DATA.students.filter(s=>s.active!=='no'&&!here.has(s.id)&&!exc.has(s.id)).sort((a,b)=>a.name.localeCompare(b.name));
+  const open=el.querySelector('details')?el.querySelector('details').open:false;
+  el.innerHTML=miss.length?`<details${open?' open':''}><summary><span>Still missing</span><span class="chip">${miss.length}</span></summary><p class="hint" style="margin-top:6px">Not checked in${exc.size?' and not excused':''} today. Read the names for a quick roll call.</p><div class="mlist">${miss.map(s=>`<div>${avatar(s.name,PHOTOS&&PHOTOS[s.id])}<span>${esc(s.name)}</span><small>${last[s.id]?'last '+esc(niceDate(last[s.id],false)):'never'}</small></div>`).join('')}</div></details>`:(DATA.students.length?'<p class="hint" style="margin:0">Everyone on the list is here or excused.</p>':'');
+}
+function paintAlerts(el,list){
+  if(!el)return;list=list||[];
+  el.innerHTML=list.length?`<div class="card"><div class="card-h"><div><h3>Worth a look</h3><p class="hint">Suspicious check-ins today. These are hints, not proof.</p></div></div><div class="alerts">${list.map(a=>`<div class="alert"><b>${esc(a.title)}</b><p>${esc(a.text)}</p><div class="who">${(a.names||[]).map(n=>`<span>${esc(n)}</span>`).join('')}</div></div>`).join('')}</div></div>`:'';
 }
 function paintLiveState(){
   const s=STATUS,el=$('#liveState');if(!el)return;
@@ -1428,13 +1480,32 @@ function dayHTML(rb,C){
   C.rows.forEach(r=>{const a=C.att[r.s.id+'|'+d],e=C.exc[r.s.id+'|'+d];if(a)pres.push([r,a]);else if(e)exc.push([r,e]);else if(r.s.active!=='no')abs.push([r])});
   pres.sort((x,y)=>x[1].time<y[1].time?-1:1);
   const n=pres.length+exc.length+abs.length;
-  rb.innerHTML=`<div class="row mb"><select id="daySel" class="grow" aria-label="Day">${all.map(x=>{const i=DATA.days.find(y=>y.date===x);return `<option value="${x}" ${x===d?'selected':''}>${esc(niceDate(x))}${i.status==='cancelled'?' (cancelled)':x>DATA.today?' (upcoming)':''}</option>`}).join('')}</select></div>
+  rb.innerHTML=`<div class="row mb"><select id="daySel" class="grow" aria-label="Day">${all.map(x=>{const i=DATA.days.find(y=>y.date===x);return `<option value="${x}" ${x===d?'selected':''}>${esc(niceDate(x))}${i.status==='cancelled'?' (cancelled)':x>DATA.today?' (upcoming)':''}</option>`}).join('')}</select><button class="btn ghost" id="dayPrint" type="button">Print day sheet</button></div>
    ${info.status==='cancelled'?'<div class="msg err">This day is cancelled and does not count.</div>':''}
    <div class="kpis"><div class="kpi"><b>${pres.length}</b><span>Present</span></div><div class="kpi"><b>${exc.length}</b><span>Excused</span></div><div class="kpi r"><b>${abs.length}</b><span>Absent</span></div><div class="kpi"><b>${n?Math.round(pres.length/n*100)+'%':'–'}</b><span>Turnout</span></div></div>
    <div class="split"><div><h3>Present</h3><div class="dates">${pres.map(([r,a])=>`<div class="dl"><span>${esc(r.s.name)}</span><span class="chip p">${esc(a.time)}${a.method==='admin'?' · you':''}</span></div>`).join('')||'<p class="hint">Nobody.</p>'}</div></div>
    <div><h3>Excused</h3><div class="dates">${exc.map(([r,e])=>`<div class="dl"><span>${esc(r.s.name)}</span><span class="hint">${esc(e.reason||'Excused')}</span></div>`).join('')||'<p class="hint">Nobody.</p>'}</div>
    <h3 class="mt">Absent</h3><div class="dates">${abs.map(([r])=>`<div class="dl"><span>${esc(r.s.name)}</span><span class="chip a">Absent</span></div>`).join('')||'<p class="hint">Nobody.</p>'}</div></div></div>`;
   $('#daySel').onchange=e=>{RPT.day=e.target.value;renderPane()};
+  $('#dayPrint').onclick=()=>printDaySheet(d,C);
+}
+// one page per class day with a signature column, for the file or for students to sign
+function printDaySheet(d,C){
+  const done=d<DATA.today||(d===DATA.today&&DATA.status.todayDone);
+  const rows=C.rows.filter(r=>C.att[r.s.id+'|'+d]||(r.s.active!=='no'&&r.cells[d]!=null&&r.cells[d]!=='-')).sort((a,b)=>a.s.name.localeCompare(b.s.name));
+  let P=0,E=0,A=0;
+  const body=rows.map((r,i)=>{const a=C.att[r.s.id+'|'+d],e=C.exc[r.s.id+'|'+d];
+    const st=a?'Present '+(a.time||''):e?'Excused':done?'Absent':'';if(a)P++;else if(e)E++;else if(done)A++;
+    return `<tr><td class="n">${i+1}</td><td>${esc(r.s.id)}</td><td>${esc(r.s.name)}</td><td class="st${!a&&!e&&done?' ab':''}">${esc(st)}</td><td class="sg"></td></tr>`}).join('');
+  let el=$('#printSheet');if(!el){el=document.createElement('div');el.id='printSheet';document.body.appendChild(el)}
+  const logo=$('#acLogo')&&$('#acLogo').src;
+  el.innerHTML=`<div class="ph">${logo?`<img src="${esc(logo)}" alt="">`:''}<div><h1>Class attendance · ${esc(niceDate(d))}</h1><p>American Corner Matara · Cyber Security class</p></div></div>
+    <p class="sum">${rows.length} students · ${P} present${E?' · '+E+' excused':''}${done?' · '+A+' absent':' · class not over yet'}</p>
+    <table><thead><tr><th>#</th><th>ID</th><th>Name</th><th>Status</th><th>Signature</th></tr></thead><tbody>${body}</tbody></table>
+    <div class="foot"><div>Instructor name and signature</div><div>Date</div></div>`;
+  document.body.classList.add('printing');
+  const end=()=>{document.body.classList.remove('printing');window.removeEventListener('afterprint',end)};
+  window.addEventListener('afterprint',end);setTimeout(()=>window.print(),50);
 }
 function gridHTML(C){
   if(!C.rows.length)return '<p class="hint">No students yet.</p>';
@@ -1479,9 +1550,9 @@ function paneRegister(box){
     ${od?`<div class="msg good"><b>${esc(niceDate(od.date))}</b> is open for editing until ${esc(hhmm(od.until))}. Mark it in the highlighted column. <button class="linkbtn" id="regOdClose">Lock now</button></div>`:''}
     ${rows.length&&days.length?`<div class="tblwrap grid reg"><table><thead><tr><th>Student</th>${days.map(d=>`<th class="num${d===today?' today':''}${od&&od.date===d?' opened':''}"${od&&od.date===d?' id="odCol"':''}>${d<today&&!(od&&od.date===d)?`<button class="thb" data-od="${d}" title="Locked. Open ${esc(niceDate(d))} for editing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>${esc(niceDate(d,false))}</button>`:esc(niceDate(d,false))}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>
     ${rows.map(r=>`<tr data-q="${esc((r.s.name+' '+r.s.id).toLowerCase())}" data-ph="${esc(r.s.phone||'')}"><td class="name">${esc(r.s.name)}<br><span class="hint">${esc(r.s.id)}${r.s.phone?' · <span style="white-space:nowrap">'+esc(showPhone(r.s.phone))+'</span>':''}</span></td>${days.map(d=>{const c0=r.cells[d]||'?',pm=PM[r.s.id+'|'+d],c=pm?(pm.present?'P':c0==='P'?'A':c0):c0;
-      const v=c==='P'?'1':c==='E'?'E':c==='?'?'…':c==='-'?'·':'0',cls=c==='P'?'v1':c==='E'?'vE':c==='?'?'vP':c==='-'?'vX':'v0';
+      const v=c==='P'?'1':c==='E'?'E':c==='?'?'…':c==='-'?'·':'0',cls=(c==='P'?'v1':c==='E'?'vE':c==='?'?'vP':c==='-'?'vX':'v0')+(c==='P'&&(C.att[r.s.id+'|'+d]||{}).note==='off-site'?' off':'');
       const a=C.att[r.s.id+'|'+d],lk=d<today&&!(od&&od.date===d);
-      return `<td class="cell${od&&od.date===d?' opened':''}"><button class="${cls}${lk?' lk':''}${pm?(pm.bad?' pfail':' pend'):''}" data-id="${esc(r.s.id)}" data-d="${d}" title="${esc(r.s.name)}, ${esc(niceDate(d))}${a&&a.time?' · '+esc(a.time)+(a.method==='qr'?' QR':''):''}${c==='E'?' · excused':''}${c==='-'?' · before this student joined, tap to mark':''}${pm?(pm.bad?' · NOT SAVED, see Operations':' · saving'):''}">${v}</button></td>`}).join('')}<td class="tot">${r.P}/${r.n}</td></tr>`).join('')}
+      return `<td class="cell${od&&od.date===d?' opened':''}"><button class="${cls}${lk?' lk':''}${pm?(pm.bad?' pfail':' pend'):''}" data-id="${esc(r.s.id)}" data-d="${d}" title="${esc(r.s.name)}, ${esc(niceDate(d))}${a&&a.time?' · '+esc(a.time)+(a.method==='qr'?' QR':'')+(a.note==='off-site'?' · off-site (not on the classroom network)':''):''}${c==='E'?' · excused':''}${c==='-'?' · before this student joined, tap to mark':''}${pm?(pm.bad?' · NOT SAVED, see Operations':' · saving'):''}">${v}</button></td>`}).join('')}<td class="tot">${r.P}/${r.n}</td></tr>`).join('')}
     <tr id="regNone" hidden><td colspan="${days.length+2}">${emptyHTML('No matches','Try part of the name, the ID or the mobile number.')}</td></tr>
     </tbody></table></div>`:'<p class="hint">'+(rows.length?'No class days yet. Add one above.':'No students yet. Add them under Students.')+'</p>'}
     <div class="row mt"><span class="hint" id="regState"></span></div></div>`;

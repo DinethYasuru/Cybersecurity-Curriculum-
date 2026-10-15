@@ -30,7 +30,7 @@
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 13;
+var SERVER_VERSION = 14;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -44,7 +44,7 @@ var DEFAULT_SETTINGS = {
   selfEdit: true,       // students may change their own name, number and photo (after signing in with a key from the instructor)
   fromFirst: true,      // count a student's classes from the day they joined, not from week 1
   slotSeconds: 30,      // QR code changes every 30 s
-  codeSlots: 5,         // a code stays valid for 5 slots (about 2.5 min)
+  codeSlots: 3,         // a code works for 60 to 90 s after it appears, so a code sent on WhatsApp dies fast
   idPrefix: 'ACM-',     // student IDs are given in order: prefix + number + suffix, e.g. ACM-0001
   idSuffix: '',
   idDigits: 4,
@@ -167,6 +167,67 @@ function AttendanceCore(rawEnv) {
     for (var i = -1; i < s.codeSlots; i++) if (codeFor(key, slot - i) === code) return true;
     return false;
   }
+  // the number step proves the student had a fresh code; the confirm step may come a little later, so it
+  // gets a short ticket for that number instead of needing a code that may have changed meanwhile
+  var TICKET_MS = 180000;
+  function ticketFor(phone, ms) { return ms.toString(36) + '.' + env.hmac(dayKey(local(ms, settings()).date), 'tk:' + phone + ':' + ms).slice(0, 8).map(function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }
+  function ticketOk(tk, phone, now) {
+    var m = /^([a-z0-9]{6,10})\.[a-f0-9]{16}$/.exec(String(tk || '')); if (!m || !phone) return false;
+    var ms = parseInt(m[1], 36);
+    return now - ms >= -5000 && now - ms < TICKET_MS && ticketFor(phone, ms) === String(tk);
+  }
+
+  // Where a check-in came from. Cloudflare tells the server each request's network; the Sheet server
+  // can't, so there these checks are simply skipped. Only a short fingerprint is kept, never the address.
+  function netNow() { var n = env.net ? env.net() : null; return n && n.ip ? n : null; }
+  function netKey(ip) {
+    ip = String(ip || '').toLowerCase();
+    if (ip.indexOf(':') < 0) return ip;
+    // IPv6: phones on one Wi-Fi share the first half (/64) of their address
+    var h = ip.split('::'), a = h[0] ? h[0].split(':') : [], b = h.length > 1 && h[1] ? h[1].split(':') : [], full = a.slice();
+    for (var i = a.length + b.length; i < 8; i++) full.push('0');
+    full = full.concat(b);
+    return full.slice(0, 4).map(function (x) { return parseInt(x || '0', 16).toString(16); }).join(':') + '::/64';
+  }
+  function netFp(n) { return env.sha256(qrKey() + '|net|' + netKey(n.ip)).slice(0, 8); }
+  function isV6(n) { return String(n.ip).indexOf(':') >= 0; }
+  function roomNets(date) { var r = null; try { r = JSON.parse(env.getProp('roomNet') || 'null'); } catch (e) {} return r && r.date === date ? r.nets : []; }
+  // the screen showing Live QR during class is in the room, so its network is the classroom's
+  function noteRoom(now, s) {
+    var n = netNow(); if (!n || !isOpen(now, s)) return;
+    var date = local(now, s).date, nets = roomNets(date), fp = netFp(n);
+    if (nets.some(function (x) { return x.fp === fp; })) return;
+    nets.push({ fp: fp, v6: isV6(n), asn: String(n.asn || '') });
+    env.setProp('roomNet', JSON.stringify({ date: date, nets: nets.slice(-8) }));
+  }
+  // off-site: Live QR ran today and this phone is on another network. A phone on IPv6 while the room was
+  // only seen on IPv4 (or the other way) can't be compared, so then only another provider counts.
+  function offSite(n, now, s) {
+    var nets = roomNets(local(now, s).date); if (!n || !nets.length) return false;
+    var fp = netFp(n), v6 = isV6(n);
+    if (nets.some(function (x) { return x.fp === fp; })) return false;
+    if (nets.some(function (x) { return x.v6 === v6; })) return true;
+    return !nets.some(function (x) { return x.asn && x.asn === String(n.asn || ''); });
+  }
+  // things worth a look today: check-ins from outside, several from one outside network, one phone trying several people
+  function alerts(now, s) {
+    var date = local(now, s).date, out = [], nameOf = {}, idOf = {};
+    env.read('students').forEach(function (r) { nameOf[r.id] = r.name; if (r.phone) idOf[r.phone] = r.id; });
+    var who = function (v) { v = idOf[v] || v; return nameOf[v] || v; };
+    var off = env.read('attendance').filter(function (r) { return r.date === date && r.note === 'off-site'; });
+    if (off.length) out.push({ kind: 'offsite', title: off.length + ' checked in from outside the classroom network', text: 'Mobile data or somewhere else. Check they are in the room.', names: off.map(function (r) { return r.name; }) });
+    var lg = (env.readTail ? env.readTail('log', 3000) : env.read('log')).filter(function (r) { return r.date === date && r.device && r.device !== 'admin'; });
+    var byNet = {}, byDev = {};
+    lg.forEach(function (r) {
+      if (r.action !== 'checkin' && r.action !== 'register') return;
+      var m = /^net (\w+) off-site/.exec(r.detail || '');
+      if (m && r.result === 'accepted') (byNet[m[1]] = byNet[m[1]] || []).push(who(r.id));
+      if (r.id && (r.result === 'accepted' || /device used by/.test(r.detail || ''))) { var d = byDev[r.device] = byDev[r.device] || {}; d[who(r.id)] = 1; }
+    });
+    Object.keys(byNet).forEach(function (k) { if (byNet[k].length > 1) out.push({ kind: 'samenet', title: byNet[k].length + ' check-ins from the same outside network', text: 'One person may be checking in friends from home.', names: byNet[k] }); });
+    Object.keys(byDev).forEach(function (k) { var n = Object.keys(byDev[k]); if (n.length > 1) out.push({ kind: 'onephone', title: 'One phone tried to check in ' + n.length + ' people', text: 'The one-phone rule stopped the extra ones, but ask who it was.', names: n }); });
+    return out;
+  }
   function cleanId(v) { return String(v || '').trim().toUpperCase().replace(/\s+/g, ''); }
   function cleanName(v) { return String(v || '').trim().replace(/\s+/g, ' '); }
   function sameName(a, b) { return cleanName(a).toLowerCase() === cleanName(b).toLowerCase(); }
@@ -223,7 +284,7 @@ function AttendanceCore(rawEnv) {
     if (rateLimited('rl:' + device, 20, 600)) { L('rejected', 'too many tries'); return fail('slow', 'Too many tries. Wait 10 minutes.'); }
     if (!cleanPhone(req.phone)) { L('rejected', 'bad number'); return fail('phone', 'Type your mobile number, like 0771234567.'); }
     if (!isOpen(now, s)) { L('rejected', 'closed'); return fail('closed', 'Check-in is closed now.', { nextOpen: nextOpen(now, s) }); }
-    if (s.requireCode && !codeOk(req.code, now, s)) { L('rejected', 'bad or old code'); return fail('code', 'That QR code has expired. Scan the screen again.'); }
+    if (s.requireCode && !codeOk(req.code, now, s) && !ticketOk(req.ticket, cleanPhone(req.phone), now)) { L('rejected', 'bad or old code'); return fail('code', 'That QR code has expired. Scan the screen again.'); }
     // a new device id per try is easy to fake, so each number has its own limit too; counted only after the
     // code check, so nobody outside the room can lock a classmate's number
     if (rateLimited('rp:' + cleanPhone(req.phone), 12, 600)) { L('rejected', 'too many tries for number'); return fail('slow', 'Too many tries for this number. Wait 10 minutes.'); }
@@ -262,10 +323,11 @@ function AttendanceCore(rawEnv) {
     var L = function (result, detail) { log(now, s, 'lookup', phone || String(req.phone || '').slice(0, 20), '', String(req.device || '').slice(0, 40), result, detail); };
     var bad = gate(req, now, s, L); if (bad) return bad;
     var st = byPhone(phone);
-    if (!st) return { ok: true, found: false, phone: phone, canRegister: s.selfRegister, idExample: formatId(s, Number(s.idStart) || 1) };
+    var tk = ticketFor(phone, now);
+    if (!st) return { ok: true, found: false, phone: phone, canRegister: s.selfRegister, idExample: formatId(s, Number(s.idStart) || 1), ticket: tk };
     if (String(st.active) === 'no') { L('rejected', 'inactive ' + st.id); return fail('inactive', 'This number is switched off. Talk to your instructor.'); }
     var mine = env.read('attendance').filter(function (r) { return r.date === t.date && r.id === st.id; })[0];
-    return { ok: true, found: true, student: { id: st.id, name: maskName(st.name) }, masked: true, already: mine ? mine.time : '', date: t.date };
+    return { ok: true, found: true, student: { id: st.id, name: maskName(st.name) }, masked: true, already: mine ? mine.time : '', date: t.date, ticket: tk };
   }
 
   // first time only: number + name get the next student ID
@@ -276,14 +338,14 @@ function AttendanceCore(rawEnv) {
     if (!s.selfRegister) { L('rejected', 'self register off'); return fail('unknown', 'This number is not on the class list. Talk to your instructor.'); }
     if (!validName(name)) { L('rejected', 'bad name'); return fail('name', 'Type your name with letters only.'); }
     var hit = byPhone(phone);
-    if (hit) { L('duplicate', 'number already ' + hit.id); return { ok: true, student: { id: hit.id, name: maskName(hit.name), phone: hit.phone }, masked: true, existing: true }; }
+    if (hit) { L('duplicate', 'number already ' + hit.id); return { ok: true, student: { id: hit.id, name: maskName(hit.name), phone: hit.phone }, masked: true, existing: true, ticket: ticketFor(phone, now) }; }
     if (staffByPhone(phone)) { L('rejected', 'instructor number'); return fail('unknown', STAFF_PHONE); }
     // made-up numbers: a few per phone a day, and not a flood for the whole class
     if (rateLimited('rg:' + cleanDevice(req.device) + ':' + t.date, 3, 86400) || rateLimited('rgall', 100, 600)) { L('rejected', 'too many registrations'); return fail('slow', 'Too many new registrations right now. Ask your instructor.'); }
     var st = { id: nextId(s, env.read('students')), name: name, added: t.date, source: 'self', active: 'yes', phone: phone };
     env.append('students', st);
     L('accepted', st.id);
-    return { ok: true, student: studentOut(st) };
+    return { ok: true, student: studentOut(st), ticket: ticketFor(phone, now) };
   }
 
   // step 2: student confirmed "this is me"
@@ -305,9 +367,10 @@ function AttendanceCore(rawEnv) {
     if (mine) { L('duplicate', 'already at ' + mine.time); return { ok: true, already: true, date: t.date, time: mine.time, student: studentOut(st) }; }
     if (other) { L('rejected', 'device used by ' + other.id); return fail('shared', 'This phone already checked in another student today. Use your own phone, or ask your instructor.'); }
 
-    env.append('attendance', { date: t.date, id: st.id, name: st.name, time: t.time, device: device, method: s.requireCode ? 'qr' : 'open', note: '' });
+    var net = netNow(), off = offSite(net, now, s);
+    env.append('attendance', { date: t.date, id: st.id, name: st.name, time: t.time, device: device, method: s.requireCode ? 'qr' : 'open', note: off ? 'off-site' : '' });
     if (!env.read('days').some(function (r) { return r.date === t.date; })) env.append('days', { date: t.date, status: 'held', note: '' });
-    L('accepted', '');
+    L('accepted', net ? 'net ' + netFp(net) + (off ? ' off-site · ' + [net.org, net.city].filter(Boolean).join(', ') : '') : '');
     return { ok: true, date: t.date, time: t.time, student: studentOut(st) };
   }
 
@@ -512,7 +575,8 @@ function AttendanceCore(rawEnv) {
         days: env.read('days'), log: lg.slice(Math.max(0, lg.length - 400)), backup: backupInfo(),
         requests: env.read('requests').filter(function (r) { return now - Number(r.at) < 30 * 86400000; }),
         nextIdPreview: formatId(s, Math.max(Number(env.getProp('idNext') || 0), Number(s.idStart) || 1)),
-        staff: env.read('staff').map(staffOut), me: SESSION && SESSION.me ? staffOut(SESSION.me) : null, owner: isOwner(), qrKey: dayKey(t.date) };
+        staff: env.read('staff').map(staffOut), me: SESSION && SESSION.me ? staffOut(SESSION.me) : null, owner: isOwner(), qrKey: dayKey(t.date),
+        alerts: alerts(now, s), room: roomNets(t.date).length > 0 };
     }
     if (a === 'staffSave' || a === 'myAccount') {
       // owners add and change instructors; everyone changes their own name, number, photo and password
@@ -616,8 +680,10 @@ function AttendanceCore(rawEnv) {
       env.backupAuto(!!req.on); A(req.on ? 'daily on' : 'daily off'); return { ok: true, backup: backupInfo() };
     }
     if (a === 'today') {
-      return { ok: true, now: now, today: t.date, status: publicStatus(now),
-        present: env.read('attendance').filter(function (r) { return r.date === t.date; }).map(function (r) { return { id: r.id, name: r.name, time: r.time }; }) };
+      // only Live QR asks this, every few seconds, from the screen in the room
+      if (req.live) noteRoom(now, s);
+      return { ok: true, now: now, today: t.date, status: publicStatus(now), alerts: alerts(now, s), room: roomNets(t.date).length > 0,
+        present: env.read('attendance').filter(function (r) { return r.date === t.date; }).map(function (r) { return { id: r.id, name: r.name, time: r.time, note: r.note }; }) };
     }
     if (a === 'mark') {
       if (!validId(id) || !validDate(req.date)) return fail('input', 'Pick a student and a date.');
