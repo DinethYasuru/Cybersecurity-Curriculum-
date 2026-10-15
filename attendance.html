@@ -1758,9 +1758,19 @@ function paneDays(box){
     <div class="field"><label for="dNote">Note</label><input id="dNote" maxlength="120" placeholder="e.g. Poya holiday"></div>
     <div class="row"><button class="btn" data-s="held">Class day</button><button class="btn ghost" data-s="cancelled">Cancelled</button></div></form></div>
    <div><div class="tblwrap"><table><thead><tr><th>Day</th><th>Status</th><th class="num">Check-ins</th><th></th></tr></thead><tbody>
-   ${days.map(d=>`<tr><td>${esc(niceDate(d.date))}${d.note?'<br><span class="hint">'+esc(d.note)+'</span>':''}</td><td>${d.status==='cancelled'?'<span class="chip a">Cancelled</span>':d.date>DATA.today?'<span class="chip g">Upcoming</span>':'<span class="chip p">Held</span>'}</td><td class="num">${counts[d.date]||0}</td><td><button class="btn small ghost" data-d="${d.date}" data-s="${d.status==='cancelled'?'held':'cancelled'}">${d.status==='cancelled'?'Restore':'Cancel'}</button></td></tr>`).join('')||'<tr><td colspan="4" class="hint">No class days yet.</td></tr>'}
+   ${days.map(d=>`<tr><td>${esc(niceDate(d.date))}${d.note?'<br><span class="hint">'+esc(d.note)+'</span>':''}</td><td>${d.status==='cancelled'?'<span class="chip a">Cancelled</span>':d.date>DATA.today?'<span class="chip g">Upcoming</span>':'<span class="chip p">Held</span>'}</td><td class="num">${counts[d.date]||0}</td><td><div class="row" style="flex-wrap:nowrap;justify-content:flex-end"><button class="btn small ghost" data-d="${d.date}" data-s="${d.status==='cancelled'?'held':'cancelled'}">${d.status==='cancelled'?'Restore':'Cancel'}</button>${DATA.owner!==false?`<button class="btn small ghost" data-del="${d.date}" title="Delete this day and its check-ins" style="color:var(--red)">Delete</button>`:''}</div></td></tr>`).join('')||'<tr><td colspan="4" class="hint">No class days yet.</td></tr>'}
    </tbody></table></div></div></div>`;
   $('#dForm').querySelectorAll('button').forEach(b=>b.onclick=async e=>{e.preventDefault();if(!$('#dDate').value)return;const r=await saveOp({action:'day',date:$('#dDate').value,status:b.dataset.s,note:$('#dNote').value});if(r.ok){toast('Saved');loadData()}else toast(r.message,true)});
+  // delete a test day (or one made by mistake) with everything on it
+  box.querySelectorAll('tbody [data-del]').forEach(b=>b.onclick=async()=>{
+    if(oldServer()||(DATA.status.version||0)<15){toast('The server needs updating first.',true);return}
+    const d=b.dataset.del,n=counts[d]||0,keep=new Set(DATA.attendance.concat(DATA.excuses).filter(r=>r.date!==d).map(r=>r.id));
+    const gone=DATA.students.filter(s=>s.added===d&&!keep.has(s.id));
+    const txt=`This removes ${niceDate(d)} completely: ${n} check-in${n===1?'':'s'}${gone.length?`, and ${gone.length} student${gone.length===1?'':'s'} who joined that day and ha${gone.length===1?'s':'ve'} nothing on other days (${gone.map(s=>s.name).join(', ')})`:''}. It can't be undone, except from a backup. Type DELETE to confirm.`;
+    const v=await ask({title:'Delete '+niceDate(d)+'?',text:txt,label:'Type DELETE',input:'',ok:'Delete day',danger:true});
+    if(v===null)return;if(String(v).trim().toUpperCase()!=='DELETE'){toast('Not deleted. Type DELETE to confirm.',true);return}
+    const r=await saveOp({action:'dayDelete',date:d});
+    if(r.ok){toast(niceDate(d)+' deleted'+(r.students?' with '+r.students+' test student'+(r.students===1?'':'s'):''));loadData()}else toast(r.message,true)});
   box.querySelectorAll('tbody [data-d]').forEach(b=>b.onclick=async()=>{if(b.dataset.s==='cancelled'&&counts[b.dataset.d]&&!await ask({title:'Cancel '+niceDate(b.dataset.d)+'?',text:'Its '+counts[b.dataset.d]+' check-ins stay saved but will not count.',ok:'Cancel day',danger:true}))return;const r=await saveOp({action:'day',date:b.dataset.d,status:b.dataset.s});if(r.ok){toast('Saved');loadData()}else toast(r.message,true)});
 }
 
@@ -1812,6 +1822,7 @@ function describeOp(b){const d=x=>x?niceDate(x):'';
     case 'day':return ['Class days',d(b.date)+': '+(b.status==='held'?'held':b.status==='cancelled'?'cancelled':'removed')];
     case 'extra':return ['Check-in',+b.minutes?'Open check-in for '+b.minutes+' min':'Close the extra window'];
     case 'absentRest':return ['Register','Mark the rest absent on '+d(b.date)];
+    case 'dayDelete':return ['Class days','Delete '+d(b.date)+' and its check-ins'];
     case 'openDay':return ['Register',+b.minutes?'Open '+d(b.date)+' for editing ('+b.minutes+' min)':'Lock the open past day'];
     case 'settings':return ['Settings','Save settings'];
     case 'keyReq':{const r=DATA&&(DATA.requests||[]).find(x=>x.rid===b.rid);return ['Inbox',(b.status==='sent'?'Key sent to ':b.status==='dismissed'?'Dismiss key for ':'Key request ')+(r?r.name:'')]}
