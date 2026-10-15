@@ -88,7 +88,8 @@ body.demo-on{--demo:35px}
 .nav-i.on svg{color:var(--navy)}
 .nav-i.on::before{content:"";position:absolute;left:-12px;top:8px;bottom:8px;width:4px;border-radius:0 4px 4px 0;background:var(--red)}
 .side-foot{margin-top:auto;border-top:1px solid var(--line);padding:var(--s4) var(--s2) 0;display:flex;flex-direction:column;gap:var(--s2)}
-.who{display:flex;align-items:center;gap:var(--s3);font-size:.88rem;color:var(--muted)}
+.who{display:flex;align-items:center;gap:var(--s3);font-size:.88rem;color:var(--muted);background:none;border:0;padding:6px;margin:-6px;border-radius:12px;text-align:left;cursor:pointer;font-family:inherit;width:calc(100% + 12px)}
+.who:hover{background:var(--navy-50)}.who .pic{--sz:34px}
 .who .av{width:34px;height:34px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-family:'Outfit';font-weight:700;flex:none}
 .who b{display:block;color:var(--ink);font-family:'Outfit';font-weight:600;font-size:.95rem}
 .work{min-width:0;padding:var(--s6) var(--gut) 72px}
@@ -375,7 +376,12 @@ tr.opd td{background:#fbfcfe;padding:0}
 .names div b{display:flex;align-items:center;gap:10px;font-weight:500}
 /* profile photos: a round picture, or initials when there is none */
 .pic{--sz:36px;width:var(--sz);height:var(--sz);border-radius:50%;flex:none;display:inline-grid;place-items:center;object-fit:cover;background:var(--navy-50);color:var(--navy);font:600 calc(var(--sz)*.38)/1 'Outfit';border:2px solid #fff;box-shadow:0 0 0 1px var(--navy-100);vertical-align:middle}
-.pic.lg{--sz:96px}
+.pic.lg{--sz:96px}.pic.md{--sz:48px}
+.team{display:flex;flex-direction:column;gap:2px}
+.tm{display:flex;align-items:center;gap:var(--s3);padding:12px 8px;border-bottom:1px solid var(--line)}.tm:last-child{border-bottom:0}
+.tm.off{opacity:.55}.tmtxt{flex:1;min-width:0;display:flex;flex-direction:column}.tmtxt b{font-family:'Outfit';font-weight:600;color:var(--ink)}.tmtxt span{color:var(--muted);font-size:.9rem}
+.tmside{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.acct{max-width:560px}.pwbox{margin:var(--s3) 0;border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 14px}.pwbox summary{cursor:pointer;font-weight:600;color:var(--navy)}.pwbox[open] summary{margin-bottom:var(--s3)}
 .pic.xl{--sz:132px}
 body.present .names .pic{--sz:4.4vh}
 .pfhead{display:flex;align-items:center;gap:var(--s4)}
@@ -487,7 +493,7 @@ body.present{background:#fff}
         <h2>Instructor sign in</h2>
         <p class="hint mb">Records, reports and the live QR for the class.</p>
         <form id="loginForm" autocomplete="on">
-          <input type="text" name="username" value="instructor" autocomplete="username" hidden>
+          <div class="field"><label for="lphone">Mobile number</label><input id="lphone" name="username" type="tel" inputmode="tel" maxlength="16" autocomplete="username" placeholder="07X XXX XXXX"><div class="hint">Your instructor account. Leave it empty to use the main password.</div></div>
           <div class="field"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required minlength="8"></div>
           <button class="btn wide big" id="loginBtn">Sign in</button>
         </form>
@@ -499,7 +505,7 @@ body.present{background:#fff}
       <aside class="side" aria-label="Instructor menu">
         <nav class="snav" id="tabs"></nav>
         <div class="side-foot">
-          <div class="who"><span class="av">I</span><span><b>Instructor</b><span id="who"></span></span></div>
+          <button class="who" id="whoBtn" type="button" title="My account"><span id="whoPic"><span class="av">I</span></span><span><b id="whoName">Instructor</b><span id="who"></span></span></button>
           <button class="btn ghost small" id="logout">Log out</button>
         </div>
       </aside>
@@ -548,6 +554,8 @@ $('#stars').innerHTML=Array.from({length:15},(_,i)=>starSVG.replace('<svg','<svg
 /* ---------- icons ---------- */
 const IC=(d)=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>';
 const ICON={
+  team:IC('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M17 3.5l4 1.5v3c0 2.5-1.7 4.3-4 5-2.3-.7-4-2.5-4-5V5z"/>'),
+  account:IC('<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="10" r="3.2"/><path d="M6 18.5a7 7 0 0 1 12 0"/>'),
   home:IC('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>'),
   live:IC('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/>'),
   register:IC('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/><path d="m12.5 15 1.5 1.5 3-3"/>'),
@@ -959,28 +967,31 @@ function logoutLocal(){PHOTOS=null;photosAt=0;TOKEN=null;QRKEY=null;sess.del('at
 $('#loginForm').onsubmit=async e=>{
   e.preventDefault();const btn=$('#loginBtn');btn.disabled=true;btn.textContent='Checking…';$('#loginMsg').innerHTML='';
   const t0=Date.now();
-  try{const r=await api({action:'login',password:$('#pw').value,trust:store.get('att-trust')||''});logRead('login',Date.now()-t0,r.ok?null:r.message);
+  try{const lp=$('#lphone').value.trim(),body={action:'login',password:$('#pw').value,trust:store.get('att-trust')||''};
+    if(lp){body.phone=cleanPhone(lp);if(!body.phone){$('#loginMsg').innerHTML='<div class="msg err">Type a mobile number like 0771234567, or leave it empty.</div>';btn.disabled=false;btn.textContent='Sign in';return}store.set('att-lphone',lp)}else store.del('att-lphone');
+    const r=await api(body);logRead('login',Date.now()-t0,r.ok?null:r.message);
     if(r.ok){if(r.trust)store.set('att-trust',r.trust);TOKEN=r.token;QRKEY=r.qrKey;OFFSET=r.now-Date.now();sess.set('att-token',TOKEN);sess.set('att-qrkey',QRKEY);$('#pw').value='';showAdmin();opsAfterLogin()}
     else $('#loginMsg').innerHTML='<div class="msg err">'+esc(r.message)+'</div>';
   }catch(err){logRead('login',Date.now()-t0,err.message);$('#loginMsg').innerHTML='<div class="msg err">'+esc(err.message)+'</div>'}
-  btn.disabled=false;btn.textContent='Log in';
+  btn.disabled=false;btn.textContent='Sign in';
 };
 $('#logout').onclick=async()=>{try{await api({action:'logout',token:TOKEN})}catch(e){}logoutLocal()};
 $('#toSetup').onclick=()=>{location.hash='#setup'};
 $('#toStudent').onclick=()=>{location.hash=''};
 $('#toAdmin').onclick=()=>{location.hash='#admin'};
 
-const TABS=[['home','Dashboard','Overview'],['inbox','Inbox','Overview'],['live','Live QR','Class'],['register','Register','Class'],['reports','Reports','Records'],['students','Students','Records'],['excuses','Excuses','Records'],['days','Class days','Records'],['ops','Operations','System'],['log','Activity log','System'],['settings','Settings','System']];
+const TABS=[['home','Dashboard','Overview'],['inbox','Inbox','Overview'],['live','Live QR','Class'],['register','Register','Class'],['reports','Reports','Records'],['students','Students','Records'],['excuses','Excuses','Records'],['days','Class days','Records'],['team','Instructors','System'],['ops','Operations','System'],['log','Activity log','System'],['settings','Settings','System']];
 const PAGES={home:['Dashboard','Today at a glance, and who needs a nudge.'],inbox:['Inbox','Students asking for a profile key. Send each one their code on WhatsApp.'],live:['Live check-in','Show this on the projector. The code changes every few seconds so only people in the room can check in.'],
   register:['Register','The class sheet. Tap a cell to mark present, tap again for absent.'],reports:['Reports','Pass marks, per-student and per-day records, and exports.'],
   students:['Students','Everyone on the class list, with their IDs and mobile numbers.'],excuses:['Excused absences','Approved absences count toward the pass mark when you choose.'],
-  days:['Class days','Add a class nobody checked in to, or cancel a day so it does not count.'],ops:['Operations','Every change you save, its status, and retries when the server is slow.'],log:['Activity log','Every check-in try and admin change, newest first.'],settings:['Settings','Check-in window, security checks and the student ID format.']};
+  days:['Class days','Add a class nobody checked in to, or cancel a day so it does not count.'],ops:['Operations','Every change you save, its status, and retries when the server is slow.'],log:['Activity log','Every check-in try and admin change, newest first.'],settings:['Settings','Check-in window, security checks and the student ID format.'],
+  team:['Instructors','Everyone who runs the class. Each signs in with their own number and password.'],account:['My account','Your name, number, photo and password.']};
 const BNAV=['home','live','register','reports'];
 function navHTML(){let g='';return TABS.map(([k,l,grp])=>{const h=grp!==g?'<h6>'+grp+'</h6>':'';g=grp;return h+`<button class="nav-i${k===TAB?' on':''}" data-k="${k}"${k===TAB?' aria-current="page"':''}>${ICON[k]}<span>${l}</span></button>`}).join('')}
 function paintNav(){
   $('#tabs').innerHTML=navHTML();
   $('#bnav').innerHTML=BNAV.map(k=>`<button data-k="${k}" class="${k===TAB?'on':''}">${ICON[k]}<span>${TABS.find(t=>t[0]===k)[1].replace('Dashboard','Home')}</span></button>`).join('')+`<button data-k="more" class="${BNAV.includes(TAB)?'':'on'}">${ICON.more}<span>More</span></button>`;
-  $('#moreNav').innerHTML=navHTML()+`<h6>Account</h6><button class="nav-i" data-k="logout">${ICON.logout}<span>Log out</span></button>`;
+  $('#moreNav').innerHTML=navHTML()+`<h6>Account</h6><button class="nav-i${TAB==='account'?' on':''}" data-k="account">${ICON.account}<span>My account</span></button><button class="nav-i" data-k="logout">${ICON.logout}<span>Log out</span></button>`;
   opsPaint();
 }
 function goTab(k){if(k==='more'){$('#moreSheet').showModal();return}if(k==='logout'){$('#moreSheet').close();$('#logout').click();return}
@@ -992,10 +1003,18 @@ async function loadData(show,quiet){
   let r;try{r=await timedCall({action:'data'})}catch(e){if(!quiet)toast(e.message+' Your changes are kept under Operations.',true);return false}
   if(!r.ok){if(r.reason!=='auth'&&!quiet)toast(r.message,true);return false}
   if(quiet&&sig(r)===sig(DATA)){STATUS=r.status;OFFSET=r.now-Date.now();paintPill();return true}
-  DATA=r;STATUS=r.status;OFFSET=r.now-Date.now();paintPill();$('#winText').textContent=windowText(r.status.window);
+  DATA=r;STATUS=r.status;OFFSET=r.now-Date.now();paintPill();paintWho();if(r.me&&!PHOTOS)loadPhotos().then(paintWho);$('#winText').textContent=windowText(r.status.window);
   if(show)toast('Up to date');
   renderPane();return true;
 }
+// who is signed in: an instructor account, or the main password
+function paintWho(){
+  const me=DATA&&DATA.me;
+  $('#whoName').textContent=me?me.name:'Instructor';
+  $('#who').textContent=me?(me.role==='owner'?'Owner':'Instructor')+' · My account':(isDemo()?'Demo server on this device':'Main password');
+  $('#whoPic').innerHTML=me?avatar(me.name,PHOTOS&&PHOTOS[me.id]):'<span class="av">I</span>';
+}
+$('#whoBtn').onclick=()=>goTab('account');
 function showAdmin(){
   const setup=location.hash==='#setup';
   $('#studentView').hidden=true;$('#adminView').hidden=false;document.body.classList.remove('adm');
@@ -1004,9 +1023,10 @@ function showAdmin(){
   if(!TOKEN){$('#loginBox').hidden=false;$('#panel').hidden=true;
     if(!SID)$('#loginMsg').innerHTML='<div class="msg">No server connected yet. Open <button class="linkbtn" onclick="location.hash=\'#setup\'">Setup and demo</button> first.</div>';
     else if(isDemo())$('#loginMsg').innerHTML='<div class="msg">Demo password: <b>demo1234</b></div>';
-    setTimeout(()=>$('#pw').focus(),50);return}
+    const lp=$('#lphone');if(!lp.value)lp.value=store.get('att-lphone')||'';
+    setTimeout(()=>(lp.value?$('#pw'):lp).focus(),50);return}
   $('#loginBox').hidden=true;$('#panel').hidden=false;document.body.classList.add('adm');
-  $('#who').textContent=isDemo()?'Demo server on this device':'Google Sheet connected';
+  paintWho();
   paintNav();
   if(DATA)renderPane();else{paintHead();$('#paneBox').innerHTML=skeleton();loadData()}
   pump();opsPaint()
@@ -1021,7 +1041,7 @@ function paintHead(acts){const [t,d]=PAGES[TAB];document.title=t+' · Class Atte
 function renderPane(){
   stopLive();if(!DATA)return;paintHead();
   const box=$('#paneBox');
-  ({home:paneHome,inbox:paneInbox,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,ops:paneOps,log:paneLog,settings:paneSettings})[TAB](box);
+  ({home:paneHome,inbox:paneInbox,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,ops:paneOps,log:paneLog,settings:paneSettings,team:paneTeam,account:paneAccount})[TAB](box);
   if(oldServer()){box.insertAdjacentHTML('afterbegin',oldServerHTML());$('#oldSrvCopy').onclick=copyServerCode}
   inboxBadge();
   const n=inboxN();if(n&&TAB==='home'){box.insertAdjacentHTML('afterbegin',`<div class="msg mb" id="inbNote"><b>${n} student${n===1?'':'s'}</b> asked for a profile key. <button class="btn small" id="inbGo">Open Inbox</button></div>`);$('#inbGo').onclick=()=>goTab('inbox')}
@@ -1456,6 +1476,84 @@ function paneStudents(box){
   $('#fdel').onclick=async()=>{if(!await ask({title:'Remove '+$('#fname').value+'?',text:'Students who already have attendance can only be switched off, not removed.',ok:'Remove',danger:true}))return;const r=await saveOp({action:'student',id:editId,remove:true});if(r.ok){toast('Removed');clear();loadData()}else toast(r.message,true)};
   $('#bulkBtn').onclick=async()=>{const list=$('#bulk').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.split(/[,\t;]/);return {phone:m[0],name:m.slice(1).join(' ')}});if(!list.length)return;
     const r=await saveOp({action:'bulk',list});if(r.ok){toast(r.added+' added'+(r.bad.length?', '+r.bad.length+' skipped':''),r.bad.length>0);if(r.bad.length)$('#bulk').value=r.bad.join('\n');else $('#bulk').value='';loadData()}else toast(r.message,true)};
+}
+
+/* Instructors: each has their own number (never a student's), photo and password */
+const needV12=box=>{if(isDemo()||(DATA.status.version||0)>=12)return false;box.innerHTML='<div class="pane"><div class="msg err">Instructor accounts need server version 12. Update the server code (Setup has <b>Copy server code</b>), then Deploy › Manage deployments › the <b>Web app</b> › pencil › New version.</div></div>';return true};
+const roleChip=r=>r.role==='owner'?'<span class="chip p">Owner</span>':'<span class="chip g">Instructor</span>';
+async function staffCall(body){try{return await adminCall(body)}catch(e){return {ok:false,message:e.message}}}
+function paneTeam(box){
+  if(needV12(box))return;
+  const list=(DATA.staff||[]).slice().sort((a,b)=>(a.role===b.role?0:a.role==='owner'?-1:1)||a.name.localeCompare(b.name)),own=!!DATA.owner,me=DATA.me;
+  loadPhotos().then(()=>{if(TAB==='team'&&$('#tmBody'))draw()});
+  box.innerHTML=`<div class="pane split wideleft">
+   <div class="card"><div class="card-h"><h3>Team</h3><span class="chip g">${list.length} ${list.length===1?'person':'people'}</span></div>
+    ${!me&&!list.length?'<div class="msg mb"><b>Add yourself first.</b> The first instructor you add becomes an owner. Then sign out and sign in with your number and password.</div>':''}
+    ${!me&&list.length?'<div class="msg mb">You signed in with the main password. Sign in with your own number to have your name on your changes.</div>':''}
+    <div class="team" id="tmBody"></div></div>
+   <div class="stack"><div class="card"><h3 id="tmTitle">Add an instructor</h3>
+    ${own?`<form id="tmForm" novalidate>
+     <div class="field"><label for="tmName">Name</label><input id="tmName" maxlength="60" autocomplete="off"></div>
+     <div class="field"><label for="tmPhone">Mobile number</label><input id="tmPhone" type="tel" inputmode="tel" maxlength="16" placeholder="07X XXX XXXX" autocomplete="off"><div class="hint">They sign in with it. It can't be a student's number.</div></div>
+     <div class="field"><label for="tmPw" id="tmPwL">Password</label><input id="tmPw" type="password" minlength="8" autocomplete="new-password"><div class="hint" id="tmPwH">At least 8 characters. Share it with them, they can change it under My account.</div></div>
+     <div class="field"><label for="tmRole">Role</label><select id="tmRole"><option value="instructor">Instructor: runs the class</option><option value="owner">Owner: also manages instructors</option></select></div>
+     <label class="check" id="tmActL" hidden><input type="checkbox" id="tmAct" checked>Can sign in</label>
+     <div id="tmMsg"></div>
+     <div class="row"><button class="btn" id="tmSave">Add instructor</button><button type="button" class="btn ghost" id="tmClear">Clear</button><button type="button" class="btn red" id="tmDel" hidden>Remove</button></div></form>`
+    :'<p class="hint">Only an owner can add or change instructors. Change your own details under <button class="linkbtn" id="tmMine">My account</button>.</p>'}
+   </div></div></div>`;
+  let edit=null;
+  function draw(){$('#tmBody').innerHTML=list.length?list.map(x=>`<div class="tm${x.active?'':' off'}"><span class="tmpic">${avatar(x.name,PHOTOS&&PHOTOS[x.id],'md')}</span><div class="tmtxt"><b>${esc(x.name)}${me&&me.id===x.id?' <span class="hint">(you)</span>':''}</b><span>${esc(showPhone(x.phone))}</span></div><div class="tmside">${roleChip(x)}${x.active?'':'<span class="chip a">Off</span>'}${own?`<button class="btn small ghost" data-e="${esc(x.id)}">Edit</button>`:''}</div></div>`).join(''):emptyHTML('No instructors yet','Add the first one with the form.');
+    $('#tmBody').querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>fill(list.find(x=>x.id===b.dataset.e)))}
+  draw();
+  const mine=$('#tmMine');if(mine)mine.onclick=()=>goTab('account');
+  if(!own)return;
+  const msg=t=>{$('#tmMsg').innerHTML=t?'<div class="msg err">'+esc(t)+'</div>':''};
+  function fill(x){edit=x;msg('');$('#tmTitle').textContent=x?'Edit '+x.name:'Add an instructor';$('#tmName').value=x?x.name:'';$('#tmPhone').value=x?showPhone(x.phone):'';$('#tmPw').value='';
+    $('#tmPwL').textContent=x?'New password':'Password';$('#tmPwH').textContent=x?'Leave empty to keep their password.':'At least 8 characters. Share it with them, they can change it under My account.';
+    $('#tmRole').value=x?x.role:'instructor';$('#tmActL').hidden=!x;$('#tmAct').checked=!x||x.active;$('#tmDel').hidden=!x||(me&&me.id===x.id);$('#tmSave').textContent=x?'Save':'Add instructor';$('#tmName').focus()}
+  $('#tmClear').onclick=()=>fill(null);
+  $('#tmForm').onsubmit=async e=>{e.preventDefault();msg('');
+    const name=$('#tmName').value.trim().replace(/\s+/g,' '),phone=cleanPhone($('#tmPhone').value),pw=$('#tmPw').value;
+    if(!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name))return msg('Type a name with letters only.');
+    if(!phone)return msg('Type a mobile number like 0771234567.');
+    if(DATA.students.some(s=>s.phone===phone))return msg('That number belongs to a student. An instructor needs a number of their own.');
+    if((!edit&&pw.length<8)||(pw&&pw.length<8))return msg('The password needs at least 8 characters.');
+    const body={action:'staffSave',sid:edit?edit.id:'',name,phone,role:$('#tmRole').value,active:$('#tmAct').checked};if(pw)body.password=pw;
+    const b=$('#tmSave');b.disabled=true;const r=await staffCall(body);b.disabled=false;
+    if(!r.ok)return msg(r.message);toast(edit?'Saved':name+' added');edit=null;loadData()};
+  $('#tmDel').onclick=async()=>{if(!edit||!await ask({title:'Remove '+edit.name+'?',text:'They can no longer sign in. Their past changes stay in the Activity log.',ok:'Remove',danger:true}))return;
+    const r=await staffCall({action:'staffSave',sid:edit.id,remove:true});if(r.ok){toast('Removed');loadData()}else msg(r.message)};
+}
+function paneAccount(box){
+  if(needV12(box))return;
+  const me=DATA.me;
+  if(!me){box.innerHTML=`<div class="pane"><div class="card" style="max-width:640px"><h3>Signed in with the main password</h3><p class="hint mb">The main password has no name or photo. Add yourself as an instructor, then sign in with your own number and password.</p><button class="btn" id="acTeam">Open Instructors</button></div></div>`;$('#acTeam').onclick=()=>goTab('team');return}
+  box.innerHTML=`<div class="pane"><div class="card acct"><form id="acForm" novalidate>
+    <div class="pfphoto"><span id="acPic">${avatar(me.name,PHOTOS&&PHOTOS[me.id],'xl')}</span>
+     <div class="row" style="justify-content:center"><label class="btn ghost small" for="acFile" tabindex="0">Change photo</label><button type="button" class="btn ghost small" id="acDrop">Remove photo</button></div>
+     <input id="acFile" type="file" accept="image/*" hidden><div class="hint">${roleChip(me)}</div></div>
+    <div class="field"><label for="acName">Name</label><input id="acName" maxlength="60" autocomplete="name" value="${esc(me.name)}"></div>
+    <div class="field"><label for="acPhone">Mobile number</label><input id="acPhone" type="tel" inputmode="tel" maxlength="16" value="${esc(showPhone(me.phone))}"><div class="hint">You sign in with this number.</div></div>
+    <details class="pwbox"><summary>Change password</summary>
+     <div class="field"><label for="acOld">Current password</label><input id="acOld" type="password" autocomplete="current-password"></div>
+     <div class="field"><label for="acNew">New password</label><input id="acNew" type="password" minlength="8" autocomplete="new-password"><div class="hint">At least 8 characters.</div></div></details>
+    <div id="acMsg"></div><button class="btn big wide mt" id="acSave">Save</button></form></div></div>`;
+  let photo=null;const msg=t=>{$('#acMsg').innerHTML=t?'<div class="msg err">'+esc(t)+'</div>':''};
+  const pic=()=>{const p=photo!==null?photo:PHOTOS&&PHOTOS[me.id];$('#acPic').innerHTML=avatar($('#acName').value,p,'xl');$('#acDrop').hidden=!p};pic();
+  $('#acFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;msg('');try{photo=await squarePhoto(f);pic()}catch(x){msg(x.message)}};
+  $('#acDrop').onclick=()=>{photo='';pic()};
+  $('#acForm').onsubmit=async e=>{e.preventDefault();msg('');
+    const name=$('#acName').value.trim().replace(/\s+/g,' '),phone=cleanPhone($('#acPhone').value),nw=$('#acNew').value;
+    if(!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name))return msg('Type your name with letters only.');
+    if(!phone)return msg('Type your mobile number, like 0771234567.');
+    if(nw&&nw.length<8)return msg('The new password needs at least 8 characters.');
+    const body={action:'myAccount',name,phone};if(photo!==null)body.photo=photo;if(nw){body.password=nw;body.oldPassword=$('#acOld').value}
+    const b=$('#acSave');b.disabled=true;b.textContent='Saving…';const r=await staffCall(body);b.disabled=false;b.textContent='Save';
+    if(!r.ok)return msg(r.message);
+    if(photo!==null){PHOTOS=PHOTOS||{};if(photo)PHOTOS[me.id]=photo;else delete PHOTOS[me.id]}
+    if(phone!==me.phone)store.set('att-lphone',showPhone(phone));
+    toast(nw?'Saved. Use the new password next time.':'Saved');await loadData()};
 }
 
 /* Excuses */
