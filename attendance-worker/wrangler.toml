@@ -1,0 +1,18 @@
+# Cloudflare Worker for the class attendance server (free plan).
+# Cloudflare dashboard > Workers & Pages > Create > Import a repository, root directory: attendance-worker
+name = "cyber-attendance"
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+
+# one Durable Object holds the whole class: its own SQLite database, and requests run one at a time
+[[durable_objects.bindings]]
+name = "CLASS"
+class_name = "ClassRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ClassRoom"]
+
+# nightly backup at 22:00 Sri Lanka time (16:30 UTC), when daily backup is on
+[triggers]
+crons = ["30 16 * * *"]

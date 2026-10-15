@@ -14,7 +14,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Attendance">
 <!-- the page may only talk to Google Apps Script and load its fonts and QR library; nothing else can be injected or sent out -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://*.workers.dev; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <meta name="referrer" content="no-referrer">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -673,7 +673,12 @@ function randHex(n){const a=new Uint8Array(n);crypto.getRandomValues(a);return A
 
 /* ---------- server connection ---------- */
 const params=new URLSearchParams(location.search);
-function scriptIdFrom(v){v=String(v||'').trim();if(v==='demo')return 'demo';const m=v.match(/\/s\/([A-Za-z0-9_-]{20,})\//)||v.match(/^([A-Za-z0-9_-]{20,})$/);return m?m[1]:''}
+// a server is a Google Apps Script id, or the https address of the class Cloudflare Worker (*.workers.dev)
+function scriptIdFrom(v){v=String(v||'').trim();if(v==='demo')return 'demo';
+  const w=v.match(/^(https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.workers\.dev|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)\/?$/i);if(w)return w[1].toLowerCase();
+  const m=v.match(/\/s\/([A-Za-z0-9_-]{20,})\//)||v.match(/^([A-Za-z0-9_-]{20,})$/);return m?m[1]:''}
+const isCloud=id=>/^https?:\/\//.test(id||'');
+const serverUrl=id=>isCloud(id)?id+'/':'https://script.google.com/macros/s/'+id+'/exec';
 // a QR link wins, then what Setup saved on this device (or demo), then the class server built in above
 // Order: demo, a QR link, the server the instructor connected in Setup on this device, the class server built in.
 // A server id a phone merely remembered from an old QR is not used when one is built in.
@@ -681,6 +686,8 @@ const BUILT_IN=scriptIdFrom(SERVER_URL),wantDemo=params.get('s')==='demo'||(!par
 // a server the instructor connected in Setup sticks on that device (and its QR carries it to students' phones)
 const PIN=scriptIdFrom(store.get('att-server-pin')),QS=params.get('s')&&params.get('s')!=='demo'?scriptIdFrom(params.get('s')):'';
 let SID=wantDemo?'demo':QS||PIN||BUILT_IN||scriptIdFrom(store.get('att-server'));
+// a server from a link that is neither built in nor connected in Setup on this device
+const FOREIGN=!!QS&&SID===QS&&QS!==BUILT_IN&&QS!==PIN;
 if(BUILT_IN&&!wantDemo&&store.get('att-server')&&store.get('att-server')!==BUILT_IN)store.del('att-server');
 if(params.get('s')&&SID)store.set('att-server',SID);
 const isDemo=()=>SID==='demo';
@@ -719,7 +726,7 @@ async function api(body,ms){
     await sleep(350);return JSON.parse(JSON.stringify(c.handle(body)))}
   const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),ms);
   try{
-    const r=await fetch('https://script.google.com/macros/s/'+SID+'/exec',{method:'POST',body:JSON.stringify(body),signal:ctl.signal,redirect:'follow'});
+    const r=await fetch(serverUrl(SID),{method:'POST',body:JSON.stringify(body),signal:ctl.signal,redirect:'follow'});
     const j=await r.json();return j;
   }catch(e){throw e.name==='AbortError'?netErr('timeout','The server took too long to answer.'):netErr('network','Could not reach the attendance server. Check your internet and try again.')}
   finally{clearTimeout(t)}
@@ -1055,6 +1062,10 @@ $('#loginForm').onsubmit=async e=>{
   const t0=Date.now();
   try{const lp=$('#lphone').value.trim(),body={action:'login',password:$('#pw').value,trust:store.get('att-trust')||''};
     if(lp){body.phone=cleanPhone(lp);if(!body.phone){$('#loginMsg').innerHTML='<div class="msg err">Type a mobile number like 0771234567, or leave it empty.</div>';btn.disabled=false;btn.textContent='Sign in';return}store.set('att-lphone',lp)}else store.del('att-lphone');
+    // a link can carry another server (?s=); never send the password there without asking
+    if(FOREIGN&&!sess.get('att-foreign-ok')){btn.disabled=false;btn.textContent='Sign in';
+      if(!await ask({title:'Sign in to a different server?',text:'This link points to a server this page doesn\'t know: '+serverUrl(SID)+'. Your password would go there. Only continue if you set up this server yourself.',ok:'Continue'}))return;
+      sess.set('att-foreign-ok','1');btn.disabled=true;btn.textContent='Checking…'}
     const r=await api(body);logRead('login',Date.now()-t0,r.ok?null:r.message);
     if(r.ok){if(r.trust)store.set('att-trust',r.trust);TOKEN=r.token;QRKEY=r.qrKey;OFFSET=r.now-Date.now();sess.set('att-token',TOKEN);sess.set('att-qrkey',QRKEY);$('#pw').value='';showAdmin();opsAfterLogin()}
     else $('#loginMsg').innerHTML='<div class="msg err">'+esc(r.message)+'</div>';
@@ -1777,7 +1788,7 @@ function logRead(action,ms,errMsg){
   if(errMsg&&last&&last.state==='failed'&&Date.now()-last.created<36e5){last.attempts++;last.ms=ms;opHist(last,'failed',errMsg+' ('+last.attempts+' times)');opsSave();opsPaint();return}
   if(!errMsg&&last&&last.state==='failed'){opHist(last,'done','Worked again after '+last.attempts+(last.attempts===1?' failure.':' failures.'));opsSave();opsPaint()}
   if(!errMsg&&!slow&&!cfg.logReads)return;
-  const label={data:'Load class data',today:'Refresh the live list',login:'Sign in',backup:'Back up to Drive',export:'Download full backup'}[action]||action,now=Date.now();
+  const label={data:'Load class data',today:'Refresh the live list',login:'Sign in',backup:'Back up',export:'Download full backup'}[action]||action,now=Date.now();
   const o={id:'rd'+now.toString(36)+Math.random().toString(36).slice(2,6),sid:SID,kind:action==='login'?'Sign in':'Sync',label,read:action,body:{action},created:now,updated:now,attempts:1,ms,history:[]};
   opHist(o,errMsg?'failed':'done',errMsg?errMsg:(slow?'Slow: ':'')+'Answered in '+secs(ms)+'.');OPS.push(o);opsSave();opsPaint()}
 async function timedCall(body){const t0=Date.now();
@@ -1928,17 +1939,17 @@ function backupCard(){
   const b=DATA.backup,link=u=>/^https:\/\/(docs|drive)\.google\.com\//.test(u||'');
   if(!b)return `<div class="card mt" style="animation:none"><h3>Backups</h3><p class="hint">Update the server code to turn on backups.</p></div>`;
   return `<div class="card mt" style="animation:none" id="bkCard"><h3>Backups</h3>
-    <p class="mb">${b.last?'Last copy <b>'+esc(niceMs(b.last))+'</b>'+(link(b.url)?' · <a href="'+esc(b.url)+'" target="_blank" rel="noopener">open it</a>':'')+(link(b.folder)?' · <a href="'+esc(b.folder)+'" target="_blank" rel="noopener">all copies</a>':'')+'<br><span class="hint">'+(b.count||1)+' kept in Drive › Attendance backups. The newest 30 are kept.</span>':'No copy yet. A copy is a full Google Sheet in your Drive, in a folder called Attendance backups.'}</p>
+    <p class="mb">${b.last?'Last copy <b>'+esc(niceMs(b.last))+'</b>'+(link(b.url)?' · <a href="'+esc(b.url)+'" target="_blank" rel="noopener">open it</a>':'')+(link(b.folder)?' · <a href="'+esc(b.folder)+'" target="_blank" rel="noopener">all copies</a>':'')+'<br><span class="hint">'+(b.count||1)+(isCloud(SID)?' kept on the server.':' kept in Drive › Attendance backups.')+' The newest 30 are kept.</span>':(isCloud(SID)?'No copy yet. A copy is a full snapshot kept on the Cloudflare server; to keep one yourself, download the .json below.':'No copy yet. A copy is a full Google Sheet in your Drive, in a folder called Attendance backups.')}</p>
     ${b.error?'<div class="msg err mb">The last nightly copy failed: '+esc(b.error)+'</div>':''}
     <label class="check"><input type="checkbox" id="bkAuto" ${b.auto?'checked':''}>Make a copy every night, about 10 pm</label>
-    <div class="row mt"><button class="btn" id="bkNow" type="button">Back up to Drive now</button><button class="btn ghost" id="bkJson" type="button">Download full backup (.json)</button></div>
+    <div class="row mt"><button class="btn" id="bkNow" type="button">${isCloud(SID)?'Back up now':'Back up to Drive now'}</button><button class="btn ghost" id="bkJson" type="button">Download full backup (.json)</button></div>
     <p class="hint mt">The download has every tab, including the whole activity log. Keep it somewhere private: it has phone numbers.</p></div>`;
 }
 function paintBackup(box){
   const now=box.querySelector('#bkNow');if(!now)return;
   now.onclick=async()=>{now.disabled=true;now.textContent='Copying…';const t0=Date.now();
     let r;try{r=await adminCall({action:'backup'})}catch(e){r={ok:false,message:e.message}}logRead('backup',Date.now()-t0,r.ok?null:r.message);
-    if(r.ok){DATA.backup=r.backup;toast('Backed up to Drive');renderPane()}else{toast(r.message,true);now.disabled=false;now.textContent='Back up to Drive now'}};
+    if(r.ok){DATA.backup=r.backup;toast(isCloud(SID)?'Backed up':'Backed up to Drive');renderPane()}else{toast(r.message,true);now.disabled=false;now.textContent=isCloud(SID)?'Back up now':'Back up to Drive now'}};
   box.querySelector('#bkAuto').onchange=async e=>{const on=e.target.checked;
     let r;try{r=await adminCall({action:'backupAuto',on})}catch(err){r={ok:false,message:err.message}}
     if(r.ok){DATA.backup=r.backup;toast(on?'Nightly copy on':'Nightly copy off')}else{e.target.checked=!on;toast(r.message,true)}};
@@ -1951,17 +1962,30 @@ function paintBackup(box){
 /* Setup + demo */
 function renderSetup(){
   const page=new URL('attendance.html',location.href).toString().split('?')[0];
-  $('#setupBox').innerHTML=`<div class="phead"><div><h1>Setup and demo</h1><p>Connect the free Google Sheet server, or try everything in demo mode first.</p></div></div><div class="split">
-   <div class="card"><h2>Connect the free server</h2><p class="lead">Attendance is saved in a Google Sheet that you own. A small Google Apps Script checks every check-in. No paid hosting.</p>
-    <ol class="steps"><li>Open <a href="https://sheets.new" target="_blank" rel="noopener">sheets.new</a> (a new Google Sheet). Name it <b>Cyber Class Attendance</b>.</li>
+  const cur=SID&&!isDemo()?(isCloud(SID)?SID:'https://script.google.com/macros/s/'+SID+'/exec'):'';
+  $('#setupBox').innerHTML=`<div class="phead"><div><h1>Setup and demo</h1><p>Connect the class server, or try everything in demo mode first.</p></div></div><div class="split">
+   <div class="card"><h2>Connect the server</h2><p class="lead">The class server runs free on Cloudflare. Paste its address (it ends in <b>.workers.dev</b>). An older Google Sheet server address works too.</p>
+    <form id="srvForm" class="mt"><div class="field"><label for="srv">Server address</label><input id="srv" placeholder="https://cyber-attendance.…workers.dev" value="${esc(cur)}"></div>
+    <div class="row"><button class="btn">Connect</button><button type="button" class="btn ghost" id="toLogin">Instructor login</button></div></form><div id="srvMsg"></div>
+    ${!isDemo()&&BUILT_IN&&store.get('att-server-pin')&&SID!==BUILT_IN?`<div class="msg mt">This device uses the server you connected here, even after a refresh. Students get it through the classroom QR. To make it the default for every phone, send this address to Claude to put in the page.<div class="row mt"><button type="button" class="btn small ghost" id="srvBuiltin">Use the built-in server again</button></div></div>`:''}
+    <details class="mt" id="cfTools"${isCloud(SID)?' open':''}><summary><b>Cloudflare server tools</b></summary>
+     <p class="hint mt">Uses the <b>SETUP_KEY</b> secret you gave the Worker in Cloudflare. Nothing here is saved on this device.</p>
+     <div class="field"><label for="cfUrl">Cloudflare server address</label><input id="cfUrl" placeholder="https://cyber-attendance.…workers.dev" value="${esc(isCloud(SID)?SID:'')}"></div>
+     <div class="field"><label for="cfKey">Server key (SETUP_KEY)</label><input id="cfKey" type="password" autocomplete="off"></div>
+     <div class="row"><button type="button" class="btn small ghost" data-cf="check">Check</button><button type="button" class="btn small ghost" data-cf="unlock">Unlock sign-in</button><button type="button" class="btn small ghost" data-cf="reset">Sign out everywhere</button></div>
+     <h3 class="mt">Main password</h3><div class="row"><input id="cfPw" type="password" autocomplete="new-password" placeholder="8 or more characters" style="flex:1 1 200px;min-width:0"><button type="button" class="btn small" data-cf="setPassword">Set main password</button></div>
+     <h3 class="mt">Bring in your records</h3>
+     <p class="hint">From the Google Sheet server you are signed in to now, or from a downloaded backup (.json). Instructor passwords and students' profile keys don't move: set the passwords again, and students ask for a new key.</p>
+     <label class="check"><input type="checkbox" id="cfReplace">Replace what the Cloudflare server already has</label>
+     <div class="row mt"><button type="button" class="btn small" data-cf="copy"${TOKEN&&!isDemo()&&!isCloud(SID)?'':' disabled'}>Copy from the signed-in Google server</button><button type="button" class="btn small ghost" data-cf="file">Load a backup file</button><input type="file" id="cfFile" accept=".json,application/json" hidden></div>
+     <div id="cfMsg"></div></details>
+    <details class="mt"><summary>Old Google Sheet server setup</summary>
+    <ol class="steps mt"><li>Open <a href="https://sheets.new" target="_blank" rel="noopener">sheets.new</a> (a new Google Sheet). Name it <b>Cyber Class Attendance</b>.</li>
     <li>In the Sheet: <b>Extensions › Apps Script</b>. Delete what is in <code>Code.gs</code>, then paste the server code. <button class="btn small" id="copyCode">Copy server code</button> <a href="attendance-server.js" target="_blank" rel="noopener">view</a></li>
     <li>Save, then <b>Deploy › New deployment</b>. Type: <b>Web app</b>. Execute as: <b>Me</b>. Who has access: <b>Anyone</b>. Deploy and allow access.</li>
     <li>Back in the Sheet, reload. Menu <b>Attendance › Set admin password</b> (8+ characters).</li>
-    <li>Paste the Web app URL here:</li></ol>
-    <form id="srvForm" class="mt"><div class="field"><label for="srv">Web app URL</label><input id="srv" placeholder="https://script.google.com/macros/s/…/exec" value="${SID&&!isDemo()?'https://script.google.com/macros/s/'+esc(SID)+'/exec':''}"></div>
-    <div class="row"><button class="btn">Connect</button><button type="button" class="btn ghost" id="toLogin">Instructor login</button></div></form><div id="srvMsg"></div>
-    ${!isDemo()&&BUILT_IN&&store.get('att-server-pin')&&SID!==BUILT_IN?`<div class="msg mt">This device uses the server you connected here, even after a refresh. Students get it through the classroom QR. To make it the default for every phone, send this URL to Claude to put in the page.<div class="row mt"><button type="button" class="btn small ghost" id="srvBuiltin">Use the built-in server again</button></div></div>`:''}
-    <p class="hint mt">The classroom QR carries the server address, so students need nothing else. To make it work without the QR too (for "My attendance"), put the URL in <code>SERVER_URL</code> at the top of <code>attendance.html</code>.</p></div>
+    <li>Paste the Web app URL above and press Connect.</li></ol></details>
+    <p class="hint mt">The classroom QR carries the server address, so students need nothing else.</p></div>
    <div class="card redline"><h2>Try it now</h2><p class="lead">Demo mode runs the same server code inside this browser. Nothing leaves this device.</p>
     <div class="row"><button class="btn red" id="demoOn">${isDemo()?'Restart demo':'Start demo'}</button>${isDemo()?'<button class="btn ghost" id="demoOff">Leave demo</button>':''}</div>
     ${isDemo()?`<h3 class="mt">Pretend time</h3><div class="row"><button class="btn small ghost" data-shift="sat">Saturday 10:00</button><button class="btn small ghost" data-shift="sun">Sunday 10:00</button><button class="btn small ghost" data-shift="real">Real time</button></div>
@@ -1970,12 +1994,31 @@ function renderSetup(){
     <p class="hint mt">Demo password: <b>demo1234</b>. To test a student check-in, open <a href="${esc(page)}?s=demo" target="_blank" rel="noopener">the student page</a> in another tab and type the code from Live QR.</p>`:''}
     <h3 class="mt">What the checks stop</h3><ul class="steps"><li>Check-ins outside ${esc(STATUS?windowText(STATUS.window):'Saturdays, 09:00 to 13:00')} (server clock).</li><li>Checking in from home: the QR code changes every 30 s.</li><li>Two check-ins for one student on one day.</li><li>One phone checking in several friends.</li><li>One mobile number registered twice, or a student marked without confirming their ID and name.</li><li>Anyone changing records without the admin password.</li></ul></div></div>`;
   $('#copyCode').onclick=copyServerCode;
+  const cfMsg=(t,ok)=>{$('#cfMsg').innerHTML='<div class="msg '+(ok?'good':'err')+' mt">'+esc(t)+'</div>'};
+  const cfCall=async body=>{const id=scriptIdFrom($('#cfUrl').value);if(!isCloud(id))throw new Error('Type the Cloudflare server address (it ends in .workers.dev).');
+    const key=$('#cfKey').value;if(!key)throw new Error('Type the server key.');
+    const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),120000);
+    try{const r=await fetch(serverUrl(id),{method:'POST',body:JSON.stringify(Object.assign({action:'maint',key},body)),signal:ctl.signal});return await r.json()}
+    catch(e){throw new Error(e.name==='AbortError'?'The server took too long to answer.':'Could not reach the Cloudflare server. Check the address.')}finally{clearTimeout(tm)}};
+  const importData=async data=>{cfMsg('Copying…',true);const r=await cfCall({op:'import',data,replace:$('#cfReplace').checked});
+    if(!r.ok)return cfMsg(r.message);const c=r.counts||{};cfMsg('Copied: '+(c.students||0)+' students, '+(c.attendance||0)+' check-ins, '+(c.days||0)+' class days, '+(c.excuses||0)+' excuses, '+(c.staff||0)+' instructors. Instructors need a new password (Instructors page).',true)};
+  $('#setupBox').querySelectorAll('[data-cf]').forEach(b=>b.onclick=async()=>{const op=b.dataset.cf;b.disabled=true;
+    try{
+      if(op==='file'){$('#cfFile').click();return}
+      if(op==='copy'){cfMsg('Downloading from the Google server…',true);const ex=await adminCall({action:'export'});if(!ex.ok)return cfMsg(ex.message||'Could not download from the Google server.');return await importData(ex)}
+      if(op==='setPassword'){const pw=$('#cfPw').value;if(pw.length<8)return cfMsg('The password needs at least 8 characters.');const r=await cfCall({op,password:pw});if(r.ok){$('#cfPw').value='';cfMsg('Main password set. Sign in with it (leave the mobile number empty).',true)}else cfMsg(r.message);return}
+      if(op==='reset'&&!await ask({title:'Sign out everywhere?',text:'Every instructor browser is signed out, trusted browsers are forgotten and the classroom QR gets a new secret.',ok:'Sign out everywhere'}))return;
+      const r=await cfCall({op});if(!r.ok)return cfMsg(r.message);
+      cfMsg(op==='check'?'Key is right. '+(r.configured?'Main password is set. ':'No main password yet. ')+r.students+' students, '+r.attendance+' check-ins, '+r.days+' class days.':op==='unlock'?'Sign-in is unlocked.':'Done. Everyone is signed out and the QR secret changed.',true);
+    }catch(e){cfMsg(e.message)}finally{b.disabled=op==='copy'&&!(TOKEN&&!isDemo()&&!isCloud(SID))?true:false}});
+  $('#cfFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
+    try{const data=JSON.parse(await f.text());if(!data||data.kind!=='attendance-backup')return cfMsg('That file is not an attendance download.');await importData(data)}catch(err){cfMsg(err.message.startsWith('Type')||err.message.startsWith('Could')||err.message.startsWith('The server')?err.message:'That file could not be read.')}};
   const bi=$('#srvBuiltin');if(bi)bi.onclick=()=>{store.del('att-server-pin');store.del('att-server');SID=BUILT_IN;TOKEN=null;sess.del('att-token');DATA=null;refreshStatus();renderSetup();toast('Using the built-in server')};
   $('#toLogin').onclick=()=>{location.hash='#admin'};
-  $('#srvForm').onsubmit=async e=>{e.preventDefault();const id=scriptIdFrom($('#srv').value);if(!id||id==='demo'){$('#srvMsg').innerHTML='<div class="msg err">That does not look like a Web app URL. It ends with /exec.</div>';return}
+  $('#srvForm').onsubmit=async e=>{e.preventDefault();const id=scriptIdFrom($('#srv').value);if(!id||id==='demo'){$('#srvMsg').innerHTML='<div class="msg err">That does not look like a server address. It ends with .workers.dev (or /exec for the Google server).</div>';return}
     const old=SID;SID=id;$('#srvMsg').innerHTML='<div class="spinner"></div>';
     try{const s=await api({action:'status'});if(!s.ok)throw new Error(s.message);store.set('att-server',SID);if(SID!==BUILT_IN)store.set('att-server-pin',SID);else store.del('att-server-pin');STATUS=s;OFFSET=s.now-Date.now();paintPill();TOKEN=null;sess.del('att-token');DATA=null;
-      $('#srvMsg').innerHTML='<div class="msg good">Connected. Server time '+esc(s.time)+' Sri Lanka. '+(s.configured?'Admin password is set.':'Now set the admin password in the Sheet (Attendance menu).')+'</div>';showDemoBar(false)}
+      $('#srvMsg').innerHTML='<div class="msg good">Connected. Server time '+esc(s.time)+' Sri Lanka. '+(s.configured?'Admin password is set.':isCloud(SID)?'Now set the main password under Cloudflare server tools.':'Now set the admin password in the Sheet (Attendance menu).')+'</div>';showDemoBar(false)}
     catch(err){SID=old;$('#srvMsg').innerHTML='<div class="msg err">Could not connect: '+esc(err.message)+' Check the URL and that access is "Anyone".</div>'}};
   $('#demoOn').onclick=async()=>{store.del('att-demo');SID='demo';store.set('att-server','demo');demoCore=null;
     try{const c=await loadDemo();c.setPassword('demo1234');TOKEN=null;sess.del('att-token');DATA=null;showDemoBar(true);await refreshStatus();toast('Demo ready. Password demo1234');renderSetup()}

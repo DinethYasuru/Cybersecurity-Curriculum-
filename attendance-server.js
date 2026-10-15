@@ -438,7 +438,7 @@ function AttendanceCore(rawEnv) {
     var s = settings(), trust = trustOk(req.trust, now), failKey = trust ? 'loginfail:trusted' : 'loginfail';
     var lp = cleanPhone(req.phone), who = null;
     if (req.phone) {
-      if (Number(env.cacheGet(failKey) || 0) >= (trust ? 10 : 20)) return fail('locked', 'Too many wrong passwords. Wait 15 minutes, or in the Sheet use Attendance > Unlock instructor sign-in.');
+      if (Number(env.cacheGet(failKey) || 0) >= (trust ? 10 : 20)) return fail('locked', 'Too many wrong passwords. Wait 15 minutes, or unlock sign-in (Google Sheet: Attendance menu; Cloudflare: Setup › Cloudflare server tools).');
       who = staffByPhone(lp);
       if (!who || who.active === 'no' || !who.hash || hashPw(String(req.password || ''), who.salt) !== who.hash) {
         env.cachePut(failKey, String(Number(env.cacheGet(failKey) || 0) + 1), 900);
@@ -450,8 +450,8 @@ function AttendanceCore(rawEnv) {
       log(now, s, 'login', who.id, who.name, '', 'accepted', trust ? 'trusted browser' : 'new browser');
       return { ok: true, token: tk, qrKey: qrKey(), now: now, hours: 6, trust: trust ? req.trust : trustNew(now), me: staffOut(who) };
     }
-    if (!env.getProp('adminHash')) return fail('nopass', 'No admin password yet. In the Google Sheet: Attendance > Set admin password.');
-    if (Number(env.cacheGet(failKey) || 0) >= (trust ? 10 : 20)) { log(now, s, 'login', '', '', '', 'rejected', 'locked' + (trust ? ' (trusted browser)' : '')); return fail('locked', 'Too many wrong passwords. Wait 15 minutes, or in the Sheet use Attendance > Unlock instructor sign-in.'); }
+    if (!env.getProp('adminHash')) return fail('nopass', 'No admin password yet. Set it in the Google Sheet (Attendance menu) or in Setup › Cloudflare server tools.');
+    if (Number(env.cacheGet(failKey) || 0) >= (trust ? 10 : 20)) { log(now, s, 'login', '', '', '', 'rejected', 'locked' + (trust ? ' (trusted browser)' : '')); return fail('locked', 'Too many wrong passwords. Wait 15 minutes, or unlock sign-in (Google Sheet: Attendance menu; Cloudflare: Setup › Cloudflare server tools).'); }
     if (hashPw(String(req.password || ''), env.getProp('adminSalt')) !== env.getProp('adminHash')) {
       env.cachePut(failKey, String(Number(env.cacheGet(failKey) || 0) + 1), 900);
       log(now, s, 'login', '', '', '', 'rejected', 'wrong password' + (trust ? ' (trusted browser)' : ''));
