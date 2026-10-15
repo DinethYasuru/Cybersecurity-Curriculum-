@@ -59,6 +59,12 @@ const STUDENT = { status: 1, lookup: 1, register: 1, checkin: 1, me: 1, profile:
 const HUB_ADMIN = { corner: 1, classSave: 1, people: 1, staffSave: 1, myAccount: 1 };
 const SYNC_AFTER = { register: 1, profileSave: 1, student: 1, bulk: 1, dayDelete: 1 };
 const doName = k => (k === 'cyber' ? 'class' : 'class:' + k);
+// student ID prefix for a new class: initials of a long name (Graphic Designing Foundations: GDF-), else its first letters (English: ENG-)
+const prefixFor = name => {
+  const w = String(name || '').toUpperCase().split(/[^A-Z]+/).filter(Boolean);
+  const p = w.length >= 2 ? w.map(x => x[0]).join('').slice(0, 3) : (w[0] || '').slice(0, 3);
+  return (p.length >= 2 ? p : 'CLS') + '-';
+};
 let INITED = false;
 
 export default {
@@ -79,10 +85,14 @@ export default {
       INITED = true;
     }
     // a class's students changed: the Corner updates its people, and a new name or number reaches the person's other classes
+    // (the list carries a version, so an older list that arrives late can't undo a newer one; the person's other
+    // classes are changed first, and the Corner records each change only once that class accepted it)
     const sync = async k => {
-      const r = await H('syncClass', { k, students: (await I(k, { op: 'students' })).students });
-      for (const p of (r.pushes || [])) await I(p.k, { op: 'applyPerson', sid: p.sid, name: p.name, phone: p.phone });
+      const s = await I(k, { op: 'students' });
+      const r = await H('syncClass', { k, ver: s.ver, students: s.students });
+      for (const p of (r.pushes || [])) if ((await I(p.k, { op: 'applyPerson', sid: p.sid, name: p.name, phone: p.phone })).ok) await H('enrolApplied', p);
     };
+    const ip = JSON.parse(net).ip;
     const classes = (await H('classes')).classes;
     const pub = classes.filter(c => c.active !== 'no');
     const known = k => pub.some(c => c.id === k);
@@ -99,19 +109,40 @@ export default {
     if (!req || typeof req !== 'object' || Array.isArray(req)) return json({ ok: false, reason: 'input', message: 'Bad request.' });
     if (body.length > MAX_BODY && !(req.action === 'maint' && req.op === 'import')) return json({ ok: false, reason: 'input', message: 'Request too big.' });
     const a = String(req.action || '');
-    let k = known(String(req.k || '')) ? String(req.k) : '';
+    const rawK = String(req.k || '');
+    let k = known(rawK) ? rawK : '';
+    // a class that was archived or never existed (an old QR, or a change queued before the class was archived):
+    // never fall back to another class, or the change would land in the wrong one
+    const gone = rawK && !k;
 
-    if (a === 'login' || a === 'logout') return json(await H(a, { req }));
+    if (a === 'login') return json(await H('login', { req, ip }));
+    if (a === 'logout') return json(await H('logout', { req }));
     if (a === 'maint') {
+      if (gone) return json(fail('noclass', 'That class is not running any more.'));
       k = k || 'cyber';
+      // wrong-key tries are counted once for the whole Corner, not once per class
+      if ((await H('maintFails')).locked) return json(fail('locked', 'Too many wrong server keys. Wait 15 minutes.'));
       const r = await C(k, req);
+      if (r.reason === 'key') await H('maintFail');
       // the class checked the server key; sign-in lives in the Corner, so these steps happen there too
       if (r.ok && (req.op === 'setPassword' || req.op === 'unlock' || req.op === 'reset')) await H('maint', { req });
+      // sign out everywhere also changes every class's QR secret
+      if (r.ok && req.op === 'reset') for (const c of pub) if (c.id !== k) await C(c.id, req);
       if (r.ok && req.op === 'import') await sync(k);
       return json(r);
     }
 
     if (STUDENT[a]) {
+      if (gone) return json(fail('noclass', 'This class is not running any more. Ask your instructor for the new QR.'));
+      // a profile key goes to the class the student attends (any of them: the profile is the same person everywhere)
+      if (!k && (a === 'keyRequest' || a === 'keySignIn')) {
+        const en = ((await H('enrolOf', { phone: req.phone })).enrol || []).map(e => e.k).filter(known);
+        if (en.length === 1) k = en[0];
+        else if (en.length > 1) {
+          const op = await Promise.all(en.map(async id => ((await C(id, { action: 'status' })).open ? id : '')));
+          k = op.find(Boolean) || en[0];
+        }
+      }
       // which class: the QR link says (k); otherwise the only class open now, or the open class whose code was typed
       let opened = null;
       if (!k) {
@@ -146,6 +177,11 @@ export default {
         // one person across the Corner: joining another class keeps the name they already have
         if (p.person) req.name = p.person.name;
       }
+      // a new number must not be an instructor's, or another person's at the Corner
+      if (a === 'profileSave' && req.phone != null) {
+        const pc = await H('phoneCheck', { k, sid: req.id, phone: req.phone, name: req.name });
+        if (!pc.ok) return json(fail('input', pc.staff ? 'That number belongs to an instructor.' : 'That number belongs to someone else at the American Corner.'));
+      }
       const r = await C(k, req);
       if (a === 'lookup' && r.ok && !r.found) {
         const p = await H('person', { phone: req.phone });
@@ -172,9 +208,10 @@ export default {
       }
       const r = await H(a, { req, who });
       // a new class starts with its own student ID prefix, like ENG-0001
-      if (a === 'classSave' && r.ok && r.created) await I(r.class.id, { op: 'newClass', prefix: r.class.id.replace(/[^a-z]/g, '').slice(0, 3).toUpperCase() + '-' });
+      if (a === 'classSave' && r.ok && r.created) await I(r.class.id, { op: 'newClass', prefix: prefixFor(r.class.name) });
       return json(r);
     }
+    if (gone) return json({ ok: false, reason: 'noclass', message: 'That class is not running any more.', corner: who });
     if (!k) k = who.classes[0] ? who.classes[0].id : '';
     const role = who.admin ? 'owner' : (who.classes.find(c => c.id === k) || {}).role;
     if (!k || !role) return json({ ok: false, reason: 'noclass', message: 'You are not an instructor in this class.', corner: who });
@@ -182,6 +219,10 @@ export default {
     // instructor numbers live in the Corner now, so the class can't see them; keep them out of student lists
     const staffPhones = (await H('staffPhones')).phones || [];
     if (a === 'student' && !req.remove && staffPhones.includes(cleanPh(req.phone))) return json(fail('input', 'That number belongs to an instructor.'));
+    if (a === 'student' && !req.remove) {
+      const pc = await H('phoneCheck', { k, sid: req.id, phone: req.phone, name: req.name });
+      if (!pc.ok && pc.other) return json(fail('input', 'That number belongs to ' + pc.other + ' at the American Corner. To add them to this class, type their name as ' + pc.other + '.'));
+    }
     let skipped = [];
     if (a === 'bulk' && Array.isArray(req.list)) req.list = req.list.filter(x => staffPhones.includes(cleanPh(x.phone)) ? (skipped.push(String(x.phone || '') + ', ' + String(x.name || '') + ' (an instructor number)'), false) : true);
     const r = await C(k, req, staff);
@@ -190,6 +231,8 @@ export default {
       const t = await H('staffFor', { k });
       r.staff = t.staff; r.me = who.me ? Object.assign({}, who.me, { role }) : null; r.owner = role === 'owner';
       r.corner = { admin: who.admin, classes: who.classes, k, className: nameOf(k) };
+      // a class made while its first setup step failed still gets its own ID prefix
+      if (k !== 'cyber' && r.settings && r.settings.idPrefix === 'ACM-') await I(k, { op: 'newClass', prefix: prefixFor(nameOf(k)) });
     }
     if (r.ok && a === 'photos') Object.assign(r.photos, (await H('staffPhotos')).photos || {});
     if (r.ok && SYNC_AFTER[a]) await sync(k);
@@ -258,7 +301,9 @@ export class Corner extends DurableObject {
   }
 
   // the class list of students is the truth for that class; people follow it, and changes reach the person's other classes
-  syncClass(k, students) {
+  syncClass(k, students, ver) {
+    // a list older than one already applied (two syncs crossing on the way) changes nothing
+    if (ver != null) { const seen = Number(this.prop('ver:' + k) || -1); if (Number(ver) < seen) return { ok: true, pushes: [], stale: true }; this.prop('ver:' + k, ver); }
     const pushes = [], now = Date.now();
     const had = {}; this.all('SELECT sid, phone, name FROM enrol WHERE k = ?', k).forEach(r => { had[r.sid] = r; });
     const seen = {};
@@ -267,11 +312,13 @@ export class Corner extends DurableObject {
       if (!phone) return;
       const old = had[s.id], person = this.one('SELECT * FROM people WHERE phone = ?', phone);
       const changed = old && (old.phone !== phone || old.name !== name);
-      if (changed) {
+      // the new number already belongs to a different person (in another class): two people, nothing is copied across
+      const clash = changed && old.phone !== phone && person && this.one('SELECT 1 AS x FROM enrol WHERE phone = ? AND NOT (k = ? AND sid = ?)', phone, k, s.id);
+      if (changed && !clash) {
         // this class changed the student's name or number: the person changes, and so do their other classes
-        if (old.phone !== phone) { this.sql.exec('DELETE FROM people WHERE phone = ? AND NOT EXISTS (SELECT 1 FROM enrol WHERE phone = ? AND NOT (k = ? AND sid = ?))', old.phone, old.phone, k, s.id); }
+        // (their enrolments there change only after that class accepted it, in enrolApplied)
         this.sql.exec('INSERT INTO people VALUES (?, ?, ?) ON CONFLICT(phone) DO UPDATE SET name = excluded.name, updated = excluded.updated', phone, name, now);
-        this.all('SELECT k, sid FROM enrol WHERE phone = ? AND k != ?', old.phone, k).forEach(e => { pushes.push({ k: e.k, sid: e.sid, name, phone }); this.sql.exec('UPDATE enrol SET phone = ?, name = ? WHERE k = ? AND sid = ?', phone, name, e.k, e.sid); });
+        this.all('SELECT k, sid FROM enrol WHERE phone = ? AND k != ?', old.phone, k).forEach(e => pushes.push({ k: e.k, sid: e.sid, name, phone }));
       } else if (!person) this.sql.exec('INSERT INTO people VALUES (?, ?, ?)', phone, name, now);
       this.sql.exec('INSERT INTO enrol VALUES (?, ?, ?, ?, ?) ON CONFLICT(k, sid) DO UPDATE SET phone = excluded.phone, name = excluded.name, active = excluded.active', k, s.id, phone, name, s.active === 'no' ? 'no' : 'yes');
     });
@@ -280,10 +327,15 @@ export class Corner extends DurableObject {
     return { ok: true, pushes };
   }
 
-  login(req) {
-    const now = Date.now(), fails = Number(this.kvGet('loginfail') || 0);
-    if (fails >= 20) return fail('locked', 'Too many wrong passwords. Wait 15 minutes, or unlock sign-in in Setup › Cloudflare server tools.');
-    const bad = m => { this.kvPut('loginfail', fails + 1, 900); return fail('password', m); };
+  // wrong passwords are counted per number (or the main password) and per internet address, so a stranger guessing
+  // can't lock everyone out; a browser that signed in before has its own count (the trusted-browser key)
+  trustOk(t) { return /^[a-f0-9]{32}$/.test(String(t || '')) && !!this.kvGet('trust:' + t); }
+  login(req, ip) {
+    const now = Date.now(), trust = this.trustOk(req.trust);
+    const fk = 'loginfail:' + (req.phone ? cleanPh(req.phone) || 'x' : 'main') + (trust ? ':t' : ''), ik = 'loginfail:ip:' + String(ip || '');
+    const fails = Number(this.kvGet(fk) || 0), ipFails = Number(this.kvGet(ik) || 0);
+    if (fails >= (trust ? 10 : 20) || (!trust && ipFails >= 50)) return fail('locked', 'Too many wrong passwords. Wait 15 minutes, or unlock sign-in in Setup › Cloudflare server tools.');
+    const bad = m => { this.kvPut(fk, fails + 1, 900); this.kvPut(ik, ipFails + 1, 900); return fail('password', m); };
     let st = null;
     if (req.phone) {
       st = this.one('SELECT * FROM staff WHERE phone = ?', cleanPh(req.phone));
@@ -295,7 +347,9 @@ export class Corner extends DurableObject {
     }
     const token = randHex(20);
     this.kvPut('tok:' + token, JSON.stringify({ sid: st ? st.id : '', ep: this.epoch(), s8: st ? String(st.salt).slice(0, 8) : '' }), 21600);
-    return { ok: true, token, now, hours: 6, me: this.staffOut(st), corner: { admin: !st || st.admin === 'yes', classes: this.classesOf(st) } };
+    let tr = trust ? req.trust : randHex(16);
+    this.kvPut('trust:' + tr, '1', 60 * 86400);
+    return { ok: true, token, now, hours: 6, trust: tr, me: this.staffOut(st), corner: { admin: !st || st.admin === 'yes', classes: this.classesOf(st) } };
   }
   who(token) {
     if (!/^[a-f0-9]{16,64}$/.test(String(token || ''))) return { ok: false };
@@ -322,6 +376,11 @@ export class Corner extends DurableObject {
     // an owner who isn't the Corner admin may only manage people in their own class, and never the admin's account
     if (!mine && !who.admin && cur && cur.admin === 'yes') return fail('input', 'Only the Corner admin can change that account.');
     if (!mine && !who.admin && cur && !this.one('SELECT role FROM roles WHERE sid = ? AND k = ?', sid, k)) return fail('input', 'That instructor is not in this class. Ask the Corner admin.');
+    // their account (name, number, password, on/off, photo) is shared by every class they teach: a class owner may
+    // change it only when they own every one of those classes; otherwise only the role in this class
+    const ownsAll = () => this.all('SELECT k FROM roles WHERE sid = ?', sid).every(r => (who.classes.find(c => c.id === r.k) || {}).role === 'owner');
+    const touches = cur && ((req.name != null && cleanNm(req.name) !== cur.name) || (req.phone != null && cleanPh(req.phone) !== cur.phone) || req.password || (req.active != null && (req.active === false ? 'no' : 'yes') !== (cur.active === 'no' ? 'no' : 'yes')) || req.photo != null);
+    if (!mine && !who.admin && touches && !ownsAll()) return fail('input', cur.name + ' also teaches another class, so only the Corner admin can change their account. You can change their role here.');
     if (!mine && req.remove) {
       if (who.me && who.me.id === sid) return fail('input', 'You cannot remove yourself.');
       if (!who.admin) { this.sql.exec('DELETE FROM roles WHERE sid = ? AND k = ?', sid, k); return { ok: true }; }
@@ -385,13 +444,32 @@ export class Corner extends DurableObject {
       case 'inited': return json({ inited: !!this.prop('inited') });
       case 'init': return json(this.init(q.seed));
       case 'classes': return json({ classes: this.all('SELECT * FROM classes ORDER BY ord, name') });
-      case 'syncClass': { let r; this.ctx.storage.transactionSync(() => { r = this.syncClass(q.k, q.students); }); return json(r); }
+      case 'syncClass': { let r; this.ctx.storage.transactionSync(() => { r = this.syncClass(q.k, q.students, q.ver); }); return json(r); }
+      case 'enrolApplied': this.ctx.storage.transactionSync(() => {
+        this.sql.exec('UPDATE enrol SET phone = ?, name = ? WHERE k = ? AND sid = ?', cleanPh(q.phone), cleanNm(q.name), q.k, q.sid);
+        this.sql.exec('DELETE FROM people WHERE phone NOT IN (SELECT phone FROM enrol)');
+      }); return json({ ok: true });
+      case 'phoneCheck': {
+        // may this student (sid in class k, or a new one) use this number?
+        const ph = cleanPh(q.phone);
+        if (!ph) return json({ ok: true });
+        if (this.one('SELECT id FROM staff WHERE phone = ?', ph)) return json({ ok: false, staff: true });
+        const me = q.sid ? this.one('SELECT phone FROM enrol WHERE k = ? AND sid = ?', q.k, String(q.sid)) : null;
+        if (me && me.phone === ph) return json({ ok: true });
+        const p = this.one('SELECT name FROM people WHERE phone = ?', ph);
+        if (!p) return json({ ok: true });
+        // the same person (same name) joining from another class is fine; a different person's number is not
+        if (!me && cleanNm(q.name).toLowerCase() === cleanNm(p.name).toLowerCase()) return json({ ok: true });
+        return json({ ok: false, other: p.name });
+      }
+      case 'maintFails': return json({ locked: Number(this.kvGet('maintfail') || 0) >= 10 });
+      case 'maintFail': this.kvPut('maintfail', Number(this.kvGet('maintfail') || 0) + 1, 900); return json({ ok: true });
       case 'person': {
         const ph = cleanPh(q.phone), p = ph ? this.one('SELECT * FROM people WHERE phone = ?', ph) : null;
         return json({ person: p ? { name: p.name, masked: mask(p.name) } : null, staff: !!(ph && this.one('SELECT id FROM staff WHERE phone = ?', ph)) });
       }
       case 'enrolOf': return json({ enrol: this.all("SELECT k, sid FROM enrol WHERE phone = ? AND active != 'no'", cleanPh(q.phone)) });
-      case 'login': return json(this.login(req));
+      case 'login': return json(this.login(req, q.ip));
       case 'logout': this.sql.exec('DELETE FROM kv WHERE k = ?', 'tok:' + String(req.token || '')); return json({ ok: true });
       case 'who': return json(this.who(q.token));
       case 'staffPhones': return json({ phones: this.all('SELECT phone FROM staff').map(r => r.phone) });
@@ -409,13 +487,16 @@ export class Corner extends DurableObject {
       }
       case 'maint':
         if (req.op === 'setPassword') { const salt = randHex(20); this.prop('adminSalt', salt); this.prop('adminHash', hashPw(String(req.password || ''), salt)); this.prop('epoch', Number(this.epoch()) + 1); }
-        if (req.op === 'unlock') this.sql.exec("DELETE FROM kv WHERE k = 'loginfail'");
-        if (req.op === 'reset') { this.prop('epoch', Number(this.epoch()) + 1); this.sql.exec("DELETE FROM kv WHERE k = 'loginfail'"); }
+        if (req.op === 'unlock') this.sql.exec("DELETE FROM kv WHERE k LIKE 'loginfail%' OR k = 'maintfail'");
+        // sign out everywhere: every token, every trusted browser
+        if (req.op === 'reset') { this.prop('epoch', Number(this.epoch()) + 1); this.sql.exec("DELETE FROM kv WHERE k LIKE 'loginfail%' OR k LIKE 'trust:%' OR k LIKE 'tok:%'"); }
         return json({ ok: true });
     }
     return json(fail('action', 'Unknown step.'));
   }
 }
+
+class RolledBack extends Error { constructor(out) { super(out.message); this.out = out; } }
 
 export class ClassRoom extends DurableObject {
   constructor(ctx, env) {
@@ -425,12 +506,31 @@ export class ClassRoom extends DurableObject {
     this.sql.exec('CREATE TABLE IF NOT EXISTS props (k TEXT PRIMARY KEY, v TEXT)');
     this.sql.exec('CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT, exp INTEGER)');
     this.sql.exec('CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, why TEXT, data TEXT)');
+    this.sql.exec('CREATE TABLE IF NOT EXISTS backup_parts (bid INTEGER, n INTEGER, data TEXT, PRIMARY KEY (bid, n))');
     for (const t of Object.keys(TABLES)) {
       this.sql.exec(`CREATE TABLE IF NOT EXISTS t_${t} (${TABLES[t].map(c => `"${c}" TEXT`).join(', ')})`);
       const have = this.sql.exec(`PRAGMA table_info(t_${t})`).toArray().map(r => r.name);
       for (const c of TABLES[t]) if (!have.includes(c)) this.sql.exec(`ALTER TABLE t_${t} ADD COLUMN "${c}" TEXT`);
     }
+    this.cur = { net: null, staff: null };
     this.env_ = this.makeEnv();
+  }
+
+  // one request, all or nothing: its writes commit together, or (on an unexpected error) none of them do.
+  // Where the request came from and who sent it are set in the same synchronous step, so two requests never mix them up.
+  run(req, net, staff) {
+    this.cur = { net, staff };
+    let out;
+    try {
+      this.ctx.storage.transactionSync(() => {
+        out = this.core().handle(req);
+        if (out && out.ok === false && out.reason === 'error') throw new RolledBack(out);
+      });
+    } catch (e) {
+      this.tabs = {};
+      out = e instanceof RolledBack ? e.out : { ok: false, reason: 'error', message: 'Server error: ' + String(e && e.message || e) };
+    } finally { this.cur = { net: null, staff: null }; }
+    return out;
   }
 
   makeEnv() {
@@ -444,18 +544,22 @@ export class ClassRoom extends DurableObject {
       return self.tabs[t];
     };
     const plain = r => { const o = {}; for (const k in r) if (k !== '_r') o[k] = r[k]; return o; };
+    // the class list's version: the Corner ignores an older list that arrives after a newer one
+    const bumpVer = () => { const r = sql.exec("SELECT v FROM props WHERE k = 'sver'").toArray()[0]; sql.exec("INSERT INTO props (k, v) VALUES ('sver', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v", String(Number(r ? r.v : 0) + 1)); };
     return {
       now: () => Date.now(),
-      net: () => self.net,
-      routedStaff: () => self.staff,
+      net: () => self.cur.net,
+      routedStaff: () => self.cur.staff,
       read: t => (t === 'log' ? sql.exec(`SELECT * FROM t_log ORDER BY rowid`).toArray().map(r => { const o = {}; TABLES.log.forEach(c => { o[c] = r[c] == null ? '' : String(r[c]); }); return o; }) : readAll(t).map(plain)),
       readTail: (t, max) => sql.exec(`SELECT * FROM t_${t} ORDER BY rowid DESC LIMIT ?`, max).toArray().reverse().map(r => { const o = {}; TABLES[t].forEach(c => { o[c] = r[c] == null ? '' : String(r[c]); }); return o; }),
       append: (t, o) => {
+        if (t === 'students') bumpVer();
         insert(t, o);
         if (self.tabs[t]) { const r = {}; TABLES[t].forEach(c => { r[c] = o[c] == null ? '' : String(o[c]); }); r._r = sql.exec('SELECT last_insert_rowid() AS r').one().r; self.tabs[t].push(r); }
       },
       // the core writes whole tables; only the rows that really changed are touched (the free plan counts written rows)
       write: (t, rows) => {
+        if (t === 'students') bumpVer();
         const key = o => JSON.stringify(row(t, o));
         const have = new Map();
         readAll(t).forEach(r => { const k = key(r); if (!have.has(k)) have.set(k, []); have.get(k).push(r._r); });
@@ -492,8 +596,14 @@ export class ClassRoom extends DurableObject {
   }
   backupNow(why) {
     const at = Date.now(), name = 'Backup ' + new Date(at + 330 * 60000).toISOString().slice(0, 16).replace('T', ' ');
-    this.sql.exec('INSERT INTO backups (at, why, data) VALUES (?, ?, ?)', at, why || '', JSON.stringify(this.snapshot()));
-    this.sql.exec('DELETE FROM backups WHERE id NOT IN (SELECT id FROM backups ORDER BY id DESC LIMIT ?)', BACKUPS_KEPT);
+    // stored in pieces: one SQLite value can hold at most 2 MB, and a class with photos and a long log grows past that
+    const text = JSON.stringify(this.snapshot()), PART = 500000;
+    this.ctx.storage.transactionSync(() => {
+      const bid = this.sql.exec("INSERT INTO backups (at, why, data) VALUES (?, ?, '') RETURNING id", at, why || '').one().id;
+      for (let i = 0, n = 0; i < text.length; i += PART, n++) this.sql.exec('INSERT INTO backup_parts (bid, n, data) VALUES (?, ?, ?)', bid, n, text.slice(i, i + PART));
+      this.sql.exec('DELETE FROM backups WHERE id NOT IN (SELECT id FROM backups ORDER BY id DESC LIMIT ?)', BACKUPS_KEPT);
+      this.sql.exec('DELETE FROM backup_parts WHERE bid NOT IN (SELECT id FROM backups)');
+    });
     const info = this.backupInfo();
     Object.assign(info, { last: at, name, url: '', folder: '', count: this.sql.exec('SELECT COUNT(*) AS n FROM backups').one().n, why: why || '', error: '' });
     this.env_.setProp('backup', JSON.stringify(info));
@@ -520,7 +630,7 @@ export class ClassRoom extends DurableObject {
       if (!d || d.kind !== 'attendance-backup' || typeof d !== 'object') return { ok: false, reason: 'input', message: 'That is not an attendance download.' };
       const hasData = this.sql.exec('SELECT COUNT(*) AS n FROM t_students').one().n + this.sql.exec('SELECT COUNT(*) AS n FROM t_attendance').one().n;
       if (hasData && !req.replace) return { ok: false, reason: 'notempty', message: 'This server already has students or attendance. Tick "replace" to overwrite them.' };
-      if (hasData) this.backupNow('before copying data in');
+      if (hasData) { try { this.backupNow('before copying data in'); } catch (e) { return { ok: false, reason: 'error', message: 'Could not back up the current data first, so nothing was replaced: ' + String(e.message || e) }; } }
       const counts = {};
       this.ctx.storage.transactionSync(() => {
         for (const t of Object.keys(TABLES)) {
@@ -544,7 +654,7 @@ export class ClassRoom extends DurableObject {
   // asked by the front door only (clients can't reach these paths)
   internal(q) {
     const E = this.env_;
-    if (q.op === 'students') return { students: E.read('students').map(r => ({ id: r.id, name: r.name, phone: r.phone, active: r.active })) };
+    if (q.op === 'students') return { ver: Number(E.getProp('sver') || 0), students: E.read('students').map(r => ({ id: r.id, name: r.name, phone: r.phone, active: r.active })) };
     if (q.op === 'seed') {
       const photos = {}; E.read('profiles').forEach(r => { photos[r.id] = r.photo; });
       return { adminHash: E.getProp('adminHash'), adminSalt: E.getProp('adminSalt'), staff: E.read('staff').map(r => Object.assign({}, r, { photo: photos[r.id] || '' })),
@@ -552,12 +662,16 @@ export class ClassRoom extends DurableObject {
     }
     if (q.op === 'newClass') { if (!E.getProp('settings')) E.setProp('settings', JSON.stringify({ idPrefix: q.prefix })); return { ok: true }; }
     if (q.op === 'applyPerson') {
-      // the same person changed their name or number in another class
+      // the same person changed their name or number in another class (both tables change together, or neither)
       const rows = E.read('students'), st = rows.find(r => r.id === q.sid);
       if (!st || rows.some(r => r.phone === q.phone && r.id !== q.sid)) return { ok: false };
       const nameChanged = st.name !== q.name;
-      st.name = q.name; st.phone = q.phone; E.write('students', rows);
-      if (nameChanged) E.write('attendance', E.read('attendance').map(r => { if (r.id === q.sid) r.name = q.name; return r; }));
+      try {
+        this.ctx.storage.transactionSync(() => {
+          st.name = q.name; st.phone = q.phone; E.write('students', rows);
+          if (nameChanged) E.write('attendance', E.read('attendance').map(r => { if (r.id === q.sid) r.name = q.name; return r; }));
+        });
+      } catch (e) { this.tabs = {}; return { ok: false }; }
       return { ok: true };
     }
     return { ok: false };
@@ -571,16 +685,17 @@ export class ClassRoom extends DurableObject {
       return json({ ok: true });
     }
     if (url.pathname === '/int') return json(this.internal(await request.json()));
-    try { this.net = JSON.parse(request.headers.get('x-att-net') || 'null'); } catch (e) { this.net = null; }
-    try { this.staff = JSON.parse(request.headers.get('x-att-staff') || 'null'); } catch (e) { this.staff = null; }
-    if (request.method === 'GET') return json(this.core().handle({ action: 'status' }));
+    let net = null, staff = null;
+    try { net = JSON.parse(request.headers.get('x-att-net') || 'null'); } catch (e) {}
+    try { staff = JSON.parse(request.headers.get('x-att-staff') || 'null'); } catch (e) {}
+    if (request.method === 'GET') return json(this.run({ action: 'status' }, net, null));
     const body = await request.text();
     if (body.length > MAX_IMPORT) return json({ ok: false, reason: 'input', message: 'Request too big.' });
     let req;
     try { req = JSON.parse(body); } catch (e) { return json({ ok: false, reason: 'input', message: 'Bad request.' }); }
     if (!req || typeof req !== 'object' || Array.isArray(req)) return json({ ok: false, reason: 'input', message: 'Bad request.' });
     if (body.length > MAX_BODY && !(req.action === 'maint' && req.op === 'import')) return json({ ok: false, reason: 'input', message: 'Request too big.' });
-    if (req.action === 'maint') return json(this.maint(req));
-    return json(this.core().handle(req));
+    if (req.action === 'maint') { this.cur = { net: null, staff: null }; return json(this.maint(req)); }
+    return json(this.run(req, net, staff));
   }
 }

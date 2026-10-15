@@ -30,7 +30,7 @@
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 16;
+var SERVER_VERSION = 17;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -765,6 +765,7 @@ function AttendanceCore(rawEnv) {
         if (!validId(id)) return fail('input', 'Pick a student.');
         if (env.read('attendance').some(function (r) { return r.id === id; })) return fail('input', 'This student has attendance. Switch them off instead.');
         env.write('students', rows.filter(function (r) { return r.id !== id; }));
+        var rkv = keyVersions(); rkv[id] = (rkv[id] || 0) + 1; env.setProp('stuKv', JSON.stringify(rkv));
         A('removed'); return { ok: true };
       }
       var nm = cleanName(req.name), ph = cleanPhone(req.phone);
@@ -820,6 +821,8 @@ function AttendanceCore(rawEnv) {
         env.write('students', env.read('students').filter(function (r) { return !goneSet[r.id]; }));
         env.write('profiles', env.read('profiles').filter(function (r) { return !goneSet[r.id]; }));
         env.write('requests', env.read('requests').filter(function (r) { return !goneSet[r.id]; }));
+        // a profile key given to a deleted student must not work for the next student who gets the same ID
+        var dkv = keyVersions(); gone.forEach(function (x) { dkv[x] = (dkv[x] || 0) + 1; }); env.setProp('stuKv', JSON.stringify(dkv));
         // give the deleted IDs back, so the next real student doesn't skip numbers
         var nx = Number(env.getProp('idNext') || 0);
         while (nx > 0 && goneSet[formatId(s, nx - 1)]) nx--;

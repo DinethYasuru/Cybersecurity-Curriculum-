@@ -398,9 +398,15 @@ body.present .names .offs{display:none}
 .picks{display:flex;flex-direction:column;gap:10px;margin-top:var(--s4)}
 .mecls{display:flex;align-items:center;gap:8px;margin-top:var(--s5);font-size:1.15rem}.mecls:first-child{margin-top:var(--s2)}
 .clsk{font-family:'Outfit';font-weight:600;font-size:.82rem;letter-spacing:.06em;text-transform:uppercase;color:var(--red);margin-bottom:2px}
-.clsw select{font:600 .95rem 'Outfit';color:var(--navy);border:1px solid var(--line);border-radius:999px;padding:8px 32px 8px 14px;background:#fff;max-width:200px}
+.phtxt{min-width:0}
+.clsw{position:relative;display:inline-flex;align-items:center;gap:6px;max-width:100%;margin-bottom:6px;padding:5px 10px 5px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--red);font:600 .82rem 'Outfit';letter-spacing:.06em;text-transform:uppercase;cursor:pointer;box-shadow:var(--sh-1)}
+.clsw:hover,.clsw:focus-within{border-color:var(--navy-100);color:var(--navy)}
+.clsw:focus-within{outline:2px solid var(--navy);outline-offset:2px}
+.clsn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.clsw svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.clsw select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-.ccls{flex-direction:column;justify-content:flex-start;text-align:left;cursor:pointer;font:inherit;border-top:4px solid var(--cc)}.ccls b{font-size:2rem}
+.ccls{flex-direction:column;justify-content:flex-start;text-align:left;cursor:pointer;font:inherit;border-top:4px solid var(--cc)}.ccls b{font-size:2rem}.ccn{display:block;color:var(--ink)!important}.ccn small{display:block;margin-top:2px;font-weight:500;color:var(--muted);font-size:.82rem}
 .cdot{width:14px;height:14px;border-radius:50%;flex:none;margin:0 6px}
 .tm{display:flex;align-items:center;gap:var(--s3);padding:12px 8px;border-bottom:1px solid var(--line)}.tm:last-child{border-bottom:0}
 .tm.off{opacity:.55}.tmtxt{flex:1;min-width:0;display:flex;flex-direction:column}.tmtxt b{font-family:'Outfit';font-weight:600;color:var(--ink)}.tmtxt span{color:var(--muted);font-size:.9rem}
@@ -517,7 +523,7 @@ body.present{background:#fff}
   .toast{left:16px;right:16px;bottom:16px;max-width:none}
   .me-top{flex-direction:column;align-items:stretch}.ring{margin:0 auto}
   th,td{padding:10px 12px}
-  .phead{align-items:flex-start;flex-wrap:nowrap}.phead p{font-size:.92rem}
+  .phead{align-items:flex-start;flex-wrap:nowrap}.phead p{font-size:.92rem}.phead .acts{flex-wrap:nowrap;flex:none}
   .phead .acts .btn span{display:none}.phead .acts .btn{padding:10px 12px}
   .risk{grid-template-columns:minmax(0,1fr) auto}
   .risk .bar{display:none}
@@ -1237,11 +1243,13 @@ function skeleton(){return '<div class="kpis">'+'<div class="skel" style="height
 TAB=sess.get('att-tab')||'home';if(!TABS_ALL.some(t=>t[0]===TAB))TAB='home';
 
 function stopLive(){clearInterval(liveTimer);clearInterval(pollTimer);liveTimer=pollTimer=null;document.body.classList.remove('present')}
-function clsSwitch(){const c=DATA&&DATA.corner;if(!c||c.classes.length<2)return '';
-  return `<label class="clsw"><span class="sr">Class</span><select id="clsSel">${c.classes.map(x=>`<option value="${esc(x.id)}"${x.id===c.k?' selected':''}>${esc(x.name)}</option>`).join('')}</select></label>`}
+// the class name above the page title; with more than one class it is also the switcher (a native list over a pill, so long names never get cut)
+function clsSwitch(cn){const c=DATA&&DATA.corner;if(!cn)return '';
+  if(!c||c.classes.length<2)return `<div class="clsk">${esc(cn)}</div>`;
+  return `<label class="clsw" title="Switch class"><span class="clsn">${esc(cn)}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg><select id="clsSel" aria-label="Class">${c.classes.map(x=>`<option value="${esc(x.id)}"${x.id===c.k?' selected':''}>${esc(x.name)}</option>`).join('')}</select></label>`}
 function paintHead(acts){const [t,d]=PAGES[TAB];document.title=t+' · Class Attendance';
   const cn=DATA&&DATA.corner&&TAB!=='corner'?DATA.corner.className:'';
-  $('#phead').innerHTML=`<div>${cn?`<div class="clsk">${esc(cn)}</div>`:''}<h1>${esc(t)}</h1><p>${esc(d)}</p></div><div class="acts noprint" id="pacts">${clsSwitch()}<span id="opsChip"></span>${acts||''}<button class="btn ghost" id="refresh">${ICON.refresh}<span>Refresh</span></button></div>`;
+  $('#phead').innerHTML=`<div class="phtxt">${clsSwitch(cn)}<h1>${esc(t)}</h1><p>${esc(d)}</p></div><div class="acts noprint" id="pacts"><span id="opsChip"></span>${acts||''}<button class="btn ghost" id="refresh">${ICON.refresh}<span>Refresh</span></button></div>`;
   $('#refresh').onclick=()=>loadData(true);const cs=$('#clsSel');if(cs)cs.onchange=()=>switchClass(cs.value);opsPaint()}
 function renderPane(){
   stopLive();if(!DATA)return;paintHead();
@@ -1777,7 +1785,7 @@ async function paneCorner(box){
   const r=await staffCall({action:'corner'});if(TAB!=='corner')return;
   if(!r.ok){box.innerHTML='<div class="msg err">'+esc(r.message)+'</div>';return}
   const cls=r.classes,cn=id=>(cls.find(c=>c.id===id)||{}).name||id;
-  box.innerHTML=`<div class="kpis">${cls.filter(c=>c.active).map(c=>`<button class="kpi ccls" data-go="${esc(c.id)}" style="--cc:${esc(c.color||'#002868')}"><span>${esc(c.name)}${c.room?' · '+esc(c.room):''}</span><b>${c.present}</b><span>${c.status&&c.status.open?'<span class="chip p">Open now</span>':'<span class="chip g">Closed</span>'}${c.alerts?' <span class="chip a">'+c.alerts+' to check</span>':''}</span></button>`).join('')}</div>
+  box.innerHTML=`<div class="kpis">${cls.filter(c=>c.active).map(c=>`<button class="kpi ccls" data-go="${esc(c.id)}" style="--cc:${esc(c.color||'#002868')}"><span class="ccn">${esc(c.name)}${c.room?'<small>'+esc(c.room)+'</small>':''}</span><b>${c.present}</b><span>${c.status&&c.status.open?'<span class="chip p">Open now</span>':'<span class="chip g">Closed</span>'}${c.alerts?' <span class="chip a">'+c.alerts+' to check</span>':''}</span></button>`).join('')}</div>
    <div class="pane split wideleft">
     <div class="stack">
      <div class="card"><div class="card-h"><h3>Classes</h3><span class="chip g">${cls.length}</span></div><div class="team">${cls.map(c=>`<div class="tm${c.active?'':' off'}"><span class="cdot" style="background:${esc(c.color||'#002868')}"></span><div class="tmtxt"><b>${esc(c.name)}</b><span>${esc(c.room||'')}${c.active?'':' · archived'}</span></div><div class="tmside"><button class="btn small ghost" data-ce="${esc(c.id)}">Edit</button>${c.active?`<button class="btn small" data-go="${esc(c.id)}">Open</button>`:''}</div></div>`).join('')}</div></div>
