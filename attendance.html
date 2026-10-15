@@ -1302,7 +1302,7 @@ function paneRegister(box){
   box.innerHTML=`<div class="pane">
     ${rows.length?`<div class="toolbar noprint"><div class="search">${ICON.search}<input id="regQ" type="search" placeholder="Search name, ID or mobile number" aria-label="Search students" autocomplete="off" value="${esc(regQ)}"></div><span class="count" id="regN"></span></div>`:''}
     <div class="row mb" style="justify-content:space-between"><div class="legend"><span><b class="v1" style="background:var(--navy);color:#fff">1</b>Present</span><span><b style="color:var(--red);border:1px solid var(--line)">0</b>Absent</span><span><b style="color:var(--navy);background:#eef2f8">E</b>Excused</span><span><b style="color:#b8c1d1;border:1px solid var(--line)">…</b>Class not over</span><span><b style="color:#b8c1d1;border:1px solid var(--line)">·</b>Before they joined</span></div>
-      <form id="addDay" class="row noprint"><input type="date" id="newDay" max="${today}" value="${today}" style="width:auto" aria-label="Class day"><button class="btn small ghost">Add day</button></form></div>
+      <div class="row noprint" style="flex-shrink:1;min-width:0">${rows.length&&days.length?`<button class="btn small ghost" id="restAbs" type="button">Mark the rest absent</button>`:''}<form id="addDay" class="row"><input type="date" id="newDay" max="${today}" value="${today}" style="width:auto" aria-label="Class day"><button class="btn small ghost">Add day</button></form></div></div>
     <p class="hint mb">Tap a cell to mark <b>1</b>, tap again for <b>0</b>. Double tap always sets 0. QR check-ins show here as 1. ${done?'':'Today turns into 0 for anyone missing once the class ends at '+esc(DATA.settings.end)+'.'} Past days are locked: tap a past date to open it for editing.</p>
     ${od?`<div class="msg good"><b>${esc(niceDate(od.date))}</b> is open for editing until ${esc(hhmm(od.until))}. Mark it in the highlighted column. <button class="linkbtn" id="regOdClose">Lock now</button></div>`:''}
     ${rows.length&&days.length?`<div class="tblwrap grid reg"><table><thead><tr><th>Student</th>${days.map(d=>`<th class="num${d===today?' today':''}${od&&od.date===d?' opened':''}"${od&&od.date===d?' id="odCol"':''}>${d<today&&!(od&&od.date===d)?`<button class="thb" data-od="${d}" title="Locked. Open ${esc(niceDate(d))} for editing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>${esc(niceDate(d,false))}</button>`:esc(niceDate(d,false))}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>
@@ -1317,6 +1317,7 @@ function paneRegister(box){
     toast('Day added');await loadData();if(d<DATA.today&&!canEdit(d))openDayDialog(d)};
   box.querySelectorAll('[data-od]').forEach(b=>b.onclick=()=>openDayDialog(b.dataset.od));
   const oc=$('#regOdClose');if(oc)oc.onclick=closeOpenDay;
+  const ra=$('#restAbs');if(ra)ra.onclick=()=>absentRestDialog();
   const tbl=box.querySelector('.reg');if(!tbl)return;
   // live filter: name, student ID or mobile number (any format, e.g. 077 123 or +9477)
   const filter=()=>{const q=regQ.trim().toLowerCase();let d=q.replace(/\D/g,'');if(d.startsWith('94')&&d.length>2)d='0'+d.slice(2);
@@ -1343,6 +1344,32 @@ function paneRegister(box){
     if(clickT&&lastBtn===b){clearTimeout(clickT);clickT=null;set(b,false);return}
     lastBtn=b;clickT=setTimeout(()=>{clickT=null;set(b,!b.classList.contains('v1'))},230)});
 }
+/* Mark the rest absent: everyone with no mark on a class day gets 0. Present and excused stay. */
+function unmarkedOn(d){const C=compute();
+  return C.rows.filter(r=>r.s.active!=='no'&&(r.cells[d]==='?'||r.cells[d]==='-'||(!r.cells[d]&&!C.att[r.s.id+'|'+d]&&!C.exc[r.s.id+'|'+d])))}
+async function absentRestDialog(){
+  if($('#dlg').open)return;
+  if(!isDemo()&&(DATA.status.version||0)<10){await ask({title:'Update the server code first',text:'This button needs server version 10. In the Sheet open Extensions › Apps Script, replace everything in Code.gs with the new code (Copy server code is under Setup), save, then Deploy › Manage deployments › pick the Web app › pencil › Version: New version › Deploy.',ok:'OK'});return}
+  const today=DATA.today,days=compute().held.slice().reverse();
+  if(DATA.status.open&&!days.includes(today))days.unshift(today);
+  const info=d=>{const u=unmarkedOn(d);return {n:u.length,late:u.filter(r=>r.cells[d]==='-').length}};
+  const pick=days.find(d=>d<today&&info(d).n)||days[0];
+  const d=$('#dlg');$('#dlgT').textContent='Mark the rest absent';$('#dlgF').hidden=true;$('#dlgP').hidden=false;
+  $('#dlgP').innerHTML=`Everyone with no mark on the day you pick gets <b>0</b>. Students marked present or excused stay as they are.
+    <span style="display:block;margin-top:16px"><label for="raDay">Class day</label><select id="raDay">${days.map(x=>`<option value="${x}"${x===pick?' selected':''}>${esc(niceDate(x))}${x===today?' (today)':''}</option>`).join('')}</select></span>
+    <span id="raInfo" style="display:block;margin-top:14px"></span>`;
+  const ok=$('#dlgOk');ok.className='btn red';d.returnValue='';
+  const paint=()=>{const x=$('#raDay').value,i=info(x);
+    $('#raInfo').innerHTML=!i.n?'Everyone already has a mark on this day (1, 0 or E). Nothing to change.':`<b>${i.n}</b> ${i.n===1?'student':'students'} will be marked absent.`+
+      (i.late?' '+(i.late===i.n?(i.n===1?'This student':'They all'):i.late===1?'One of them':i.late+' of them')+' joined later and will now count from this day.':'')+
+      (x===today&&!DATA.status.todayDone?' This also ends check-in for today now.':'')+(x<today&&!canEdit(x)?' The day is locked, so it opens for editing first.':'');
+    ok.textContent=i.n?'Mark '+i.n+' absent':'Nothing to mark';ok.disabled=!i.n};
+  $('#raDay').onchange=paint;paint();
+  d.onclose=async()=>{const v=d.returnValue==='ok'?$('#raDay').value:null;ok.disabled=false;$('#dlgP').textContent='';if(!v)return;
+    if(v<DATA.today&&!canEdit(v)){const o=await saveOp({action:'openDay',date:v,minutes:30});if(!o.ok){toast('Could not open '+niceDate(v)+': '+o.message,true);return}}
+    const r=await saveOp({action:'absentRest',date:v});
+    if(r.ok){toast(r.absent+' marked absent on '+niceDate(v));regScroll=null;loadData()}else toast(r.message,true)};
+  d.showModal();setTimeout(()=>$('#raDay').focus(),30)}
 async function flushRegister(){
   const list=Object.values(regQueue);if(!list.length)return;regQueue={};
   const r=await saveOp({action:'marks',list});
@@ -1455,6 +1482,7 @@ function describeOp(b){const d=x=>x?niceDate(x):'';
     case 'bulk':return ['Students','Add '+(b.list||[]).length+' students from a list'];
     case 'day':return ['Class days',d(b.date)+': '+(b.status==='held'?'held':b.status==='cancelled'?'cancelled':'removed')];
     case 'extra':return ['Check-in',+b.minutes?'Open check-in for '+b.minutes+' min':'Close the extra window'];
+    case 'absentRest':return ['Register','Mark the rest absent on '+d(b.date)];
     case 'openDay':return ['Register',+b.minutes?'Open '+d(b.date)+' for editing ('+b.minutes+' min)':'Lock the open past day'];
     case 'settings':return ['Settings','Save settings'];
     case 'keyReq':{const r=DATA&&(DATA.requests||[]).find(x=>x.rid===b.rid);return ['Inbox',(b.status==='sent'?'Key sent to ':b.status==='dismissed'?'Dismiss key for ':'Key request ')+(r?r.name:'')]}
@@ -1532,7 +1560,7 @@ function retryOp(id){const o=opFind(id);if(!o)return;
   o.nextAt=0;opHist(o,'queued','Retry pressed. Sending again.');opsSave();opsPaint();pump()}
 async function unblockOp(id){const o=opFind(id);if(!o)return;
   if(o.block==='auth'){if(TOKEN){retryOp(id);return}toast('Sign in. Blocked changes send right after.');logoutLocal();return}
-  if(o.block==='locked'){const days=[...new Set(cellsOf(o.body).map(m=>m.date))].filter(d=>d<DATA.today);
+  if(o.block==='locked'){const days=[...new Set(cellsOf(o.body).map(m=>m.date).concat(o.body.action==='absentRest'?[o.body.date]:[]))].filter(d=>d<DATA.today);
     for(const d of days){const r=await saveOp({action:'openDay',date:d,minutes:30});if(!r.ok){toast('Could not open '+niceDate(d)+': '+r.message,true);return}}
     retryOp(id);loadData(false,true);return}
   if(o.block==='server'){if(!await ask({title:'Update the server code first',text:'In the Sheet open Extensions › Apps Script, replace everything in Code.gs with the new code (Copy new server code is in the red box and under Setup), save, then Deploy › Manage deployments › pencil › Version: New version › Deploy. Retry after that.',ok:'I updated it, retry'}))return;retryOp(id);return}
