@@ -30,7 +30,7 @@
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 15;
+var SERVER_VERSION = 16;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -536,6 +536,9 @@ function AttendanceCore(rawEnv) {
   var SESSION = null;
   function adminOk(req) {
     SESSION = null;
+    // many classes (Cloudflare): the Corner checked the sign-in and says who this is and their role here
+    var routed = env.routedStaff ? env.routedStaff() : null;
+    if (routed) { SESSION = { me: routed.id ? { id: routed.id, name: routed.name, phone: routed.phone || '', role: routed.role === 'owner' ? 'owner' : 'instructor', active: 'yes', added: '' } : (routed.role === 'owner' ? null : { id: '', name: routed.name || 'Instructor', role: 'instructor' }) }; return true; }
     if (!req.token || !/^[a-f0-9]{16,64}$/.test(req.token)) return false;
     var v = String(env.cacheGet('adm:' + req.token) || ''), parts = v.split('|');
     if (parts[0] !== epoch()) return false;
@@ -874,6 +877,8 @@ function AttendanceCore(rawEnv) {
     var now = env.now();
     try {
       if (req.action === 'status') return publicStatus(now);
+      // many classes: does this code belong to this class right now? (lets a typed code find its class)
+      if (req.action === 'codeCheck') { var cs = settings(); return { ok: true, open: isOpen(now, cs), match: isOpen(now, cs) && (!cs.requireCode || codeOk(req.code, now, cs)) }; }
       if (req.action === 'lookup') return lookup(req, now);
       if (req.action === 'register') return env.lock(function () { return register(req, now); });
       if (req.action === 'checkin') return env.lock(function () { return checkin(req, now); });
