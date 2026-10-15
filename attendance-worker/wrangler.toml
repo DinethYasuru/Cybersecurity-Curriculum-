@@ -7,14 +7,23 @@ compatibility_date = "2025-09-01"
 workers_dev = true
 preview_urls = false
 
-# one Durable Object holds the whole class: its own SQLite database, and requests run one at a time
+# one Durable Object per class (its own SQLite database; requests run one at a time), and one for the
+# whole American Corner: the class list, people, instructors and their roles
 [[durable_objects.bindings]]
 name = "CLASS"
 class_name = "ClassRoom"
 
+[[durable_objects.bindings]]
+name = "CORNER"
+class_name = "Corner"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ClassRoom"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Corner"]
 
 # nightly backup at 22:00 Sri Lanka time (16:30 UTC), when daily backup is on
 [triggers]

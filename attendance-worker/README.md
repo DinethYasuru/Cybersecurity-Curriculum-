@@ -40,3 +40,15 @@ Instructor passwords and students' profile keys don't move. Set the passwords ag
 - **Off-site check-ins:** while Live QR is open during class, the server learns the classroom network. A check-in from another network (mobile data, or a friend at home) gets an "off-site" tag in Live QR and Register and shows under "Worth a look" on the Dashboard. Only a short fingerprint of the network is kept, never the address. This only works on Cloudflare, because the Google server can't see networks.
 - **Is the update live?** Open the Worker's address in a browser. It shows `"version": N`, which should match `SERVER_VERSION` in `attendance-server.js`. If it's behind, check **Deployments** for a failed build. Also check **Settings › Build**: the production branch must be the repository's default branch, and the build watch paths must include `*`.
 - **Try it on your computer:** `npm install`, put `SETUP_KEY=something-long` in `.dev.vars`, then run `npx wrangler dev`.
+
+## Many classes (server version 16)
+
+One server now runs every class at the American Corner.
+
+- **Each class has its own database** (its own students, IDs, schedule, QR and settings). The Cyber Security class keeps its original database, so nothing is copied or lost.
+- **The Corner** keeps what classes share: the class list, people (one person per mobile number, in any number of classes), instructor accounts, and each instructor's role in each class.
+- On the first request after this update, the Corner learns the Cyber Security class, its main password, its instructors (with their passwords) and its students. Nobody has to sign up again.
+- **Students:** the Live QR link carries the class (`&k=english`). A typed code finds its class on its own. With no QR and two classes open, the student taps their class. Someone from another class joins with one tap and keeps their name. My attendance shows every class.
+- **Instructors** sign in once and switch class at the top. The **Corner admin** (main password, or an instructor with the Corner admin box ticked) sees the American Corner page: today in every class, adding and archiving classes, who teaches where, and everyone who attends.
+- A new class gets an ID prefix from its name (English gives ENG-0001). Set its days and times under Settings after opening it.
+- The Google Sheet server stays single-class.
