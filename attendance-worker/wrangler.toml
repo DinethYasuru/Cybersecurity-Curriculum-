@@ -3,6 +3,9 @@
 name = "cyber-attendance"
 main = "src/worker.js"
 compatibility_date = "2025-09-01"
+# the page talks to https://cyber-attendance.<account>.workers.dev; no preview copies
+workers_dev = true
+preview_urls = false
 
 # one Durable Object holds the whole class: its own SQLite database, and requests run one at a time
 [[durable_objects.bindings]]
