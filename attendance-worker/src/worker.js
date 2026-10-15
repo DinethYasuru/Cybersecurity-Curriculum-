@@ -55,7 +55,10 @@ export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     if (request.method !== 'GET' && request.method !== 'POST') return json({ ok: false, reason: 'input', message: 'Bad request.' }, 405);
-    return env.CLASS.get(env.CLASS.idFromName('class')).fetch(request);
+    // pass on where the request came from (the Durable Object doesn't see it); a client can't set this header
+    const cf = request.cf || {}, h = new Headers(request.headers);
+    h.set('x-att-net', JSON.stringify({ ip: request.headers.get('cf-connecting-ip') || '', asn: cf.asn || '', org: String(cf.asOrganization || '').slice(0, 60), city: String(cf.city || '').slice(0, 40) }));
+    return env.CLASS.get(env.CLASS.idFromName('class')).fetch(new Request(request, { headers: h }));
   },
   async scheduled(event, env) {
     await env.CLASS.get(env.CLASS.idFromName('class')).fetch('https://class/cron', { method: 'POST', headers: { 'x-cron': '1' } });
@@ -91,6 +94,7 @@ export class ClassRoom extends DurableObject {
     const plain = r => { const o = {}; for (const k in r) if (k !== '_r') o[k] = r[k]; return o; };
     return {
       now: () => Date.now(),
+      net: () => self.net,
       read: t => (t === 'log' ? sql.exec(`SELECT * FROM t_log ORDER BY rowid`).toArray().map(r => { const o = {}; TABLES.log.forEach(c => { o[c] = r[c] == null ? '' : String(r[c]); }); return o; }) : readAll(t).map(plain)),
       readTail: (t, max) => sql.exec(`SELECT * FROM t_${t} ORDER BY rowid DESC LIMIT ?`, max).toArray().reverse().map(r => { const o = {}; TABLES[t].forEach(c => { o[c] = r[c] == null ? '' : String(r[c]); }); return o; }),
       append: (t, o) => {
@@ -191,6 +195,7 @@ export class ClassRoom extends DurableObject {
       this.sql.exec('DELETE FROM kv WHERE exp < ?', Date.now());
       return json({ ok: true });
     }
+    try { this.net = JSON.parse(request.headers.get('x-att-net') || 'null'); } catch (e) { this.net = null; }
     if (request.method === 'GET') return json(this.core().handle({ action: 'status' }));
     const body = await request.text();
     if (body.length > MAX_IMPORT) return json({ ok: false, reason: 'input', message: 'Request too big.' });
