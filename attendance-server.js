@@ -6,31 +6,31 @@
     (tabs: Students, Attendance, Excuses, Days, Log).
   - Uses Google's clock, not the student's phone, to decide if check-in is open.
   - Students register once with their mobile number and name and get the next
-    student ID (format set by the instructor, e.g. ACM-0001). After that they
+    student ID (format set by the facilitator, e.g. ACM-0001). After that they
     check in with the mobile number and confirm their ID and name.
   - Checks the rotating code from the classroom QR, one check-in per student
     per day, one student per phone per day, and the admin password.
 
-  Setup (once, about 5 minutes; attendance.html > Instructor > Setup shows the same steps)
+  Setup (once, about 5 minutes; attendance.html > Facilitator > Setup shows the same steps)
   1. Create a new Google Sheet. Extensions > Apps Script.
   2. Replace everything in Code.gs with this file. Save.
   3. Deploy > New deployment > type "Web app". Execute as: Me.
      Who has access: Anyone. Deploy, allow access, copy the Web app URL.
   4. Reload the Sheet. Menu "Attendance" > "Set admin password".
-  5. Paste the Web app URL in attendance.html > Instructor > Setup.
+  5. Paste the Web app URL in attendance.html > Facilitator > Setup.
   After editing this code later: Deploy > Manage deployments > Edit > Version: New version.
   Version 7 adds Drive backups: after pasting it, run Attendance > Back up now in the Sheet once
   and allow access, then deploy the new version.
 
   Security
   - Everything a student must not see or change is decided here, not in the page: the page is
-    public, so hiding a button or a URL protects nothing. Instructor actions need a token that only
+    public, so hiding a button or a URL protects nothing. Facilitator actions need a token that only
     a correct password gives (kept 6 hours, in this script's cache).
   - Students only ever get their own masked or confirmed details back.
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 17;
+var SERVER_VERSION = 18;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -41,7 +41,7 @@ var DEFAULT_SETTINGS = {
   requireCode: true,    // must scan the live QR (or type its code) in the room
   selfRegister: true,   // new students may register themselves (mobile number + name) on first check-in
   oneDevice: true,      // one student per phone per day
-  selfEdit: true,       // students may change their own name, number and photo (after signing in with a key from the instructor)
+  selfEdit: true,       // students may change their own name, number and photo (after signing in with a key from the facilitator)
   fromFirst: true,      // count a student's classes from the day they joined, not from week 1
   slotSeconds: 30,      // QR code changes every 30 s
   codeSlots: 3,         // a code works for 60 to 90 s after it appears, so a code sent on WhatsApp dies fast
@@ -58,8 +58,8 @@ var TABLES = {
   days:       ['date', 'status', 'note'],
   log:        ['ts', 'date', 'time', 'action', 'id', 'name', 'device', 'result', 'detail'],
   profiles:   ['id', 'photo', 'updated'],  // profile photos, kept apart so the Students tab stays small and fast
-  requests:   ['rid', 'id', 'name', 'phone', 'at', 'code', 'status', 'updated'],  // profile key requests: the instructor's inbox
-  staff:      ['id', 'name', 'phone', 'role', 'active', 'salt', 'hash', 'added']  // instructor accounts (photos go in Profiles); the hash is never sent to the page
+  requests:   ['rid', 'id', 'name', 'phone', 'at', 'code', 'status', 'updated'],  // profile key requests: the facilitator's inbox
+  staff:      ['id', 'name', 'phone', 'role', 'active', 'salt', 'hash', 'added']  // facilitator accounts (photos go in Profiles); the hash is never sent to the page
 };
 
 var SHEET_NAMES = { students: 'Students', attendance: 'Attendance', excuses: 'Excuses', days: 'Days', log: 'Log', profiles: 'Profiles', requests: 'Key requests', staff: 'Instructors' };
@@ -112,7 +112,7 @@ function AttendanceCore(rawEnv) {
     if (env.getProp('closedDay') === t.date) return false;
     return s.days.indexOf(t.day) >= 0 && t.time >= s.start && t.time < s.end && !cancelled(t.date);
   }
-  // a past class day the instructor opened for a while so they can fix its marks in the register
+  // a past class day the facilitator opened for a while so they can fix its marks in the register
   function openDay(now) {
     var r = null;
     try { r = JSON.parse(env.getProp('openDay') || 'null'); } catch (e) {}
@@ -158,7 +158,7 @@ function AttendanceCore(rawEnv) {
     if (!k) { k = env.random(); env.setProp('qrKey', k); }
     return k;
   }
-  // instructors' browsers get only today's key, so a copied key stops working at midnight
+  // facilitators' browsers get only today's key, so a copied key stops working at midnight
   function dayKey(date) { return env.hmac(qrKey(), 'day:' + date).map(function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }
   function codeOk(code, now, s) {
     code = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -252,7 +252,7 @@ function AttendanceCore(rawEnv) {
     return formatId(s, n);
   }
   function staffByPhone(phone) { return phone ? env.read('staff').filter(function (r) { return r.phone === phone; })[0] || null : null; }
-  var STAFF_PHONE = 'That number belongs to an instructor. Students use their own number.';
+  var STAFF_PHONE = 'That number belongs to a facilitator. Students use their own number.';
   function byPhone(phone) { return env.read('students').filter(function (r) { return r.phone && r.phone === phone; })[0] || null; }
   function studentOut(st) { return { id: st.id, name: st.name, phone: st.phone }; }
   // before a student proves anything, show only enough of the name to recognise it: "Dineth Yasuru" -> "Di**** Ya****"
@@ -260,7 +260,7 @@ function AttendanceCore(rawEnv) {
   function cleanDevice(v) { return String(v || '').replace(/[^a-z0-9]/gi, '').slice(0, 40); }
 
   // Profile key: separate from check-in. A student types their number and asks for a key; the request
-  // lands in the instructor's Inbox with a short sign-in code, which the instructor sends on WhatsApp.
+  // lands in the facilitator's Inbox with a short sign-in code, which the facilitator sends on WhatsApp.
   // The code (once, within 3 days) gives the phone the long key (an HMAC of the ID with a server
   // secret) that profile changes need. Students > Edit > Sign out of profile cancels every key of one student.
   function keyVersions() { try { return JSON.parse(env.getProp('stuKv') || '{}'); } catch (e) { return {}; } }
@@ -325,7 +325,7 @@ function AttendanceCore(rawEnv) {
     var st = byPhone(phone);
     var tk = ticketFor(phone, now);
     if (!st) return { ok: true, found: false, phone: phone, canRegister: s.selfRegister, idExample: formatId(s, Number(s.idStart) || 1), ticket: tk };
-    if (String(st.active) === 'no') { L('rejected', 'inactive ' + st.id); return fail('inactive', 'This number is switched off. Talk to your instructor.'); }
+    if (String(st.active) === 'no') { L('rejected', 'inactive ' + st.id); return fail('inactive', 'This number is switched off. Talk to your facilitator.'); }
     var mine = env.read('attendance').filter(function (r) { return r.date === t.date && r.id === st.id; })[0];
     return { ok: true, found: true, student: { id: st.id, name: maskName(st.name) }, masked: true, already: mine ? mine.time : '', date: t.date, ticket: tk };
   }
@@ -335,13 +335,13 @@ function AttendanceCore(rawEnv) {
     var s = settings(), t = local(now, s), phone = cleanPhone(req.phone), name = cleanName(req.name);
     var L = function (result, detail) { log(now, s, 'register', phone, name, String(req.device || '').slice(0, 40), result, detail); };
     var bad = gate(req, now, s, L); if (bad) return bad;
-    if (!s.selfRegister) { L('rejected', 'self register off'); return fail('unknown', 'This number is not on the class list. Talk to your instructor.'); }
+    if (!s.selfRegister) { L('rejected', 'self register off'); return fail('unknown', 'This number is not on the class list. Talk to your facilitator.'); }
     if (!validName(name)) { L('rejected', 'bad name'); return fail('name', 'Type your name with letters only.'); }
     var hit = byPhone(phone);
     if (hit) { L('duplicate', 'number already ' + hit.id); return { ok: true, student: { id: hit.id, name: maskName(hit.name), phone: hit.phone }, masked: true, existing: true, ticket: ticketFor(phone, now) }; }
-    if (staffByPhone(phone)) { L('rejected', 'instructor number'); return fail('unknown', STAFF_PHONE); }
+    if (staffByPhone(phone)) { L('rejected', 'facilitator number'); return fail('unknown', STAFF_PHONE); }
     // made-up numbers: a few per phone a day, and not a flood for the whole class
-    if (rateLimited('rg:' + cleanDevice(req.device) + ':' + t.date, 3, 86400) || rateLimited('rgall', 100, 600)) { L('rejected', 'too many registrations'); return fail('slow', 'Too many new registrations right now. Ask your instructor.'); }
+    if (rateLimited('rg:' + cleanDevice(req.device) + ':' + t.date, 3, 86400) || rateLimited('rgall', 100, 600)) { L('rejected', 'too many registrations'); return fail('slow', 'Too many new registrations right now. Ask your facilitator.'); }
     var st = { id: nextId(s, env.read('students')), name: name, added: t.date, source: 'self', active: 'yes', phone: phone };
     env.append('students', st);
     L('accepted', st.id);
@@ -355,7 +355,7 @@ function AttendanceCore(rawEnv) {
     var L = function (result, detail) { log(now, s, 'checkin', st ? st.id : phone, st ? st.name : '', device, result, detail); };
     var bad = gate(req, now, s, L); if (bad) return bad;
     if (!st) { L('rejected', 'unknown number'); return fail('unknown', 'This number is not registered yet.'); }
-    if (String(st.active) === 'no') { L('rejected', 'inactive'); return fail('inactive', 'This number is switched off. Talk to your instructor.'); }
+    if (String(st.active) === 'no') { L('rejected', 'inactive'); return fail('inactive', 'This number is switched off. Talk to your facilitator.'); }
     if (req.id && cleanId(req.id) !== st.id) { L('rejected', 'confirmed ' + cleanId(req.id) + ' but number is ' + st.id); return fail('changed', 'Your details changed. Type your number again.'); }
 
     var mine = null, other = null;
@@ -365,7 +365,7 @@ function AttendanceCore(rawEnv) {
       else if (s.oneDevice && r.device && r.device === device) other = r;
     });
     if (mine) { L('duplicate', 'already at ' + mine.time); return { ok: true, already: true, date: t.date, time: mine.time, student: studentOut(st) }; }
-    if (other) { L('rejected', 'device used by ' + other.id); return fail('shared', 'This phone already checked in another student today. Use your own phone, or ask your instructor.'); }
+    if (other) { L('rejected', 'device used by ' + other.id); return fail('shared', 'This phone already checked in another student today. Use your own phone, or ask your facilitator.'); }
 
     var net = netNow(), off = offSite(net, now, s);
     env.append('attendance', { date: t.date, id: st.id, name: st.name, time: t.time, device: device, method: s.requireCode ? 'qr' : 'open', note: off ? 'off-site' : '' });
@@ -396,7 +396,7 @@ function AttendanceCore(rawEnv) {
   function profileStudent(req) {
     var id = cleanId(req.id);
     if (rateLimited('pf:' + id, 30, 3600)) return { err: fail('slow', 'Too many tries. Wait an hour.') };
-    var KEY = 'Sign in again: ask your instructor for a new key.';
+    var KEY = 'Sign in again: ask your facilitator for a new key.';
     if (!keyOk(id, req.key)) return { err: fail('key', KEY) };
     var st = env.read('students').filter(function (r) { return r.id === id; })[0];
     if (!st || String(st.active) === 'no') return { err: fail('key', KEY) };
@@ -410,9 +410,9 @@ function AttendanceCore(rawEnv) {
     var s = settings(), phone = cleanPhone(req.phone), device = cleanDevice(req.device);
     if (!/^[a-z0-9]{8,40}$/i.test(device)) return fail('device', 'Open this page in a normal browser tab and try again.');
     if (!phone) return fail('phone', 'Type your mobile number, like 0771234567.');
-    if (rateLimited('kr:' + device, 6, 3600) || rateLimited('kp:' + phone, 3, 3600)) return fail('slow', 'Too many requests. Try again in an hour, or message your instructor.');
-    if (!s.selfEdit) return fail('off', 'Your instructor has turned off profile changes.');
-    var SENT = { ok: true, message: 'Request sent. Your instructor will send your key on WhatsApp. Then type it here.' };
+    if (rateLimited('kr:' + device, 6, 3600) || rateLimited('kp:' + phone, 3, 3600)) return fail('slow', 'Too many requests. Try again in an hour, or message your facilitator.');
+    if (!s.selfEdit) return fail('off', 'Your facilitator has turned off profile changes.');
+    var SENT = { ok: true, message: 'Request sent. Your facilitator will send your key on WhatsApp. Then type it here.' };
     var st = byPhone(phone);
     if (!st || String(st.active) === 'no') { log(now, s, 'key request', phone, '', device, 'rejected', 'unknown number'); return SENT; }
     var rows = env.read('requests'), open = rows.filter(function (r) { return r.id === st.id && r.status !== 'used' && r.status !== 'dismissed' && now - Number(r.at) < REQ_DAYS * 86400000; })[0];
@@ -422,12 +422,12 @@ function AttendanceCore(rawEnv) {
     log(now, s, 'key request', st.id, st.name, device, 'accepted', rid);
     return SENT;
   }
-  // step 2: the student types the code the instructor sent
+  // step 2: the student types the code the facilitator sent
   function keySignIn(req, now) {
     var s = settings(), phone = cleanPhone(req.phone), device = cleanDevice(req.device), code = String(req.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (!phone) return fail('phone', 'Type your mobile number, like 0771234567.');
     if (rateLimited('ks:' + phone, 6, 900) || rateLimited('kd:' + device, 10, 900)) return fail('slow', 'Too many tries. Wait 15 minutes.');
-    var st = byPhone(phone), BAD = fail('code', 'That key is not right for this number, or it has expired. Ask your instructor for a new one.');
+    var st = byPhone(phone), BAD = fail('code', 'That key is not right for this number, or it has expired. Ask your facilitator for a new one.');
     if (!st || String(st.active) === 'no' || code.length !== 8) { log(now, s, 'key sign-in', phone, '', device, 'rejected', 'bad key'); return BAD; }
     var rows = env.read('requests'), hit = null;
     rows.forEach(function (r) { if (r.id === st.id && r.code === code && r.status !== 'used' && r.status !== 'dismissed' && now - Number(r.at) < REQ_DAYS * 86400000) hit = r; });
@@ -444,14 +444,14 @@ function AttendanceCore(rawEnv) {
   }
   function profileSave(req, now) {
     var s = settings(), r = profileStudent(req); if (r.err) return r.err;
-    if (!s.selfEdit) return fail('off', 'Your instructor has turned off profile changes. Ask them to change it.');
+    if (!s.selfEdit) return fail('off', 'Your facilitator has turned off profile changes. Ask them to change it.');
     var st = r.st, id = st.id, changes = [];
     var nm = req.name == null ? st.name : cleanName(req.name), ph = req.phone == null ? st.phone : cleanPhone(req.phone);
     if (!validName(nm)) return fail('name', 'Type your name with letters only.');
     if (!ph) return fail('phone', 'Type your mobile number, like 0771234567.');
     if (req.photo != null && req.photo !== '' && !validPhoto(req.photo)) return fail('photo', 'That photo could not be used. Try another one.');
     var rows = env.read('students');
-    if (ph !== st.phone && rows.some(function (x) { return x.phone === ph && x.id !== id; })) return fail('phone', 'That number belongs to another student. Ask your instructor.');
+    if (ph !== st.phone && rows.some(function (x) { return x.phone === ph && x.id !== id; })) return fail('phone', 'That number belongs to another student. Ask your facilitator.');
     if (ph !== st.phone && staffByPhone(ph)) return fail('phone', STAFF_PHONE);
     if (nm !== st.name) changes.push('name "' + st.name + '" to "' + nm + '"');
     if (ph !== st.phone) changes.push('number ' + st.phone + ' to ' + ph);
@@ -483,11 +483,11 @@ function AttendanceCore(rawEnv) {
     var salt = env.random();
     env.setProp('adminSalt', salt);
     env.setProp('adminHash', hashPw(pw, salt));
-    // a new main password signs every instructor browser out
+    // a new main password signs every facilitator browser out
     env.setProp('admEpoch', String(Number(epoch()) + 1));
   }
   // a browser that signed in before gets a "trusted" key (90 days). Wrong passwords from other browsers
-  // lock sign-in for 15 minutes, but not on a trusted browser, so students can't lock the instructor out.
+  // lock sign-in for 15 minutes, but not on a trusted browser, so students can't lock the facilitator out.
   function trusted(now) { try { return JSON.parse(env.getProp('trusted') || '{}'); } catch (e) { return {}; } }
   function trustOk(key, now) {
     if (!key || !/^[a-f0-9]{16,64}$/.test(key)) return false;
@@ -502,7 +502,7 @@ function AttendanceCore(rawEnv) {
     return key;
   }
   function epoch() { return env.getProp('admEpoch') || '1'; }
-  // instructors sign in with their own number and password; the main password from the Sheet menu still works
+  // facilitators sign in with their own number and password; the main password from the Sheet menu still works
   function staffOut(r) { return r ? { id: r.id, name: r.name, phone: r.phone, role: r.role === 'owner' ? 'owner' : 'instructor', active: r.active !== 'no', added: r.added } : null; }
   function login(req, now) {
     var s = settings(), trust = trustOk(req.trust, now), failKey = trust ? 'loginfail:trusted' : 'loginfail';
@@ -532,13 +532,13 @@ function AttendanceCore(rawEnv) {
     log(now, s, 'login', '', '', '', 'accepted', trust ? 'trusted browser' : 'new browser');
     return { ok: true, token: token, qrKey: dayKey(local(now, s).date), now: now, hours: 6, trust: trust ? req.trust : trustNew(now) };
   }
-  // the session remembers who signed in: '' is the main password, otherwise an instructor id
+  // the session remembers who signed in: '' is the main password, otherwise a facilitator id
   var SESSION = null;
   function adminOk(req) {
     SESSION = null;
     // many classes (Cloudflare): the Corner checked the sign-in and says who this is and their role here
     var routed = env.routedStaff ? env.routedStaff() : null;
-    if (routed) { SESSION = { me: routed.id ? { id: routed.id, name: routed.name, phone: routed.phone || '', role: routed.role === 'owner' ? 'owner' : 'instructor', active: 'yes', added: '' } : (routed.role === 'owner' ? null : { id: '', name: routed.name || 'Instructor', role: 'instructor' }) }; return true; }
+    if (routed) { SESSION = { me: routed.id ? { id: routed.id, name: routed.name, phone: routed.phone || '', role: routed.role === 'owner' ? 'owner' : 'instructor', active: 'yes', added: '' } : (routed.role === 'owner' ? null : { id: '', name: routed.name || 'Facilitator', role: 'instructor' }) }; return true; }
     if (!req.token || !/^[a-f0-9]{16,64}$/.test(req.token)) return false;
     var v = String(env.cacheGet('adm:' + req.token) || ''), parts = v.split('|');
     if (parts[0] !== epoch()) return false;
@@ -552,7 +552,7 @@ function AttendanceCore(rawEnv) {
     return true;
   }
   function isOwner() { return SESSION && (!SESSION.me || SESSION.me.role === 'owner'); }
-  // Sheet menu: sign every instructor browser out, forget trusted browsers and change the QR secret
+  // Sheet menu: sign every facilitator browser out, forget trusted browsers and change the QR secret
   function resetSecurity() {
     env.setProp('admEpoch', String(Number(epoch()) + 1));
     env.setProp('trusted', '{}');
@@ -582,13 +582,13 @@ function AttendanceCore(rawEnv) {
         alerts: alerts(now, s), room: roomNets(t.date).length > 0 };
     }
     if (a === 'staffSave' || a === 'myAccount') {
-      // owners add and change instructors; everyone changes their own name, number, photo and password
+      // owners add and change facilitators; everyone changes their own name, number, photo and password
       rows = env.read('staff');
       var mine = a === 'myAccount', sid = mine ? (SESSION.me ? SESSION.me.id : '') : String(req.sid || '');
-      if (mine && !sid) return fail('input', 'You signed in with the main password. Add yourself under Instructors, then sign in with your number.');
-      if (!mine && !isOwner()) return fail('input', 'Only an owner can change other instructors.');
+      if (mine && !sid) return fail('input', 'You signed in with the main password. Add yourself under Facilitators, then sign in with your number.');
+      if (!mine && !isOwner()) return fail('input', 'Only an owner can change other facilitators.');
       var cur = sid ? rows.filter(function (r) { return r.id === sid; })[0] : null;
-      if (sid && !cur) return fail('input', 'That instructor is gone.');
+      if (sid && !cur) return fail('input', 'That facilitator is gone.');
       if (!mine && req.remove) {
         if (SESSION.me && SESSION.me.id === sid) return fail('input', 'You cannot remove yourself.');
         if (cur.role === 'owner' && cur.active !== 'no' && rows.filter(function (r) { return r.role === 'owner' && r.active !== 'no' && r.id !== sid; }).length < 1) return fail('input', 'Keep at least one owner.');
@@ -600,18 +600,18 @@ function AttendanceCore(rawEnv) {
       if (!validName(sn)) return fail('input', 'Type a name with letters only.');
       if (!sph) return fail('input', 'Type a mobile number like 0771234567.');
       var sclash = rows.filter(function (r) { return r.phone === sph && r.id !== sid; })[0];
-      if (sclash) return fail('input', 'That number already belongs to instructor ' + sclash.name + '.');
+      if (sclash) return fail('input', 'That number already belongs to facilitator ' + sclash.name + '.');
       var stu = byPhone(sph);
-      if (stu) return fail('input', 'That number belongs to student ' + stu.name + ' (' + stu.id + '). An instructor needs a number of their own.');
+      if (stu) return fail('input', 'That number belongs to student ' + stu.name + ' (' + stu.id + '). A facilitator needs a number of their own.');
       if (req.photo != null && req.photo !== '' && !validPhoto(req.photo)) return fail('input', 'That photo could not be used. Try another one.');
       var pw = req.password == null ? '' : String(req.password);
       if (pw && pw.length < 8) return fail('input', 'The password needs at least 8 characters.');
-      if (!cur && !pw) return fail('input', 'Give the new instructor a password (8 or more characters).');
+      if (!cur && !pw) return fail('input', 'Give the new facilitator a password (8 or more characters).');
       if (mine && pw && hashPw(String(req.oldPassword || ''), cur.salt) !== cur.hash) return fail('input', 'Your current password is not right.');
       var role = mine || !req.role ? (cur ? cur.role : 'instructor') : (req.role === 'owner' ? 'owner' : 'instructor');
       var act = mine || req.active == null ? (cur ? cur.active : 'yes') : (req.active === false ? 'no' : 'yes');
       if (cur && cur.role === 'owner' && (role !== 'owner' || act === 'no') && rows.filter(function (r) { return r.role === 'owner' && r.active !== 'no' && r.id !== sid; }).length < 1) return fail('input', 'Keep at least one owner.');
-      // the first instructor added is an owner, so someone can always manage the team
+      // the first facilitator added is an owner, so someone can always manage the team
       if (!cur && !rows.some(function (r) { return r.role === 'owner' && r.active !== 'no'; })) role = 'owner';
       if (!cur) { cur = { id: 'S' + env.random().slice(0, 8), added: t.date }; rows.push(cur); }
       cur.name = sn; cur.phone = sph; cur.role = role; cur.active = act;
@@ -622,7 +622,7 @@ function AttendanceCore(rawEnv) {
       }
       if (pw) { cur.salt = env.random(); cur.hash = hashPw(pw, cur.salt); }
       env.write('staff', rows);
-      log(now, s, a, cur.id, byName, 'admin', 'done', (mine ? 'own account' : 'instructor ' + cur.name) + (pw ? ', password set' : ''));
+      log(now, s, a, cur.id, byName, 'admin', 'done', (mine ? 'own account' : 'facilitator ' + cur.name) + (pw ? ', password set' : ''));
       return { ok: true, staff: staffOut(cur) };
     }
     if (a === 'photos') {
@@ -631,7 +631,7 @@ function AttendanceCore(rawEnv) {
       return { ok: true, photos: ph };
     }
     if (a === 'photo') {
-      // the instructor can remove a photo that should not be there
+      // the facilitator can remove a photo that should not be there
       if (!validId(id)) return fail('input', 'Pick a student.');
       env.write('profiles', env.read('profiles').filter(function (r) { return r.id !== id; }));
       A('photo removed'); return { ok: true };
@@ -676,7 +676,7 @@ function AttendanceCore(rawEnv) {
     if (a === 'backup') {
       if (!env.backup) return fail('input', 'Backups to Drive work with the Google server, not in demo mode.');
       if (rateLimited('bk', 1, 60)) return fail('input', 'A backup was made less than a minute ago.');
-      var b = env.backup('by instructor'); A(b.name); return { ok: true, backup: backupInfo() };
+      var b = env.backup('by facilitator'); A(b.name); return { ok: true, backup: backupInfo() };
     }
     if (a === 'backupAuto') {
       if (!env.backupAuto) return fail('input', 'Backups to Drive work with the Google server, not in demo mode.');
@@ -773,7 +773,7 @@ function AttendanceCore(rawEnv) {
       if (!ph) return fail('input', 'Type a mobile number like 0771234567.');
       var clash = rows.filter(function (r) { return r.phone === ph && r.id !== id; })[0];
       if (clash) return fail('input', 'That number already belongs to ' + clash.name + ' (' + clash.id + ').');
-      var sc = staffByPhone(ph); if (sc) return fail('input', 'That number belongs to instructor ' + sc.name + '.');
+      var sc = staffByPhone(ph); if (sc) return fail('input', 'That number belongs to facilitator ' + sc.name + '.');
       var found = null;
       if (id) rows.forEach(function (r) { if (r.id === id) found = r; });
       if (id && !found) return fail('input', 'Unknown student.');
@@ -791,7 +791,7 @@ function AttendanceCore(rawEnv) {
         if (!bp || !validName(bn)) { bad.push(line); return; }
         var hit = rows.filter(function (r) { return r.phone === bp; })[0];
         if (hit) bad.push(line + ' (number already ' + hit.id + ')');
-        else if (staffByPhone(bp)) bad.push(line + ' (an instructor number)');
+        else if (staffByPhone(bp)) bad.push(line + ' (a facilitator number)');
         else { rows.push({ id: nextId(s, rows), name: bn, added: t.date, source: 'admin', active: 'yes', phone: bp }); added++; }
       });
       env.write('students', rows);
@@ -1099,7 +1099,7 @@ function onOpen() {
     .addItem('Back up now', 'menuBackup')
     .addItem('Daily backup on or off', 'menuDailyBackup')
     .addSeparator()
-    .addItem('Unlock instructor sign-in', 'menuUnlock')
+    .addItem('Unlock facilitator sign-in', 'menuUnlock')
     .addItem('Sign out everywhere and change QR secret', 'menuReset')
     .addItem('Reload the page data from the Sheet', 'menuClearCache')
     .addItem('Create the tabs now', 'createTabs').addToUi();
@@ -1119,10 +1119,10 @@ function menuDailyBackup() {
   var r = ui.alert('Daily backup is ' + (on ? 'ON' : 'OFF'), on ? 'Turn it off?' : 'Turn it on? A copy is made every night around 10 pm Sri Lanka time.', ui.ButtonSet.YES_NO);
   if (r === ui.Button.YES) { setDailyBackup_(!on); ui.alert('Daily backup is now ' + (on ? 'OFF.' : 'ON.')); }
 }
-function menuUnlock() { AttendanceCore(sheetsEnv_()).unlockLogin(); SpreadsheetApp.getUi().alert('Instructor sign-in is unlocked.'); }
+function menuUnlock() { AttendanceCore(sheetsEnv_()).unlockLogin(); SpreadsheetApp.getUi().alert('Facilitator sign-in is unlocked.'); }
 function menuReset() {
   var ui = SpreadsheetApp.getUi();
-  if (ui.alert('Sign out everywhere?', 'Every instructor browser is signed out, trusted browsers are forgotten and the classroom QR gets a new secret. Use this if you think someone saw your password.', ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return;
+  if (ui.alert('Sign out everywhere?', 'Every facilitator browser is signed out, trusted browsers are forgotten and the classroom QR gets a new secret. Use this if you think someone saw your password.', ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return;
   AttendanceCore(sheetsEnv_()).resetSecurity();
   ui.alert('Done. Sign in again on the attendance page. Change the password too if it may have leaked.');
 }

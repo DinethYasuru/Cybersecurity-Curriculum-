@@ -395,6 +395,8 @@ body.present .names .offs{display:none}
 .pic{--sz:36px;width:var(--sz);height:var(--sz);border-radius:50%;flex:none;display:inline-grid;place-items:center;object-fit:cover;background:var(--navy-50);color:var(--navy);font:600 calc(var(--sz)*.38)/1 'Outfit';border:2px solid #fff;box-shadow:0 0 0 1px var(--navy-100);vertical-align:middle}
 .pic.lg{--sz:96px}.pic.md{--sz:48px}
 .team{display:flex;flex-direction:column;gap:2px}
+.welcome{white-space:pre-wrap;font:500 .9rem/1.5 'DM Sans';background:var(--canvas);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:var(--s3)}
+.linkbtn.danger{color:var(--red)}
 .picks{display:flex;flex-direction:column;gap:10px;margin-top:var(--s4)}
 .mecls{display:flex;align-items:center;gap:8px;margin-top:var(--s5);font-size:1.15rem}.mecls:first-child{margin-top:var(--s2)}
 .clsk{font-family:'Outfit';font-weight:600;font-size:.82rem;letter-spacing:.06em;text-transform:uppercase;color:var(--red);margin-bottom:2px}
@@ -549,7 +551,7 @@ body.present{background:#fff}
 <body>
 <a class="sr" href="#main">Skip to content</a>
 <dialog class="scan" id="scanDlg" aria-label="Scan the QR"><video id="scanVid" muted playsinline></video><div class="frame"></div><h2>Scan the QR</h2><div class="scanbar"><p id="scanNote" role="status"></p><button type="button" class="btn ghost big wide" id="scanX">Close and type the code</button></div></dialog>
-<div class="demo" id="demoBar" hidden>Demo mode: data stays on this device only. Instructor › Setup to connect the real server.</div>
+<div class="demo" id="demoBar" hidden>Demo mode: data stays on this device only. Facilitator › Setup to connect the real server.</div>
 <header class="topbar">
   <div class="tb-in">
     <a class="tb-brand" href="attendance.html" id="tbBrand"><img id="acLogo" alt="American Corner Matara logo"><span class="tb-name"><b>Class Attendance</b><span id="tbSub">American Corner Matara · Cyber Security</span></span></a>
@@ -577,19 +579,20 @@ body.present{background:#fff}
         <div class="card anim" id="pfCard" style="animation-delay:.16s"></div>
       </div>
     </div>
-    <footer>Check-in opens on <span id="winText">Saturdays, 09:00 to 13:00</span> (Sri Lanka time). <button class="linkbtn" id="toAdmin">Instructor</button></footer>
+    <footer>Check-in opens on <span id="winText">Saturdays, 09:00 to 13:00</span> (Sri Lanka time). <button class="linkbtn" id="toAdmin">Staff sign in</button></footer>
   </section>
 
   <!-- ADMIN -->
   <section id="adminView" hidden>
+    <div class="auth" id="firstBox" hidden><div class="card anim" id="firstCard"></div></div>
     <div class="auth" id="loginBox">
       <div class="card anim">
         <div class="lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
-        <h2>Instructor sign in</h2>
+        <h2>Staff sign in</h2>
         <p class="hint mb">Records, reports and the live QR for the class.</p>
         <form id="loginForm" autocomplete="on">
-          <div class="field"><label for="lphone">Mobile number</label><input id="lphone" name="username" type="tel" inputmode="tel" maxlength="16" autocomplete="username" placeholder="07X XXX XXXX"><div class="hint">Your instructor account. Leave it empty to use the main password.</div></div>
-          <div class="field"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required minlength="8"></div>
+          <div class="field"><label for="lphone">Mobile number</label><input id="lphone" name="username" type="tel" inputmode="tel" maxlength="16" autocomplete="username" placeholder="07X XXX XXXX"><div class="hint">Your facilitator account. Coordinator: leave it empty and use the main password.</div></div>
+          <div class="field"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required minlength="6"></div>
           <button class="btn wide big" id="loginBtn">Sign in</button>
         </form>
         <div id="loginMsg"></div>
@@ -597,10 +600,10 @@ body.present{background:#fff}
       </div>
     </div>
     <div id="panel" class="console" hidden>
-      <aside class="side" aria-label="Instructor menu">
+      <aside class="side" aria-label="Facilitator menu">
         <nav class="snav" id="tabs"></nav>
         <div class="side-foot">
-          <button class="who" id="whoBtn" type="button" title="My account"><span id="whoPic"><span class="av">I</span></span><span><b id="whoName">Instructor</b><span id="who"></span></span></button>
+          <button class="who" id="whoBtn" type="button" title="My account"><span id="whoPic"><span class="av">I</span></span><span><b id="whoName">Facilitator</b><span id="who"></span></span></button>
           <button class="btn ghost small" id="logout">Log out</button>
         </div>
       </aside>
@@ -612,13 +615,13 @@ body.present{background:#fff}
     <div class="page" id="setupBox" hidden></div>
   </section>
 </main>
-<nav class="bnav" id="bnav" aria-label="Instructor menu"></nav>
+<nav class="bnav" id="bnav" aria-label="Facilitator menu"></nav>
 <dialog class="sheet" id="moreSheet"><nav class="snav" id="moreNav"></nav></dialog>
 <dialog class="dlg" id="dlg"><form method="dialog"><h2 id="dlgT"></h2><p id="dlgP"></p><div class="field" id="dlgF" hidden><label for="dlgI" id="dlgL">Reason</label><input id="dlgI" maxlength="160"></div><div class="row"><button class="btn ghost" value="cancel">Cancel</button><button class="btn" value="ok" id="dlgOk">OK</button></div></form></dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>
 /* Paste the Google Apps Script Web app URL between the quotes so every phone finds the server without the QR.
-   (Instructor > Setup can also save it on one device, and the classroom QR always carries it.) */
+   (Facilitator > Setup can also save it on one device, and the classroom QR always carries it.) */
 // the class server, so every device connects without Setup (it is public anyway: every QR link carries it)
 const SERVER_URL='https://cyber-attendance.dinethyasuru.workers.dev';
 
@@ -725,10 +728,10 @@ function scriptIdFrom(v){v=String(v||'').trim();if(v==='demo')return 'demo';
 const isCloud=id=>/^https?:\/\//.test(id||'');
 const serverUrl=id=>isCloud(id)?id+'/':'https://script.google.com/macros/s/'+id+'/exec';
 // a QR link wins, then what Setup saved on this device (or demo), then the class server built in above
-// Order: demo, a QR link, the server the instructor connected in Setup on this device, the class server built in.
+// Order: demo, a QR link, the server the facilitator connected in Setup on this device, the class server built in.
 // A server id a phone merely remembered from an old QR is not used when one is built in.
 const BUILT_IN=scriptIdFrom(SERVER_URL),wantDemo=params.get('s')==='demo'||(!params.get('s')&&store.get('att-server')==='demo'&&store.get('att-demo-on')==='1');
-// a server the instructor connected in Setup sticks on that device (and its QR carries it to students' phones)
+// a server the facilitator connected in Setup sticks on that device (and its QR carries it to students' phones)
 const PIN=scriptIdFrom(store.get('att-server-pin')),QS=params.get('s')&&params.get('s')!=='demo'?scriptIdFrom(params.get('s')):'';
 let SID=wantDemo?'demo':QS||PIN||BUILT_IN||scriptIdFrom(store.get('att-server'));
 // a server from a link that is neither built in nor connected in Setup on this device
@@ -736,7 +739,7 @@ const FOREIGN=!!QS&&SID===QS&&QS!==BUILT_IN&&QS!==PIN;
 if(BUILT_IN&&!wantDemo&&store.get('att-server')&&store.get('att-server')!==BUILT_IN)store.del('att-server');
 if(params.get('s')&&SID&&SID!=='demo')store.set('att-server',SID);
 const isDemo=()=>SID==='demo';
-// many classes (Cloudflare): the QR link says which class (?k=); instructors pick theirs after signing in
+// many classes (Cloudflare): the QR link says which class (?k=); facilitators pick theirs after signing in
 const okK=v=>/^[a-z0-9][a-z0-9-]{1,19}$/.test(v||'')?v:'';
 let STUK=okK(params.get('k')),ADMK=okK(store.get('att-k'));
 let demoCore=null;
@@ -767,12 +770,12 @@ async function api(body,ms){
   if(!SID)throw new Error('Attendance server is not set up yet.');
   ms=ms||60000;
   if(isDemo()){const c=await loadDemo();
-    // demo only: pretend the server is slow or down (Setup › Pretend the server is), for instructor actions
+    // demo only: pretend the server is slow or down (Setup › Pretend the server is), for facilitator actions
     const f=body.token?sess.get('att-demo-fault'):'';
     if(f==='down'||(f==='flaky'&&Math.random()<.5)){await sleep(700);throw netErr('network','Could not reach the attendance server. Check your internet and try again.')}
     if(f==='slow'){if(ms<=12000){await sleep(ms);throw netErr('timeout','The server took too long to answer.')}await sleep(12000)}
     await sleep(350);return JSON.parse(JSON.stringify(c.handle(body)))}
-  // which class this is for: the instructor's chosen class, or the class the student's QR named
+  // which class this is for: the facilitator's chosen class, or the class the student's QR named
   if(body.k===undefined&&body.action!=='login'){const k=body.token?ADMK:STUK;if(k)body=Object.assign({k},body)}
   const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),ms);
   try{
@@ -839,7 +842,7 @@ function cleanPhone(v){let d=String(v||'').replace(/\D/g,'');if(d.length===11&&d
 const showPhone=p=>p&&p.length===10?p.slice(0,3)+' '+p.slice(3,6)+' '+p.slice(6):p||'';
 const needCode=()=>!STATUS||STATUS.requireCode;
 // 70 students at once: if the server is busy or the network drops, wait a random moment and try again
-const OLD_STU='This part is not switched on yet. The attendance server needs an update from your instructor.';
+const OLD_STU='This part is not switched on yet. The attendance server needs an update from your facilitator.';
 async function stuApi(body,label){
   const waits=[1500,3500,7000];let last;
   for(let i=0;i<=waits.length;i++){
@@ -898,7 +901,7 @@ function renderPhone(msg,typed){
   if(!typed&&SID&&me.phone&&myId(me)&&me.name)return renderQuick(Object.assign({},me,{id:myId(me)}),msg);
   c.innerHTML=`${stepper(1)}<h2>${me.name?'Hi '+esc(me.name.split(' ')[0])+'!':'Check in'}</h2>
     <p class="lead">${CODE?'Code scanned. Type your mobile number.':needCode()?'Scan the QR on the classroom screen, or type the 6-letter code you see under it.':'Type your mobile number.'}</p>
-    ${SID?'':'<div class="msg err">Not connected to the attendance server yet, so check-in will not save. Instructor: <a href="#setup">connect it or try the demo</a>.</div>'}
+    ${SID?'':'<div class="msg err">Not connected to the attendance server yet, so check-in will not save. Facilitator: <a href="#setup">connect it or try the demo</a>.</div>'}
     <form id="ciForm" novalidate>
       <div class="field"><label for="sphone">Mobile number</label><input id="sphone" class="big" type="tel" inputmode="tel" autocomplete="tel" maxlength="16" placeholder="07X XXX XXXX" value="${esc(showPhone(me.phone||''))}"><div class="hint">First time? You register with this number and get your student ID.</div></div>
       ${codeField()}
@@ -939,7 +942,7 @@ async function doLookup(raw){
   if(r.student){r.student.phone=phone;if(me&&me.phone===phone&&me.id===r.student.id)r.student.name=me.name}
   if(r.k)STUK=r.k;
   if(!r.found){
-    if(!r.canRegister)return fail({message:'This number is not on the class list. Talk to your instructor.'});
+    if(!r.canRegister)return fail({message:'This number is not on the class list. Talk to your facilitator.'});
     if(r.known)return renderJoin(phone,r);
     return renderRegister(phone,null,r.idExample);
   }
@@ -950,7 +953,7 @@ function renderRegister(phone,msg,example){
   const me=getMe()||{};
   $('#stCard').innerHTML=`${stepper(2)}<h2>First time here</h2><p class="lead">Register once with your name. You get your own student ID next.</p>
     <div class="msg">Mobile <b>${esc(showPhone(phone))}</b> <button type="button" class="linkbtn" id="wrongNo">Change</button></div>
-    <form id="regForm" novalidate><div class="field"><label for="sname">Your name</label><input id="sname" autocomplete="name" maxlength="60" placeholder="First and last name" value="${esc(me.phone===phone?me.name||'':'')}"><div class="hint">Your full name, as your instructor should see it${example?'. Your ID will look like '+esc(example):''}.</div></div>
+    <form id="regForm" novalidate><div class="field"><label for="sname">Your name</label><input id="sname" autocomplete="name" maxlength="60" placeholder="First and last name" value="${esc(me.phone===phone?me.name||'':'')}"><div class="hint">Your full name, as your facilitator should see it${example?'. Your ID will look like '+esc(example):''}.</div></div>
     <button class="btn wide big">Register</button></form>${msgBox(msg)}`;
   $('#wrongNo').onclick=()=>renderPhone(null,true);
   $('#regForm').onsubmit=async e=>{e.preventDefault();
@@ -984,7 +987,7 @@ function renderConfirm(st,isNew){
     <button class="btn wide big mt" id="yes">Yes, mark my attendance</button>
     <button class="btn ghost wide" style="margin-top:10px" id="no">No, this is not me</button>`;
   $('#yes').onclick=()=>doConfirm(st);
-  $('#no').onclick=()=>{const me=getMe();if(me&&me.phone===st.phone)store.del('att-me');renderMeCard();renderPhone('Check your number. If it is right but the name is wrong, tell your instructor.',true)};
+  $('#no').onclick=()=>{const me=getMe();if(me&&me.phone===st.phone)store.del('att-me');renderMeCard();renderPhone('Check your number. If it is right but the name is wrong, tell your facilitator.',true)};
 }
 async function doConfirm(st){
   busy('Marking your attendance…');
@@ -1004,7 +1007,7 @@ function done(r){
 function ringSVG(pct){const r=45,C=2*Math.PI*r,off=C*(1-(pct||0)/100);return `<svg class="ring" viewBox="0 0 110 110"><circle class="bg" cx="55" cy="55" r="${r}"/><circle class="fg" cx="55" cy="55" r="${r}" stroke-dasharray="${C}" stroke-dashoffset="${C}" data-off="${off}"/><text x="55" y="62" text-anchor="middle">${pct==null?'–':Math.round(pct)+'%'}</text></svg>`}
 function renderMeCard(){
   const me=getMe();
-  $('#meCard').innerHTML=`<div class="card-h"><h2>My attendance</h2><span class="chip g">Private to you</span></div><p class="lead">See how many classes you attended. Excused absences your instructor approved are shown too.</p>
+  $('#meCard').innerHTML=`<div class="card-h"><h2>My attendance</h2><span class="chip g">Private to you</span></div><p class="lead">See how many classes you attended. Excused absences your facilitator approved are shown too.</p>
     ${me&&me.phone?`<button class="btn ghost wide" id="mineBtn">Show my attendance</button>`:'<p class="hint">Check in once and your record shows here.</p>'}<div id="mine"></div>`;
   const b=$('#mineBtn');if(b)b.onclick=()=>loadMine();
 }
@@ -1029,7 +1032,7 @@ function mineHTML(r){
 const okPhoto=p=>typeof p==='string'&&/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(p);
 function avatar(name,photo,cls){return okPhoto(photo)?`<img class="pic ${cls||''}" src="${photo}" alt="">`:`<span class="pic ${cls||''}" aria-hidden="true">${esc(initials(name))}</span>`}
 const myPhoto=()=>{const p=store.get('att-me-photo');return okPhoto(p)?p:''};
-// the profile sign-in is its own thing, kept apart from check-in: a key the instructor sends on WhatsApp
+// the profile sign-in is its own thing, kept apart from check-in: a key the facilitator sends on WhatsApp
 const getProf=()=>{try{const m=JSON.parse(store.get('att-prof')||'null');return m&&m.key?m:null}catch(e){return null}};
 const setProf=m=>{if(m)store.set('att-prof',JSON.stringify(m));else{store.del('att-prof');store.del('att-me-photo')}};
 function renderProfile(msg,err){
@@ -1048,9 +1051,9 @@ function renderProfileSignIn(msg,err,phone){
   const box=$('#pfCard'),ck=getMe();phone=phone||(ck&&ck.phone)||'';
   if(!isDemo()&&STATUS&&(STATUS.version||0)<SERVER_NEEDS){box.innerHTML=`<div class="card-h"><h2>My profile</h2></div><p class="lead">Change your name, number or photo here soon.</p><div class="msg">${esc(OLD_STU)}</div><p class="hint mt">Server version ${esc(STATUS.version||'old')}, this page needs ${SERVER_NEEDS}.</p>`;return}
   box.innerHTML=`<div class="card-h"><h2>My profile</h2><span class="chip g">Sign in</span></div>
-    <p class="lead">Change your name, number or photo. Ask for a key first. Your instructor sends it to you on WhatsApp.</p>
+    <p class="lead">Change your name, number or photo. Ask for a key first. Your facilitator sends it to you on WhatsApp.</p>
     <form id="kqForm" novalidate><div class="field"><label for="kqPhone">Mobile number</label><input id="kqPhone" type="tel" inputmode="tel" maxlength="16" autocomplete="tel" placeholder="07X XXX XXXX" value="${esc(showPhone(phone))}"><div class="hint">The number you registered with.</div></div>
-    <div class="field"><label for="kqCode">Key</label><input id="kqCode" class="code" maxlength="9" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX"><div class="hint">8 letters and numbers from your instructor.</div></div>
+    <div class="field"><label for="kqCode">Key</label><input id="kqCode" class="code" maxlength="9" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX"><div class="hint">8 letters and numbers from your facilitator.</div></div>
     <div id="kqMsg">${err?'<div class="msg err">'+esc(err)+'</div>':msg?'<div class="msg good">'+esc(msg)+'</div>':''}</div>
     <div class="row"><button class="btn grow" id="kqIn">Sign in</button><button type="button" class="btn ghost grow" id="kqAsk">Ask for a key</button></div></form>`;
   const ph=()=>cleanPhone($('#kqPhone').value);
@@ -1060,7 +1063,7 @@ function renderProfileSignIn(msg,err,phone){
     r.ok?renderProfileSignIn(r.message,null,p):renderProfileSignIn(null,r.message,p)};
   $('#kqForm').onsubmit=async e=>{e.preventDefault();const p=ph(),code=$('#kqCode').value.toUpperCase().replace(/[^A-Z0-9]/g,'');
     if(!p)return renderProfileSignIn(null,'Type your mobile number, like 0771234567.',$('#kqPhone').value);
-    if(code.length!==8)return renderProfileSignIn(null,'Type the 8-letter key from your instructor. No key yet? Press Ask for a key.',p);
+    if(code.length!==8)return renderProfileSignIn(null,'Type the 8-letter key from your facilitator. No key yet? Press Ask for a key.',p);
     const b=$('#kqIn');b.disabled=true;b.textContent='Checking…';
     const r=await stuApi({action:'keySignIn',phone:p,code,device:DEVICE},false);
     if(!r.ok)return renderProfileSignIn(null,r.message,p);
@@ -1083,11 +1086,11 @@ async function editProfile(msg){
   if(!g.ok){if(g.reason==='key'){setProf(null);return renderProfile(null,g.message)}renderProfile();$('#pfCard').insertAdjacentHTML('beforeend','<div class="msg err mt">'+esc(g.message)+'</div>');return}
   if(g.photo)store.set('att-me-photo',g.photo);else store.del('att-me-photo');
   const photo=g.photo||'',st=g.student;
-  if(g.canEdit===false){box.innerHTML=`<div class="card-h"><h2>My profile</h2><span class="chip g">Changes off</span></div><p class="lead">Your instructor has turned off profile changes. Ask them if something is wrong.</p>`;return}
+  if(g.canEdit===false){box.innerHTML=`<div class="card-h"><h2>My profile</h2><span class="chip g">Changes off</span></div><p class="lead">Your facilitator has turned off profile changes. Ask them if something is wrong.</p>`;return}
   box.innerHTML=`<div class="card-h"><h2>Edit my profile</h2><span class="chip g">${esc(st.id)}</span></div>
     <form id="pfForm" novalidate><div class="pfphoto"><span id="pfPic">${avatar(st.name,photo,'xl')}</span>
       <div class="row" style="justify-content:center"><label class="btn ghost small" for="pfFile" tabindex="0">${photo?'Change photo':'Add a photo'}</label><button type="button" class="btn ghost small" id="pfDrop" ${photo?'':'hidden'}>Remove photo</button></div>
-      <input id="pfFile" type="file" accept="image/*" hidden><div class="hint">A clear photo of your face helps your instructor learn names.</div></div>
+      <input id="pfFile" type="file" accept="image/*" hidden><div class="hint">A clear photo of your face helps your facilitator learn names.</div></div>
     <div class="field"><label for="pfName">Name</label><input id="pfName" maxlength="60" autocomplete="name" value="${esc(st.name)}"></div>
     <div class="field"><label for="pfPhone">Mobile number</label><input id="pfPhone" type="tel" inputmode="tel" maxlength="16" value="${esc(showPhone(st.phone))}"><div class="hint">You check in with this number.</div></div>
     <div id="pfMsg">${msg?'<div class="msg err">'+esc(msg)+'</div>':''}</div>
@@ -1151,7 +1154,41 @@ async function adminCall(body){
 const SERVER_NEEDS=9;
 const oldServer=()=>!isDemo()&&DATA&&DATA.status&&(DATA.status.version||0)<SERVER_NEEDS;
 function oldServerHTML(){return `<div class="msg err mb" id="oldSrv"><b>Update the server code.</b> Your Google Apps Script still runs an older copy, so opening past days and other newer features will fail. In the Sheet open <b>Extensions › Apps Script</b>, replace everything in <code>Code.gs</code> with the new code and save. Then <b>Deploy › Manage deployments</b>, click the pencil, set <b>Version: New version</b> and <b>Deploy</b>. Do not make a new deployment, or the link changes. <button class="btn small" id="oldSrvCopy">Copy new server code</button></div>`}
-function logoutLocal(){PHOTOS=null;photosAt=0;TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
+// a starter account (made by the coordinator) sets itself up before anything else
+let STARTER='',SETUP_ME=null;
+function renderFirst(){
+  const me=SETUP_ME||{};let photo='';
+  $('#firstCard').innerHTML=`<h2>Set up your account</h2><p class="lead">Welcome${me.name&&me.name!=='New facilitator'?', '+esc(me.name.split(' ')[0]):''}. The coordinator made this account for you. Add your name and choose your own password before you start.</p>
+    <form id="fsForm" novalidate><div class="pfphoto"><span id="fsPic">${avatar(me.name&&me.name!=='New facilitator'?me.name:'?','','xl')}</span>
+      <div class="row" style="justify-content:center"><label class="btn ghost small" for="fsFile" tabindex="0">Add a photo</label><button type="button" class="btn ghost small" id="fsDrop" hidden>Remove photo</button></div>
+      <input id="fsFile" type="file" accept="image/*" hidden><div class="hint">Optional. Students see who runs the class.</div></div>
+     <div class="field"><label for="fsName">Your name</label><input id="fsName" maxlength="60" autocomplete="name" value="${esc(me.name==='New facilitator'?'':me.name||'')}"></div>
+     <div class="field"${STARTER?' hidden':''}><label for="fsOld">Starter password</label><input id="fsOld" type="password" autocomplete="current-password"><div class="hint">The one the coordinator gave you.</div></div>
+     <div class="field"><label for="fsNew">Your new password</label><input id="fsNew" type="password" minlength="8" autocomplete="new-password"><div class="hint">At least 8 characters. Only you know it.</div></div>
+     <div class="field"><label for="fsNew2">Type it again</label><input id="fsNew2" type="password" minlength="8" autocomplete="new-password"></div>
+     <div id="fsMsg"></div><button class="btn big wide">Save and start</button>
+     <p class="hint mt" style="text-align:center"><button type="button" class="linkbtn" id="fsOut">Log out</button></p></form>`;
+  const msg=t=>{$('#fsMsg').innerHTML=t?'<div class="msg err">'+esc(t)+'</div>':''};
+  const pic=()=>{$('#fsPic').innerHTML=avatar($('#fsName').value||'?',photo,'xl');$('#fsDrop').hidden=!photo};
+  $('#fsName').oninput=pic;
+  $('#fsFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;msg('');try{photo=await squarePhoto(f);pic()}catch(x){msg(x.message)}};
+  $('#fsDrop').onclick=()=>{photo='';pic()};
+  $('#fsOut').onclick=()=>$('#logout').click();
+  $('#fsForm').onsubmit=async e=>{e.preventDefault();msg('');
+    const name=$('#fsName').value.trim().replace(/\s+/g,' '),old=STARTER||$('#fsOld').value,nw=$('#fsNew').value;
+    if(!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name)||name==='New facilitator')return msg('Type your name with letters only.');
+    if(!old)return msg('Type the starter password the coordinator gave you.');
+    if(nw.length<8)return msg('Your new password needs at least 8 characters.');
+    if(nw!==$('#fsNew2').value)return msg('The two new passwords are not the same.');
+    if(nw===old)return msg('Choose a new password, not the starter one.');
+    const body={action:'myAccount',name,password:nw,oldPassword:old};if(photo)body.photo=photo;
+    const b=e.submitter||$('#fsForm .btn');b.disabled=true;b.textContent='Saving…';
+    let r;try{r=await api(Object.assign({token:TOKEN},body))}catch(x){r={ok:false,message:x.message}}
+    b.disabled=false;b.textContent='Save and start';
+    if(!r.ok){if(r.reason==='auth'){logoutLocal();return}return msg(r.message)}
+    STARTER='';SETUP_ME=null;toast('All set. Welcome!');DATA=null;showAdmin()};
+}
+function logoutLocal(){STARTER='';SETUP_ME=null;PHOTOS=null;photosAt=0;TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
 $('#loginForm').onsubmit=async e=>{
   e.preventDefault();const btn=$('#loginBtn');btn.disabled=true;btn.textContent='Checking…';$('#loginMsg').innerHTML='';
   const t0=Date.now();
@@ -1162,12 +1199,12 @@ $('#loginForm').onsubmit=async e=>{
       if(!await ask({title:'Sign in to a different server?',text:'This link points to a server this page doesn\'t know: '+serverUrl(SID)+'. Your password would go there. Only continue if you set up this server yourself.',ok:'Continue'}))return;
       sess.set('att-foreign-ok','1');btn.disabled=true;btn.textContent='Checking…'}
     const r=await api(body);logRead('login',Date.now()-t0,r.ok?null:r.message);
-    if(r.ok){if(r.trust)store.set('att-trust',r.trust);if(r.corner)pickClass(r.corner.classes);TOKEN=r.token;QRKEY=r.qrKey;OFFSET=r.now-Date.now();sess.set('att-token',TOKEN);sess.set('att-qrkey',QRKEY);$('#pw').value='';showAdmin();opsAfterLogin()}
+    if(r.ok){if(r.trust)store.set('att-trust',r.trust);if(r.corner)pickClass(r.corner.classes);STARTER=r.me&&r.me.mustSetup?body.password:'';SETUP_ME=r.me&&r.me.mustSetup?r.me:null;TOKEN=r.token;QRKEY=r.qrKey;OFFSET=r.now-Date.now();sess.set('att-token',TOKEN);sess.set('att-qrkey',QRKEY);$('#pw').value='';showAdmin();opsAfterLogin()}
     else $('#loginMsg').innerHTML='<div class="msg err">'+esc(r.message)+'</div>';
   }catch(err){logRead('login',Date.now()-t0,err.message);$('#loginMsg').innerHTML='<div class="msg err">'+esc(err.message)+'</div>'}
   btn.disabled=false;btn.textContent='Sign in';
 };
-// many classes: keep the class this browser used last, if the instructor still teaches it
+// many classes: keep the class this browser used last, if the facilitator still teaches it
 function pickClass(list){list=list||[];if(!list.some(c=>c.id===ADMK))ADMK=list[0]?list[0].id:'';if(ADMK)store.set('att-k',ADMK)}
 async function switchClass(k){if(k===ADMK)return;ADMK=k;store.set('att-k',k);stopLive();DATA=null;PHOTOS=null;photosAt=0;QRKEY=null;
   if(TAB==='corner')TAB='home';paintNav();paintHead();$('#paneBox').innerHTML=skeleton();await loadData();toast('Now in '+(DATA&&DATA.corner?DATA.corner.className:'the class'))}
@@ -1176,15 +1213,15 @@ $('#toSetup').onclick=()=>{location.hash='#setup'};
 $('#toStudent').onclick=()=>{location.hash=''};
 $('#toAdmin').onclick=()=>{location.hash='#admin'};
 
-const TABS_ALL=[['corner','American Corner','Overview'],['home','Dashboard','Overview'],['inbox','Inbox','Overview'],['live','Live QR','Class'],['register','Register','Class'],['reports','Reports','Records'],['students','Students','Records'],['excuses','Excuses','Records'],['days','Class days','Records'],['team','Instructors','System'],['ops','Operations','System'],['log','Activity log','System'],['settings','Settings','System']];
+const TABS_ALL=[['corner','American Corner','Overview'],['home','Dashboard','Overview'],['inbox','Inbox','Overview'],['live','Live QR','Class'],['register','Register','Class'],['reports','Reports','Records'],['students','Students','Records'],['excuses','Excuses','Records'],['days','Class days','Records'],['team','Facilitators','System'],['ops','Operations','System'],['log','Activity log','System'],['settings','Settings','System']];
 // the American Corner page is for the Corner admin
 let TABS=TABS_ALL.filter(t=>t[0]!=='corner');
 const setTabs=()=>{TABS=TABS_ALL.filter(t=>t[0]!=='corner'||(DATA&&DATA.corner&&DATA.corner.admin))};
-const PAGES={corner:['American Corner','Every class today, the class list, everyone who attends and the instructors.'],home:['Dashboard','Today at a glance, and who needs a nudge.'],inbox:['Inbox','Students asking for a profile key. Send each one their code on WhatsApp.'],live:['Live check-in','Show this on the projector. The code changes every few seconds so only people in the room can check in.'],
+const PAGES={corner:['American Corner','Every class today. Add and delete classes, make facilitator accounts, and see everyone who attends.'],home:['Dashboard','Today at a glance, and who needs a nudge.'],inbox:['Inbox','Students asking for a profile key. Send each one their code on WhatsApp.'],live:['Live check-in','Show this on the projector. The code changes every few seconds so only people in the room can check in.'],
   register:['Register','The class sheet. Tap a cell to mark present, tap again for absent.'],reports:['Reports','Pass marks, per-student and per-day records, and exports.'],
   students:['Students','Everyone on the class list, with their IDs and mobile numbers.'],excuses:['Excused absences','Approved absences count toward the pass mark when you choose.'],
   days:['Class days','Add a class nobody checked in to, or cancel a day so it does not count.'],ops:['Operations','Every change you save, its status, and retries when the server is slow.'],log:['Activity log','Every check-in try and admin change, newest first.'],settings:['Settings','Check-in window, security checks and the student ID format.'],
-  team:['Instructors','Everyone who runs this class. Each signs in with their own number and password.'],account:['My account','Your name, number, photo and password.']};
+  team:['Facilitators','Everyone who runs this class. Each signs in with their own number and password.'],account:['My account','Your name, number, photo and password.']};
 const BNAV=['home','live','register','reports'];
 function navHTML(){let g='';return TABS.map(([k,l,grp])=>{const h=grp!==g?'<h6>'+grp+'</h6>':'';g=grp;return h+`<button class="nav-i${k===TAB?' on':''}" data-k="${k}"${k===TAB?' aria-current="page"':''}>${ICON[k]}<span>${l}</span></button>`}).join('')}
 function paintNav(){
@@ -1204,6 +1241,7 @@ async function loadData(show,quiet){
     if(!DATA){try{const c=JSON.parse(sess.get('att-data'+(ADMK?':'+ADMK:''))||'null');if(c&&QRKEY){DATA=c;STATUS=c.status;renderPane();toast('Offline: showing the last copy. The QR still works.',true)}}catch(e2){}}
     return false}
   // the class this browser remembered is not theirs (any more): open their first class
+  if(!r.ok&&r.reason==='setup'){SETUP_ME=r.me||{};showAdmin();return false}
   if(!r.ok&&r.reason==='noclass'&&r.corner&&r.corner.classes&&r.corner.classes.length&&!r.corner.classes.some(c=>c.id===ADMK)){pickClass(r.corner.classes);return loadData(show,quiet)}
   if(!r.ok){if(r.reason!=='auth'&&!quiet)toast(r.message,true);return false}
   if(quiet&&sig(r)===sig(DATA)){STATUS=r.status;OFFSET=r.now-Date.now();paintPill();return true}
@@ -1214,12 +1252,12 @@ async function loadData(show,quiet){
   if(show)toast('Up to date');
   renderPane();return true;
 }
-// who is signed in: an instructor account, or the main password
+// who is signed in: a facilitator account, or the main password
 function paintWho(){
   const me=DATA&&DATA.me;
-  $('#whoName').textContent=me?me.name:'Instructor';
+  $('#whoName').textContent=me?me.name:DATA&&DATA.corner?'Coordinator':'Facilitator';
   const cn=DATA&&DATA.corner?' · '+DATA.corner.className:'';
-  $('#who').textContent=me?(me.role==='owner'?'Owner':'Instructor')+cn:(isDemo()?'Demo server on this device':'Main password'+cn);
+  $('#who').textContent=me?(me.role==='owner'?'Lead facilitator':'Facilitator')+cn:isDemo()?'Demo server on this device':DATA&&DATA.corner?'Coordinator · every class':'Main password';
   $('#whoPic').innerHTML=me?avatar(me.name,PHOTOS&&PHOTOS[me.id]):'<span class="av">I</span>';
 }
 $('#whoBtn').onclick=()=>goTab('account');
@@ -1227,12 +1265,14 @@ function showAdmin(){
   const setup=location.hash==='#setup';
   $('#studentView').hidden=true;$('#adminView').hidden=false;document.body.classList.remove('adm');
   $('#setupBox').hidden=!setup;
-  if(setup){$('#loginBox').hidden=true;$('#panel').hidden=true;renderSetup();return}
-  if(!TOKEN){$('#loginBox').hidden=false;$('#panel').hidden=true;
+  if(setup){$('#firstBox').hidden=true;$('#loginBox').hidden=true;$('#panel').hidden=true;renderSetup();return}
+  if(!TOKEN){$('#firstBox').hidden=true;$('#loginBox').hidden=false;$('#panel').hidden=true;
     if(!SID)$('#loginMsg').innerHTML='<div class="msg">No server connected yet. Open <button class="linkbtn" onclick="location.hash=\'#setup\'">Setup and demo</button> first.</div>';
     else if(isDemo())$('#loginMsg').innerHTML='<div class="msg">Demo password: <b>demo1234</b></div>';
     const lp=$('#lphone');if(!lp.value)lp.value=store.get('att-lphone')||'';
     setTimeout(()=>(lp.value?$('#pw'):lp).focus(),50);return}
+  $('#firstBox').hidden=!SETUP_ME;
+  if(SETUP_ME){$('#loginBox').hidden=true;$('#panel').hidden=true;renderFirst();return}
   $('#loginBox').hidden=true;$('#panel').hidden=false;document.body.classList.add('adm');
   paintWho();
   paintNav();
@@ -1255,8 +1295,10 @@ function renderPane(){
   stopLive();if(!DATA)return;paintHead();
   const box=$('#paneBox');
   if(TAB==='corner'&&!(DATA.corner&&DATA.corner.admin)){TAB='home';paintNav();paintHead()}
+  if(TAB==='account'&&isCoord()){TAB='corner';paintNav();paintHead()}
   ({corner:paneCorner,home:paneHome,inbox:paneInbox,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,ops:paneOps,log:paneLog,settings:paneSettings,team:paneTeam,account:paneAccount})[TAB](box);
   if(oldServer()){box.insertAdjacentHTML('afterbegin',oldServerHTML());$('#oldSrvCopy').onclick=copyServerCode}
+  if(isCoord()&&TAB!=='corner'&&TAB!=='team')box.insertAdjacentHTML('afterbegin','<div class="msg mb vo"><b>View only.</b> '+esc(COORD_MSG)+'</div>');
   inboxBadge();
   const n=inboxN();if(n&&TAB==='home'){box.insertAdjacentHTML('afterbegin',`<div class="msg mb" id="inbNote"><b>${n} student${n===1?'':'s'}</b> asked for a profile key. <button class="btn small" id="inbGo">Open Inbox</button></div>`);$('#inbGo').onclick=()=>goTab('inbox')}
 }
@@ -1386,7 +1428,7 @@ function paneLive(box){
   poll();pollTimer=setInterval(poll,isDemo()?3000:8000);
 }
 function currentCode(){return codeFor(QRKEY,Math.floor(nowMs()/((DATA.settings.slotSeconds||30)*1000)))}
-// profile photos for the instructor screens, loaded once and refreshed when Students or Live QR opens
+// profile photos for the facilitator screens, loaded once and refreshed when Students or Live QR opens
 async function loadPhotos(force){
   if(!force&&Date.now()-photosAt<300000)return PHOTOS||{};
   photosAt=Date.now();
@@ -1422,7 +1464,7 @@ function paintLiveState(){
   $('#extraRow').innerHTML=s.extraUntil?'<button class="btn small ghost" data-m="0">Close extra window</button>':(s.open?'':'<span class="hint">Make-up class?</span><button class="btn small" data-m="30">Open for 30 min</button><button class="btn small ghost" data-m="60">60 min</button>');
   $('#extraRow').querySelectorAll('button').forEach(b=>b.onclick=async()=>{const r=await saveOp({action:'extra',minutes:+b.dataset.m});if(r.ok){toast(+b.dataset.m?'Check-in open for '+b.dataset.m+' minutes':'Extra window closed');loadData()}else toast(r.message,true)});
 }
-/* Past days are locked. Opening one for a while lets the instructor fix its marks in Register. */
+/* Past days are locked. Opening one for a while lets the facilitator fix its marks in Register. */
 const hhmm=ms=>{const e=localParts(ms);return p2(e.hh)+":"+p2(e.mm)};
 function pastClassDays(){const t=DATA.today;return DATA.days.filter(d=>d.status!=='cancelled'&&d.date<t).map(d=>d.date).sort().reverse()}
 const openDayNow=()=>{const o=DATA&&DATA.status&&DATA.status.openDay;return o&&o.until>nowMs()?o:null};
@@ -1576,7 +1618,7 @@ function printDaySheet(d,C){
   el.innerHTML=`<div class="ph">${logo?`<img src="${esc(logo)}" alt="">`:''}<div><h1>Class attendance · ${esc(niceDate(d))}</h1><p>American Corner Matara · Cyber Security class</p></div></div>
     <p class="sum">${rows.length} students · ${P} present${E?' · '+E+' excused':''}${done?' · '+A+' absent':' · class not over yet'}</p>
     <table><thead><tr><th>#</th><th>ID</th><th>Name</th><th>Status</th><th>Signature</th></tr></thead><tbody>${body}</tbody></table>
-    <div class="foot"><div>Instructor name and signature</div><div>Date</div></div>`;
+    <div class="foot"><div>Facilitator name and signature</div><div>Date</div></div>`;
   document.body.classList.add('printing');
   const end=()=>{document.body.classList.remove('printing');window.removeEventListener('afterprint',end)};
   window.addEventListener('afterprint',end);setTimeout(()=>window.print(),50);
@@ -1730,47 +1772,48 @@ function paneStudents(box){
     const r=await saveOp({action:'bulk',list});if(r.ok){toast(r.added+' added'+(r.bad.length?', '+r.bad.length+' skipped':''),r.bad.length>0);if(r.bad.length)$('#bulk').value=r.bad.join('\n');else $('#bulk').value='';loadData()}else toast(r.message,true)};
 }
 
-/* Instructors: each has their own number (never a student's), photo and password */
-const needV12=box=>{if(isDemo()||(DATA.status.version||0)>=12)return false;box.innerHTML='<div class="pane"><div class="msg err">Instructor accounts need server version 12. Update the server code (Setup has <b>Copy server code</b>), then Deploy › Manage deployments › the <b>Web app</b> › pencil › New version.</div></div>';return true};
-const roleChip=r=>r.admin?'<span class="chip x">Corner admin</span>':r.role==='owner'?'<span class="chip p">Owner</span>':'<span class="chip g">Instructor</span>';
+/* Facilitators: each has their own number (never a student's), photo and password */
+const needV12=box=>{if(isDemo()||(DATA.status.version||0)>=12)return false;box.innerHTML='<div class="pane"><div class="msg err">Facilitator accounts need server version 12. Update the server code (Setup has <b>Copy server code</b>), then Deploy › Manage deployments › the <b>Web app</b> › pencil › New version.</div></div>';return true};
+const roleChip=r=>r.mustSetup?'<span class="chip a">Not set up yet</span>':r.role==='owner'?'<span class="chip p">'+(DATA&&DATA.corner?'Lead facilitator':'Owner')+'</span>':'<span class="chip g">Facilitator</span>';
 async function staffCall(body){try{return await adminCall(body)}catch(e){return {ok:false,message:e.message}}}
 function paneTeam(box){
   if(needV12(box))return;
+  if(DATA.corner)return paneTeamCorner(box);
   const list=(DATA.staff||[]).slice().sort((a,b)=>(a.role===b.role?0:a.role==='owner'?-1:1)||a.name.localeCompare(b.name)),own=!!DATA.owner,me=DATA.me;
   loadPhotos().then(()=>{if(TAB==='team'&&$('#tmBody'))draw()});
   box.innerHTML=`<div class="pane split wideleft">
    <div class="card"><div class="card-h"><h3>Team</h3><span class="chip g">${list.length} ${list.length===1?'person':'people'}</span></div>
-    ${!me&&!list.length?'<div class="msg mb"><b>Add yourself first.</b> The first instructor you add becomes an owner. Then sign out and sign in with your number and password.</div>':''}
+    ${!me&&!list.length?'<div class="msg mb"><b>Add yourself first.</b> The first facilitator you add becomes an owner. Then sign out and sign in with your number and password.</div>':''}
     ${!me&&list.length?'<div class="msg mb">You signed in with the main password. Sign in with your own number to have your name on your changes.</div>':''}
     <div class="team" id="tmBody"></div></div>
-   <div class="stack"><div class="card"><h3 id="tmTitle">Add an instructor</h3>
+   <div class="stack"><div class="card"><h3 id="tmTitle">Add a facilitator</h3>
     ${own?`<form id="tmForm" novalidate>
      <div class="field"><label for="tmName">Name</label><input id="tmName" maxlength="60" autocomplete="off"></div>
      <div class="field"><label for="tmPhone">Mobile number</label><input id="tmPhone" type="tel" inputmode="tel" maxlength="16" placeholder="07X XXX XXXX" autocomplete="off"><div class="hint">They sign in with it. It can't be a student's number.</div></div>
      <div class="field"><label for="tmPw" id="tmPwL">Password</label><input id="tmPw" type="password" minlength="8" autocomplete="new-password"><div class="hint" id="tmPwH">At least 8 characters. Share it with them, they can change it under My account.</div></div>
-     <div class="field"><label for="tmRole">Role${DATA.corner?' in '+esc(DATA.corner.className):''}</label><select id="tmRole"><option value="instructor">Instructor: runs the class</option><option value="owner">Owner: also manages instructors</option>${DATA.corner?'<option value="">Not in this class</option>':''}</select>${DATA.corner?'<div class="hint">One account works in every class. The role is for this class only.</div>':''}</div>
-     ${DATA.corner&&DATA.corner.admin?'<label class="check"><input type="checkbox" id="tmAdm">Corner admin: every class, adds classes and instructors</label>':''}
+     <div class="field"><label for="tmRole">Role${DATA.corner?' in '+esc(DATA.corner.className):''}</label><select id="tmRole"><option value="instructor">Facilitator: runs the class</option><option value="owner">Owner: also manages facilitators</option>${DATA.corner?'<option value="">Not in this class</option>':''}</select>${DATA.corner?'<div class="hint">One account works in every class. The role is for this class only.</div>':''}</div>
+     ${DATA.corner&&DATA.corner.admin?'<label class="check"><input type="checkbox" id="tmAdm">Corner admin: every class, adds classes and facilitators</label>':''}
      <label class="check" id="tmActL" hidden><input type="checkbox" id="tmAct" checked>Can sign in</label>
      <div id="tmMsg"></div>
-     <div class="row"><button class="btn" id="tmSave">Add instructor</button><button type="button" class="btn ghost" id="tmClear">Clear</button><button type="button" class="btn red" id="tmDel" hidden>Remove</button></div></form>`
-    :'<p class="hint">Only an owner can add or change instructors. Change your own details under <button class="linkbtn" id="tmMine">My account</button>.</p>'}
+     <div class="row"><button class="btn" id="tmSave">Add facilitator</button><button type="button" class="btn ghost" id="tmClear">Clear</button><button type="button" class="btn red" id="tmDel" hidden>Remove</button></div></form>`
+    :'<p class="hint">Only an owner can add or change facilitators. Change your own details under <button class="linkbtn" id="tmMine">My account</button>.</p>'}
    </div></div></div>`;
   let edit=null;
-  function draw(){$('#tmBody').innerHTML=list.length?list.map(x=>`<div class="tm${x.active?'':' off'}"><span class="tmpic">${avatar(x.name,PHOTOS&&PHOTOS[x.id],'md')}</span><div class="tmtxt"><b>${esc(x.name)}${me&&me.id===x.id?' <span class="hint">(you)</span>':''}</b><span>${esc(showPhone(x.phone))}</span></div><div class="tmside">${roleChip(x)}${x.active?'':'<span class="chip a">Off</span>'}${own?`<button class="btn small ghost" data-e="${esc(x.id)}">Edit</button>`:''}</div></div>`).join(''):emptyHTML('No instructors yet','Add the first one with the form.');
+  function draw(){$('#tmBody').innerHTML=list.length?list.map(x=>`<div class="tm${x.active?'':' off'}"><span class="tmpic">${avatar(x.name,PHOTOS&&PHOTOS[x.id],'md')}</span><div class="tmtxt"><b>${esc(x.name)}${me&&me.id===x.id?' <span class="hint">(you)</span>':''}</b><span>${esc(showPhone(x.phone))}</span></div><div class="tmside">${roleChip(x)}${x.active?'':'<span class="chip a">Off</span>'}${own?`<button class="btn small ghost" data-e="${esc(x.id)}">Edit</button>`:''}</div></div>`).join(''):emptyHTML('No facilitators yet','Add the first one with the form.');
     $('#tmBody').querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>fill(list.find(x=>x.id===b.dataset.e)))}
   draw();
   const mine=$('#tmMine');if(mine)mine.onclick=()=>goTab('account');
   if(!own)return;
   const msg=t=>{$('#tmMsg').innerHTML=t?'<div class="msg err">'+esc(t)+'</div>':''};
-  function fill(x){edit=x;msg('');$('#tmTitle').textContent=x?'Edit '+x.name:'Add an instructor';$('#tmName').value=x?x.name:'';$('#tmPhone').value=x?showPhone(x.phone):'';$('#tmPw').value='';
+  function fill(x){edit=x;msg('');$('#tmTitle').textContent=x?'Edit '+x.name:'Add a facilitator';$('#tmName').value=x?x.name:'';$('#tmPhone').value=x?showPhone(x.phone):'';$('#tmPw').value='';
     $('#tmPwL').textContent=x?'New password':'Password';$('#tmPwH').textContent=x?'Leave empty to keep their password.':'At least 8 characters. Share it with them, they can change it under My account.';
-    $('#tmRole').value=x?x.role:'instructor';if($('#tmAdm'))$('#tmAdm').checked=!!(x&&x.admin);$('#tmActL').hidden=!x;$('#tmAct').checked=!x||x.active;$('#tmDel').hidden=!x||(me&&me.id===x.id);$('#tmSave').textContent=x?'Save':'Add instructor';$('#tmName').focus()}
+    $('#tmRole').value=x?x.role:'instructor';if($('#tmAdm'))$('#tmAdm').checked=!!(x&&x.admin);$('#tmActL').hidden=!x;$('#tmAct').checked=!x||x.active;$('#tmDel').hidden=!x||(me&&me.id===x.id);$('#tmSave').textContent=x?'Save':'Add facilitator';$('#tmName').focus()}
   $('#tmClear').onclick=()=>fill(null);
   $('#tmForm').onsubmit=async e=>{e.preventDefault();msg('');
     const name=$('#tmName').value.trim().replace(/\s+/g,' '),phone=cleanPhone($('#tmPhone').value),pw=$('#tmPw').value;
     if(!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name))return msg('Type a name with letters only.');
     if(!phone)return msg('Type a mobile number like 0771234567.');
-    if(DATA.students.some(s=>s.phone===phone))return msg('That number belongs to a student. An instructor needs a number of their own.');
+    if(DATA.students.some(s=>s.phone===phone))return msg('That number belongs to a student. A facilitator needs a number of their own.');
     if((!edit&&pw.length<8)||(pw&&pw.length<8))return msg('The password needs at least 8 characters.');
     const body={action:'staffSave',sid:edit?edit.id:'',name,phone,role:$('#tmRole').value,active:$('#tmAct').checked};if(pw)body.password=pw;if($('#tmAdm'))body.admin=$('#tmAdm').checked;
     const b=$('#tmSave');b.disabled=true;const r=await staffCall(body);b.disabled=false;
@@ -1778,7 +1821,61 @@ function paneTeam(box){
   $('#tmDel').onclick=async()=>{const all=!DATA.corner||DATA.corner.admin;if(!edit||!await ask({title:'Remove '+edit.name+(all?'?':' from this class?'),text:all?'They can no longer sign in'+(DATA.corner?' to any class':'')+'. Their past changes stay in the Activity log.':'They keep their other classes. Their past changes stay in the Activity log.',ok:'Remove',danger:true}))return;
     const r=await staffCall({action:'staffSave',sid:edit.id,remove:true});if(r.ok){toast('Removed');loadData()}else msg(r.message)};
 }
-/* ---------- the American Corner: every class, people and instructors (Corner admin) ---------- */
+/* Facilitators of one class (Cloudflare, many classes): the coordinator makes starter accounts and ties them to the class;
+   a lead facilitator changes roles here; everyone else sees who runs the class */
+const ROLE_OPTS=(v,none)=>`<option value="instructor"${v==='instructor'?' selected':''}>Facilitator</option><option value="owner"${v==='owner'?' selected':''}>Lead facilitator: also changes settings and roles</option>${none?`<option value=""${!v?' selected':''}>Not in this class</option>`:''}`;
+const starterPw=()=>{const a=new Uint32Array(1);crypto.getRandomValues(a);return String(100000+a[0]%900000)};
+function welcomeText(x,pw){const u=new URL('attendance.html',location.href);u.search='';u.hash='admin';
+  return `Hi${x.name==='New facilitator'?'':' '+x.name.split(' ')[0]}! Your American Corner attendance account is ready for ${DATA.corner.className}.\n\nOpen ${u.toString()}\nNumber: ${x.phone}\nStarter password: ${pw}\n\nSign in, then add your name and photo and choose your own password.`}
+function paneTeamCorner(box){
+  const coord=isCoord(),lead=!coord&&DATA.owner,me=DATA.me,cn=DATA.corner.className;
+  const list=(DATA.staff||[]).slice().sort((a,b)=>(a.role===b.role?0:a.role==='owner'?-1:1)||a.name.localeCompare(b.name));
+  loadPhotos().then(()=>{if(TAB==='team'&&$('#tmBody'))draw()});
+  box.innerHTML=`<div class="pane split wideleft">
+   <div class="card"><div class="card-h"><h3>Facilitators of ${esc(cn)}</h3><span class="chip g">${list.length}</span></div><div class="team" id="tmBody"></div></div>
+   <div class="stack"><div class="card" id="tmSide"></div></div></div>`;
+  let edit=null;
+  function draw(){$('#tmBody').innerHTML=list.length?list.map(x=>`<div class="tm${x.active?'':' off'}"><span class="tmpic">${avatar(x.name,PHOTOS&&PHOTOS[x.id],'md')}</span><div class="tmtxt"><b>${esc(x.name)}${me&&me.id===x.id?' <span class="hint">(you)</span>':''}</b><span>${esc(showPhone(x.phone))}</span></div><div class="tmside">${roleChip(x)}${x.mustSetup&&x.role?roleChip({role:x.role}):''}${x.active?'':'<span class="chip a">Off</span>'}${coord||(lead&&!(me&&me.id===x.id))?`<button class="btn small ghost" data-e="${esc(x.id)}">${coord?'Edit':'Role'}</button>`:''}</div></div>`).join(''):emptyHTML('No facilitators yet',coord?'Make the first account with the form.':'The coordinator adds facilitators.');
+    $('#tmBody').querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>side(list.find(x=>x.id===b.dataset.e)))}
+  draw();
+  const msg=(t,good)=>{$('#tmMsg').innerHTML=t?'<div class="msg '+(good?'good':'err')+'">'+t+'</div>':''};
+  function side(x){edit=x||null;const S=$('#tmSide');
+    if(!coord&&!lead){S.innerHTML='<h3>Who runs the class</h3><p class="hint">The coordinator adds facilitators and gives each one their role. Change your own name, photo and password under <button class="linkbtn" id="tmMine">My account</button>.</p>';$('#tmMine').onclick=()=>goTab('account');return}
+    if(lead){
+      if(!x){S.innerHTML='<h3>Roles</h3><p class="hint">As the lead facilitator you can change the role of the others in this class. The coordinator makes new accounts.</p>';return}
+      S.innerHTML=`<h3>${esc(x.name)}</h3><div class="field"><label for="tmRole">Role in ${esc(cn)}</label><select id="tmRole">${ROLE_OPTS(x.role,true)}</select></div><div id="tmMsg"></div><div class="row"><button class="btn" id="tmSave">Save</button><button type="button" class="btn ghost" id="tmBack">Cancel</button></div>`;
+      $('#tmBack').onclick=()=>side(null);
+      $('#tmSave').onclick=async()=>{const r=await staffCall({action:'staffSave',sid:x.id,role:$('#tmRole').value});if(!r.ok)return msg(esc(r.message));toast('Saved');loadData()};return}
+    // the coordinator: make a starter account for this class, or change one
+    S.innerHTML=`<h3>${x?'Edit '+esc(x.name):'Add a facilitator to '+esc(cn)}</h3><form id="tmForm" novalidate>
+     ${x?'':'<p class="hint mb">You make a starter account. The facilitator signs in with it once, then adds their own name, photo and password.</p>'}
+     <div class="field"><label for="tmPhone">Mobile number</label><input id="tmPhone" type="tel" inputmode="tel" maxlength="16" placeholder="07X XXX XXXX" value="${esc(x?showPhone(x.phone):'')}"><div class="hint">They sign in with it. It can't be a student's number.</div></div>
+     <div class="field"><label for="tmName">Name${x?'':' (optional)'}</label><input id="tmName" maxlength="60" value="${esc(x&&x.name!=='New facilitator'?x.name:'')}"></div>
+     <div class="field"><label for="tmPw">${x?'New starter password (optional)':'Starter password'}</label><div class="row"><input id="tmPw" class="grow" autocomplete="off" spellcheck="false" value="${x?'':starterPw()}"><button type="button" class="btn ghost small" id="tmGen">New one</button></div><div class="hint">${x?'Gives them a new starter password; they choose their own again at the next sign-in.':'6 or more characters. They replace it with their own.'}</div></div>
+     <div class="field"><label for="tmRole">Role in ${esc(cn)}</label><select id="tmRole">${ROLE_OPTS(x?x.role:'instructor',!!x)}</select></div>
+     ${x?`<label class="check"><input type="checkbox" id="tmAct"${x.active?' checked':''}>Can sign in</label>`:''}
+     <div id="tmMsg"></div>
+     <div class="row"><button class="btn" id="tmSave">${x?'Save':'Make account'}</button>${x?'<button type="button" class="btn ghost" id="tmBack">New facilitator</button><button type="button" class="btn red" id="tmDel">Delete account</button>':''}</div></form>`;
+    $('#tmGen').onclick=()=>{$('#tmPw').value=starterPw()};
+    if(x){$('#tmBack').onclick=()=>side(null);
+      $('#tmDel').onclick=async()=>{if(!await ask({title:'Delete '+x.name+"'s account?",text:'They can no longer sign in to any class. Their past changes stay in the Activity log.',ok:'Delete',danger:true}))return;
+        const r=await staffCall({action:'staffSave',sid:x.id,remove:true});if(!r.ok)return msg(esc(r.message));toast('Account deleted');loadData()}}
+    $('#tmForm').onsubmit=async e=>{e.preventDefault();msg('');
+      const phone=cleanPhone($('#tmPhone').value),name=$('#tmName').value.trim().replace(/\s+/g,' '),pw=$('#tmPw').value.trim();
+      if(!phone)return msg('Type a mobile number like 0771234567.');
+      if(name&&!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name))return msg('Type a name with letters only, or leave it empty.');
+      if((!x&&pw.length<6)||(pw&&pw.length<6))return msg('The starter password needs at least 6 characters.');
+      const body={action:'staffSave',sid:x?x.id:'',phone,role:$('#tmRole').value};if(name)body.name=name;if(pw)body.password=pw;if(x)body.active=$('#tmAct').checked;
+      const r=await staffCall(body);if(!r.ok)return msg(esc(r.message));
+      if(pw){const t=welcomeText(r.staff,pw);
+        $('#tmSide').innerHTML=`<h3>${x?'New starter password':'Account made'}</h3><p class="hint mb">Send this to ${esc(r.staff.name==='New facilitator'?showPhone(r.staff.phone):r.staff.name)}. The starter password works until they choose their own.</p><pre class="welcome">${esc(t)}</pre>
+          <div class="row"><a class="btn" target="_blank" rel="noopener" href="https://wa.me/94${esc(r.staff.phone.slice(1))}?text=${encodeURIComponent(t)}">Send on WhatsApp</a><button class="btn ghost" id="tmCopy">Copy</button><button class="btn ghost" id="tmNext">Done</button></div>`;
+        $('#tmCopy').onclick=async()=>{try{await navigator.clipboard.writeText(t);toast('Copied')}catch(x){toast('Copy failed. Select the text and copy it.',true)}};
+        $('#tmNext').onclick=()=>side(null);await loadData(false,true);return}
+      toast('Saved');loadData()}}
+  side(null);
+}
+/* ---------- the American Corner: every class, people and facilitators (Corner admin) ---------- */
 const CLS_COLORS=[['#002868','Blue'],['#BF0A30','Red'],['#3c4a5c','Slate'],['#0a6b4f','Green'],['#7a4b00','Brown']];
 async function paneCorner(box){
   box.innerHTML=skeleton();
@@ -1789,7 +1886,7 @@ async function paneCorner(box){
    <div class="pane split wideleft">
     <div class="stack">
      <div class="card"><div class="card-h"><h3>Classes</h3><span class="chip g">${cls.length}</span></div><div class="team">${cls.map(c=>`<div class="tm${c.active?'':' off'}"><span class="cdot" style="background:${esc(c.color||'#002868')}"></span><div class="tmtxt"><b>${esc(c.name)}</b><span>${esc(c.room||'')}${c.active?'':' · archived'}</span></div><div class="tmside"><button class="btn small ghost" data-ce="${esc(c.id)}">Edit</button>${c.active?`<button class="btn small" data-go="${esc(c.id)}">Open</button>`:''}</div></div>`).join('')}</div></div>
-     <div class="card"><div class="card-h"><h3>Instructors</h3><span class="chip g">${r.staff.length}</span></div><div class="team">${r.staff.map(x=>`<div class="tm${x.active?'':' off'}"><span class="tmpic">${avatar(x.name,PHOTOS&&PHOTOS[x.id],'md')}</span><div class="tmtxt"><b>${esc(x.name)}</b><span>${esc(showPhone(x.phone))}</span></div><div class="tmside">${x.admin?'<span class="chip x">Corner admin</span>':''}${x.roles.map(o=>`<span class="chip ${o.role==='owner'?'p':'g'}">${esc(cn(o.k))}${o.role==='owner'?' · owner':''}</span>`).join('')}${!x.admin&&!x.roles.length?'<span class="chip a">No class</span>':''}<button class="btn small ghost" data-se="${esc(x.id)}">Classes</button></div></div>`).join('')||emptyHTML('No instructors yet','Add them under Instructors in a class.')}</div></div>
+     <div class="card"><div class="card-h"><h3>Facilitators</h3><span class="chip g">${r.staff.length}</span></div><div class="team">${r.staff.map(x=>`<div class="tm${x.active?'':' off'}"><span class="tmpic">${avatar(x.name,PHOTOS&&PHOTOS[x.id],'md')}</span><div class="tmtxt"><b>${esc(x.name)}</b><span>${esc(showPhone(x.phone))}</span></div><div class="tmside">${x.mustSetup?'<span class="chip a">Not set up yet</span>':''}${x.roles.map(o=>`<span class="chip ${o.role==='owner'?'p':'g'}">${esc(cn(o.k))}${o.role==='owner'?' · lead':''}</span>`).join('')}${!x.roles.length?'<span class="chip a">No class</span>':''}<button class="btn small ghost" data-se="${esc(x.id)}">Classes</button></div></div>`).join('')||emptyHTML('No facilitators yet','Add them under Facilitators in a class.')}</div></div>
      <div class="card"><div class="card-h"><h3>People</h3><span class="chip g">${r.people.length}</span></div><div class="toolbar"><div class="search">${ICON.search}<input id="pfind" placeholder="Search name or number" aria-label="Search people"></div><span class="count" id="pN"></span></div>
       <div class="tblwrap"><table><thead><tr><th>Name</th><th>Mobile</th><th>Classes</th></tr></thead><tbody id="pBody"></tbody></table></div></div>
     </div>
@@ -1803,18 +1900,22 @@ async function paneCorner(box){
      <div class="field"><label for="cfName">Name</label><input id="cfName" maxlength="40" value="${esc(c?c.name:'')}" placeholder="English"></div>
      <div class="field"><label for="cfRoom">Room</label><input id="cfRoom" maxlength="40" value="${esc(c?c.room:'')}" placeholder="Main hall"></div>
      <div class="field"><label for="cfColor">Colour</label><select id="cfColor">${CLS_COLORS.map(([v,l])=>`<option value="${v}"${c&&c.color===v?' selected':''}>${l}</option>`).join('')}</select></div>
-     ${c?`<label class="check"><input type="checkbox" id="cfAct"${c.active?' checked':''}>Active (archived classes are hidden, their records stay)</label>`:'<p class="hint mb">The new class gets its own QR, students, IDs, schedule and settings. Set its days and times under Settings after you open it.</p>'}
+     ${c?`<label class="check"><input type="checkbox" id="cfAct"${c.active?' checked':''}>Active (archived classes are hidden, their records stay)</label><p class="hint mb"><button type="button" class="linkbtn danger" id="cfDel">Delete this class</button></p>`:'<p class="hint mb">The new class gets its own QR, students, IDs, schedule and settings. Set its days and times under Settings after you open it.</p>'}
      <div id="cfMsg"></div><div class="row"><button class="btn">${c?'Save':'Add class'}</button>${c?'<button type="button" class="btn ghost" id="cfNew">New class</button>':''}</div></form>`;
     if(c)$('#cfNew').onclick=()=>form(null);
+    if(c)$('#cfDel').onclick=async()=>{const t=await ask({title:'Delete '+c.name+'?',text:'This deletes the class with all its students, attendance, days and backups. People who attend other classes stay there. It cannot be undone. Type the class name to confirm.',ok:'Delete class',danger:true,input:'',label:'Class name'});
+      if(!t)return;const x=await staffCall({action:'classDelete',id:c.id,confirm:t});if(!x.ok){toast(x.message,true);return}toast(c.name+' deleted');await refreshCorner();paneCorner(box)};
     $('#cfForm').onsubmit=async e=>{e.preventDefault();const body={action:'classSave',name:$('#cfName').value,room:$('#cfRoom').value,color:$('#cfColor').value};
       if(c){body.id=c.id;body.active=$('#cfAct').checked}
       const x=await staffCall(body);if(!x.ok){$('#cfMsg').innerHTML='<div class="msg err">'+esc(x.message)+'</div>';return}
       toast(c?'Saved':x.class.name+' added');await refreshCorner();paneCorner(box)}};
   form(null);
   box.querySelectorAll('[data-ce]').forEach(b=>b.onclick=()=>form(cls.find(c=>c.id===b.dataset.ce)));
-  // which classes an instructor teaches, and their role in each
+  // which classes a facilitator teaches, and their role in each
   box.querySelectorAll('[data-se]').forEach(b=>b.onclick=()=>{const x=r.staff.find(s=>s.id===b.dataset.se),rc=$('#rlCard'),role=k=>(x.roles.find(o=>o.k===k)||{}).role||'';rc.hidden=false;
-    rc.innerHTML=`<h3>${esc(x.name)}'s classes</h3>${x.admin?'<p class="hint mb">Corner admin: owner in every class.</p>':''}${cls.filter(c=>c.active).map(c=>`<div class="field"><label for="rl-${esc(c.id)}">${esc(c.name)}</label><select id="rl-${esc(c.id)}" data-rk="${esc(c.id)}"><option value="">Not in this class</option><option value="instructor"${role(c.id)==='instructor'?' selected':''}>Instructor</option><option value="owner"${role(c.id)==='owner'?' selected':''}>Owner</option></select></div>`).join('')}<div id="rlMsg"></div>`;
+    rc.innerHTML=`<h3>${esc(x.name)}'s classes</h3>${cls.filter(c=>c.active).map(c=>`<div class="field"><label for="rl-${esc(c.id)}">${esc(c.name)}</label><select id="rl-${esc(c.id)}" data-rk="${esc(c.id)}"><option value="">Not in this class</option><option value="instructor"${role(c.id)==='instructor'?' selected':''}>Facilitator</option><option value="owner"${role(c.id)==='owner'?' selected':''}>Lead facilitator</option></select></div>`).join('')}<div id="rlMsg"></div><p class="hint mt"><button type="button" class="linkbtn danger" id="rlDel">Delete ${esc(x.name)}'s account</button></p>`;
+    $('#rlDel').onclick=async()=>{if(!await ask({title:'Delete '+x.name+"'s account?",text:'They can no longer sign in to any class. Their past changes stay in the Activity log.',ok:'Delete',danger:true}))return;
+      const y=await staffCall({action:'staffSave',sid:x.id,remove:true});if(!y.ok){toast(y.message,true);return}toast('Account deleted');paneCorner(box)};
     rc.querySelectorAll('[data-rk]').forEach(sel=>sel.onchange=async()=>{const y=await staffCall({action:'staffSave',sid:x.id,k:sel.dataset.rk,role:sel.value});
       if(!y.ok){$('#rlMsg').innerHTML='<div class="msg err">'+esc(y.message)+'</div>';return}toast('Saved');x.roles=x.roles.filter(o=>o.k!==sel.dataset.rk);if(sel.value)x.roles.push({k:sel.dataset.rk,role:sel.value})});
     rc.scrollIntoView({behavior:'smooth',block:'nearest'})});
@@ -1824,7 +1925,7 @@ async function refreshCorner(){await loadData(false,true)}
 function paneAccount(box){
   if(needV12(box))return;
   const me=DATA.me;
-  if(!me){box.innerHTML=`<div class="pane"><div class="card" style="max-width:640px"><h3>Signed in with the main password</h3><p class="hint mb">The main password has no name or photo. Add yourself as an instructor, then sign in with your own number and password.</p><button class="btn" id="acTeam">Open Instructors</button></div></div>`;$('#acTeam').onclick=()=>goTab('team');return}
+  if(!me){box.innerHTML=`<div class="pane"><div class="card" style="max-width:640px"><h3>Signed in with the main password</h3><p class="hint mb">The main password has no name or photo. Add yourself as a facilitator, then sign in with your own number and password.</p><button class="btn" id="acTeam">Open Facilitators</button></div></div>`;$('#acTeam').onclick=()=>goTab('team');return}
   box.innerHTML=`<div class="pane"><div class="card acct"><form id="acForm" novalidate>
     <div class="pfphoto"><span id="acPic">${avatar(me.name,PHOTOS&&PHOTOS[me.id],'xl')}</span>
      <div class="row" style="justify-content:center"><label class="btn ghost small" for="acFile" tabindex="0">Change photo</label><button type="button" class="btn ghost small" id="acDrop">Remove photo</button></div>
@@ -1958,7 +2059,10 @@ function supersede(o){const keys=new Set(cellsOf(o.body).map(m=>m.id+'|'+m.date)
     if(!x.body.list.length){opHist(x,'superseded','A newer change to the same cells replaced this one.');settle(x,{ok:true,superseded:true})}
     else{x.label=describeOp(x.body)[1];opHist(x,x.state,(before-x.body.list.length)+' of its cells were replaced by a newer change.')}})}
 // queue a change; resolves with the server answer, or {ok:false,message} when it is kept for a retry
+const isCoord=()=>!!(DATA&&DATA.corner&&DATA.corner.coordinator);
+const COORD_MSG='You are signed in as the coordinator: you can see every class, but only its facilitators change it.';
 function saveOp(body){
+  if(isCoord()){toast(COORD_MSG,true);return Promise.resolve({ok:false,reason:'readonly',message:COORD_MSG})}
   // a change belongs to the class it was made in, even if it is sent after switching class
   if(ADMK&&body.k===undefined)body=Object.assign({},body,{k:ADMK});
   const [kind,label]=describeOp(body),now=Date.now(),js=JSON.stringify(body);
@@ -2157,7 +2261,7 @@ function paneSettings(box){
     const r=await saveOp({action:'settings',settings});if(r.ok){toast('Settings saved');loadData()}else toast(r.message,true)};
 }
 
-/* Backups: a full copy of the Sheet in the instructor's Google Drive, and a JSON file to keep anywhere */
+/* Backups: a full copy of the Sheet in the facilitator's Google Drive, and a JSON file to keep anywhere */
 function backupCard(){
   const b=DATA.backup,link=u=>/^https:\/\/(docs|drive)\.google\.com\//.test(u||'');
   if(!b)return `<div class="card mt" style="animation:none"><h3>Backups</h3><p class="hint">Update the server code to turn on backups.</p></div>`;
@@ -2189,7 +2293,7 @@ function renderSetup(){
   $('#setupBox').innerHTML=`<div class="phead"><div><h1>Setup and demo</h1><p>Connect the class server, or try everything in demo mode first.</p></div></div><div class="split">
    <div class="card"><h2>Connect the server</h2><p class="lead">The class server runs free on Cloudflare. Paste its address (it ends in <b>.workers.dev</b>). An older Google Sheet server address works too.</p>
     <form id="srvForm" class="mt"><div class="field"><label for="srv">Server address</label><input id="srv" placeholder="https://cyber-attendance.…workers.dev" value="${esc(cur)}"></div>
-    <div class="row"><button class="btn">Connect</button><button type="button" class="btn ghost" id="toLogin">Instructor login</button></div></form><div id="srvMsg"></div>
+    <div class="row"><button class="btn">Connect</button><button type="button" class="btn ghost" id="toLogin">Facilitator login</button></div></form><div id="srvMsg"></div>
     ${!isDemo()&&BUILT_IN&&store.get('att-server-pin')&&SID!==BUILT_IN?`<div class="msg mt">This device uses the server you connected here, even after a refresh. Students get it through the classroom QR. To make it the default for every phone, send this address to Claude to put in the page.<div class="row mt"><button type="button" class="btn small ghost" id="srvBuiltin">Use the built-in server again</button></div></div>`:''}
     <details class="mt" id="cfTools"${isCloud(SID)?' open':''}><summary><b>Cloudflare server tools</b></summary>
      <p class="hint mt">Uses the <b>SETUP_KEY</b> secret you gave the Worker in Cloudflare. Nothing here is saved on this device.</p>
@@ -2198,7 +2302,7 @@ function renderSetup(){
      <div class="row"><button type="button" class="btn small ghost" data-cf="check">Check</button><button type="button" class="btn small ghost" data-cf="unlock">Unlock sign-in</button><button type="button" class="btn small ghost" data-cf="reset">Sign out everywhere</button></div>
      <h3 class="mt">Main password</h3><div class="row"><input id="cfPw" type="password" autocomplete="new-password" placeholder="8 or more characters" style="flex:1 1 200px;min-width:0"><button type="button" class="btn small" data-cf="setPassword">Set main password</button></div>
      <h3 class="mt">Bring in your records</h3>
-     <p class="hint">From the Google Sheet server you are signed in to now, or from a downloaded backup (.json). Instructor passwords and students' profile keys don't move: set the passwords again, and students ask for a new key.</p>
+     <p class="hint">From the Google Sheet server you are signed in to now, or from a downloaded backup (.json). Facilitator passwords and students' profile keys don't move: set the passwords again, and students ask for a new key.</p>
      <label class="check"><input type="checkbox" id="cfReplace">Replace what the Cloudflare server already has</label>
      <div class="row mt"><button type="button" class="btn small" data-cf="copy"${TOKEN&&!isDemo()&&!isCloud(SID)?'':' disabled'}>Copy from the signed-in Google server</button><button type="button" class="btn small ghost" data-cf="file">Load a backup file</button><input type="file" id="cfFile" accept=".json,application/json" hidden></div>
      <div id="cfMsg"></div></details>
@@ -2224,13 +2328,13 @@ function renderSetup(){
     try{const r=await fetch(serverUrl(id),{method:'POST',body:JSON.stringify(Object.assign({action:'maint',key},body)),signal:ctl.signal});return await r.json()}
     catch(e){throw new Error(e.name==='AbortError'?'The server took too long to answer.':'Could not reach the Cloudflare server. Check the address.')}finally{clearTimeout(tm)}};
   const importData=async data=>{cfMsg('Copying…',true);const r=await cfCall({op:'import',data,replace:$('#cfReplace').checked});
-    if(!r.ok)return cfMsg(r.message);const c=r.counts||{};cfMsg('Copied: '+(c.students||0)+' students, '+(c.attendance||0)+' check-ins, '+(c.days||0)+' class days, '+(c.excuses||0)+' excuses, '+(c.staff||0)+' instructors. Instructors need a new password (Instructors page).',true)};
+    if(!r.ok)return cfMsg(r.message);const c=r.counts||{};cfMsg('Copied: '+(c.students||0)+' students, '+(c.attendance||0)+' check-ins, '+(c.days||0)+' class days, '+(c.excuses||0)+' excuses, '+(c.staff||0)+' facilitators. Facilitators need a new password (Facilitators page).',true)};
   $('#setupBox').querySelectorAll('[data-cf]').forEach(b=>b.onclick=async()=>{const op=b.dataset.cf;b.disabled=true;
     try{
       if(op==='file'){$('#cfFile').click();return}
       if(op==='copy'){cfMsg('Downloading from the Google server…',true);const ex=await adminCall({action:'export'});if(!ex.ok)return cfMsg(ex.message||'Could not download from the Google server.');return await importData(ex)}
       if(op==='setPassword'){const pw=$('#cfPw').value;if(pw.length<8)return cfMsg('The password needs at least 8 characters.');const r=await cfCall({op,password:pw});if(r.ok){$('#cfPw').value='';cfMsg('Main password set. Sign in with it (leave the mobile number empty).',true)}else cfMsg(r.message);return}
-      if(op==='reset'&&!await ask({title:'Sign out everywhere?',text:'Every instructor browser is signed out, trusted browsers are forgotten and the classroom QR gets a new secret.',ok:'Sign out everywhere'}))return;
+      if(op==='reset'&&!await ask({title:'Sign out everywhere?',text:'Every facilitator browser is signed out, trusted browsers are forgotten and the classroom QR gets a new secret.',ok:'Sign out everywhere'}))return;
       const r=await cfCall({op});if(!r.ok)return cfMsg(r.message);
       cfMsg(op==='check'?'Key is right. '+(r.configured?'Main password is set. ':'No main password yet. ')+r.students+' students, '+r.attendance+' check-ins, '+r.days+' class days.':op==='unlock'?'Sign-in is unlocked.':'Done. Everyone is signed out and the QR secret changed.',true);
     }catch(e){cfMsg(e.message)}finally{b.disabled=op==='copy'&&!(TOKEN&&!isDemo()&&!isCloud(SID))?true:false}});

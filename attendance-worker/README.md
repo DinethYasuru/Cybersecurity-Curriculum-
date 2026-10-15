@@ -28,10 +28,10 @@ On the attendance page, open **Setup › Cloudflare server tools**.
 2. Set the **main password**.
 3. While you are still signed in to the Google Sheet server on this browser, press **Copy from the signed-in Google server**. You can also use **Load a backup file**, with a `.json` from Settings › Download full backup.
 4. Paste the address under **Connect the server**, then press **Connect**.
-5. Sign in with the main password (leave the mobile number empty). Then give each instructor a password again under **Instructors**.
+5. Sign in with the main password (leave the mobile number empty). Then give each facilitator a password again under **Facilitators**.
 6. Send the address to Claude so it becomes the page's built-in server for every phone.
 
-Instructor passwords and students' profile keys don't move. Set the passwords again, and students ask for a new key.
+Facilitator passwords and students' profile keys don't move. Set the passwords again, and students ask for a new key.
 
 ## Later
 
@@ -46,10 +46,10 @@ Instructor passwords and students' profile keys don't move. Set the passwords ag
 One server now runs every class at the American Corner.
 
 - **Each class has its own database** (its own students, IDs, schedule, QR and settings). The Cyber Security class keeps its original database, so nothing is copied or lost.
-- **The Corner** keeps what classes share: the class list, people (one person per mobile number, in any number of classes), instructor accounts, and each instructor's role in each class.
-- On the first request after this update, the Corner learns the Cyber Security class, its main password, its instructors (with their passwords) and its students. Nobody has to sign up again.
+- **The Corner** keeps what classes share: the class list, people (one person per mobile number, in any number of classes), facilitator accounts, and each facilitator's role in each class.
+- On the first request after this update, the Corner learns the Cyber Security class, its main password, its facilitators (with their passwords) and its students. Nobody has to sign up again.
 - **Students:** the Live QR link carries the class (`&k=english`). A typed code finds its class on its own. With no QR and two classes open, the student taps their class. Someone from another class joins with one tap and keeps their name. My attendance shows every class.
-- **Instructors** sign in once and switch class at the top. The **Corner admin** (main password, or an instructor with the Corner admin box ticked) sees the American Corner page: today in every class, adding and archiving classes, who teaches where, and everyone who attends.
+- **Facilitators** sign in once and switch class at the top. The **Corner admin** (main password, or a facilitator with the Corner admin box ticked) sees the American Corner page: today in every class, adding and archiving classes, who teaches where, and everyone who attends.
 - A new class gets an ID prefix from its name (English gives ENG-0001). Set its days and times under Settings after opening it.
 - The Google Sheet server stays single-class.
 
@@ -62,3 +62,10 @@ One server now runs every class at the American Corner.
 - Wrong passwords are counted per number and per internet address. A browser that signed in before has its own count.
 - Wrong server keys are counted once for the whole Corner.
 - Backups are stored in pieces, so a big class with photos still backs up.
+
+## Coordinator and facilitators (server version 18)
+
+- **Coordinator:** whoever signs in with the main password. The coordinator adds, archives and deletes classes, and makes and deletes facilitator accounts. In every class the coordinator can look but not change anything.
+- **Starter accounts:** the coordinator makes an account with a mobile number, a simple starter password (6 or more characters), and the class and role it belongs to. The page writes a WhatsApp message to send.
+- **First sign-in:** the facilitator must add their name and an optional photo, and choose their own password (8 or more characters), before anything else.
+- **Lead facilitator:** can change settings in their class and the roles of the others there. Only the coordinator makes or deletes accounts.

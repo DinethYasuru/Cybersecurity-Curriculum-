@@ -53,10 +53,12 @@ const json = (o, status) => new Response(JSON.stringify(o), { status: status || 
 
 /* ---------- the front door: every class at the American Corner ----------
    One Durable Object per class (its own database, the same AttendanceCore as before) and one "Corner"
-   object for what classes share: the class list, people, instructor accounts and their roles.
+   object for what classes share: the class list, people, facilitator accounts and their roles.
    The Cyber Security class keeps its original database (named 'class'). */
 const STUDENT = { status: 1, lookup: 1, register: 1, checkin: 1, me: 1, profile: 1, keyRequest: 1, keySignIn: 1, profileSave: 1 };
-const HUB_ADMIN = { corner: 1, classSave: 1, people: 1, staffSave: 1, myAccount: 1 };
+const HUB_ADMIN = { corner: 1, classSave: 1, classDelete: 1, people: 1, staffSave: 1, myAccount: 1 };
+// what the coordinator may do inside a class: look, never change
+const COORD_READ = { data: 1, today: 1, photos: 1, export: 1 };
 const SYNC_AFTER = { register: 1, profileSave: 1, student: 1, bulk: 1, dayDelete: 1 };
 const doName = k => (k === 'cyber' ? 'class' : 'class:' + k);
 // student ID prefix for a new class: initials of a long name (Graphic Designing Foundations: GDF-), else its first letters (English: ENG-)
@@ -77,8 +79,8 @@ export default {
     const hubStub = env.CORNER.get(env.CORNER.idFromName('corner'));
     const H = async (op, data) => (await hubStub.fetch('https://hub/op', { method: 'POST', body: JSON.stringify(Object.assign({ op }, data || {})) })).json();
     const C = async (k, req, staff) => (await env.CLASS.get(env.CLASS.idFromName(doName(k))).fetch('https://class/', { method: 'POST', headers: { 'x-att-net': net, 'x-att-staff': staff ? JSON.stringify(staff) : '' }, body: JSON.stringify(req) })).json();
-    const I = async (k, req) => (await env.CLASS.get(env.CLASS.idFromName(doName(k))).fetch('https://class/int', { method: 'POST', body: JSON.stringify(req) })).json();
-    // first request after the update: the Corner learns the Cyber Security class, its instructors and students
+    const I = async (k, req) => (await env.CLASS.get(env.CLASS.idFromName(doName(k))).fetch('https://class/int', { method: 'POST', headers: req.op === 'wipe' ? { 'x-wipe': '1' } : {}, body: JSON.stringify(req) })).json();
+    // first request after the update: the Corner learns the Cyber Security class, its facilitators and students
     if (!INITED) {
       const st = await H('inited');
       if (!st.inited) await H('init', { seed: await I('cyber', { op: 'seed' }) });
@@ -133,7 +135,7 @@ export default {
     }
 
     if (STUDENT[a]) {
-      if (gone) return json(fail('noclass', 'This class is not running any more. Ask your instructor for the new QR.'));
+      if (gone) return json(fail('noclass', 'This class is not running any more. Ask your facilitator for the new QR.'));
       // a profile key goes to the class the student attends (any of them: the profile is the same person everywhere)
       if (!k && (a === 'keyRequest' || a === 'keySignIn')) {
         const en = ((await H('enrolOf', { phone: req.phone })).enrol || []).map(e => e.k).filter(known);
@@ -173,14 +175,14 @@ export default {
       k = k || 'cyber';
       if (a === 'register') {
         const p = await H('person', { phone: req.phone });
-        if (p.staff) return json({ ok: false, reason: 'unknown', message: 'That number belongs to an instructor. Students use their own number.' });
+        if (p.staff) return json({ ok: false, reason: 'unknown', message: 'That number belongs to a facilitator. Students use their own number.' });
         // one person across the Corner: joining another class keeps the name they already have
         if (p.person) req.name = p.person.name;
       }
-      // a new number must not be an instructor's, or another person's at the Corner
+      // a new number must not be a facilitator's, or another person's at the Corner
       if (a === 'profileSave' && req.phone != null) {
         const pc = await H('phoneCheck', { k, sid: req.id, phone: req.phone, name: req.name });
-        if (!pc.ok) return json(fail('input', pc.staff ? 'That number belongs to an instructor.' : 'That number belongs to someone else at the American Corner.'));
+        if (!pc.ok) return json(fail('input', pc.staff ? 'That number belongs to a facilitator.' : 'That number belongs to someone else at the American Corner.'));
       }
       const r = await C(k, req);
       if (a === 'lookup' && r.ok && !r.found) {
@@ -191,13 +193,15 @@ export default {
       return json(Object.assign(r, { k, className: nameOf(k) }));
     }
 
-    // instructors: the Corner checks the sign-in and the role in this class
+    // facilitators: the Corner checks the sign-in and the role in this class
     const who = await H('who', { token: req.token });
     if (!who.ok) return json({ ok: false, reason: 'auth', message: 'Please log in again.' });
+    // a starter account first chooses its own password
+    if (who.me && who.me.mustSetup && a !== 'myAccount') return json({ ok: false, reason: 'setup', message: 'Set up your account first.', me: who.me });
     if (HUB_ADMIN[a]) {
       if (a === 'corner') {
         // today in every class, for the Corner admin
-        if (!who.admin) return json({ ok: false, reason: 'input', message: 'Only the Corner admin can see this.' });
+        if (!who.admin) return json({ ok: false, reason: 'input', message: 'Only the coordinator can see this.' });
         const owner = { id: who.me ? who.me.id : '', name: who.me ? who.me.name : 'Main password', role: 'owner' };
         const today = await Promise.all(classes.map(async c => {
           const r = c.active === 'no' ? null : await C(c.id, { action: 'today' }, owner);
@@ -209,28 +213,32 @@ export default {
       const r = await H(a, { req, who });
       // a new class starts with its own student ID prefix, like ENG-0001
       if (a === 'classSave' && r.ok && r.created) await I(r.class.id, { op: 'newClass', prefix: prefixFor(r.class.name) });
+      if (a === 'classDelete' && r.ok) await I(r.id, { op: 'wipe' });
       return json(r);
     }
     if (gone) return json({ ok: false, reason: 'noclass', message: 'That class is not running any more.', corner: who });
     if (!k) k = who.classes[0] ? who.classes[0].id : '';
     const role = who.admin ? 'owner' : (who.classes.find(c => c.id === k) || {}).role;
-    if (!k || !role) return json({ ok: false, reason: 'noclass', message: 'You are not an instructor in this class.', corner: who });
+    if (!k || !role) return json({ ok: false, reason: 'noclass', message: 'You are not a facilitator in this class.', corner: who });
+    if (who.admin && !COORD_READ[a]) return json(fail('readonly', 'The coordinator can see every class but not change it. Facilitators make the changes.'));
+    // the coordinator watching a Live QR elsewhere must not teach the class a wrong room network
+    if (who.admin && a === 'today') delete req.live;
     const staff = { id: who.me ? who.me.id : '', name: who.me ? who.me.name : 'Main password', phone: who.me ? who.me.phone : '', role };
-    // instructor numbers live in the Corner now, so the class can't see them; keep them out of student lists
+    // facilitator numbers live in the Corner now, so the class can't see them; keep them out of student lists
     const staffPhones = (await H('staffPhones')).phones || [];
-    if (a === 'student' && !req.remove && staffPhones.includes(cleanPh(req.phone))) return json(fail('input', 'That number belongs to an instructor.'));
+    if (a === 'student' && !req.remove && staffPhones.includes(cleanPh(req.phone))) return json(fail('input', 'That number belongs to a facilitator.'));
     if (a === 'student' && !req.remove) {
       const pc = await H('phoneCheck', { k, sid: req.id, phone: req.phone, name: req.name });
       if (!pc.ok && pc.other) return json(fail('input', 'That number belongs to ' + pc.other + ' at the American Corner. To add them to this class, type their name as ' + pc.other + '.'));
     }
     let skipped = [];
-    if (a === 'bulk' && Array.isArray(req.list)) req.list = req.list.filter(x => staffPhones.includes(cleanPh(x.phone)) ? (skipped.push(String(x.phone || '') + ', ' + String(x.name || '') + ' (an instructor number)'), false) : true);
+    if (a === 'bulk' && Array.isArray(req.list)) req.list = req.list.filter(x => staffPhones.includes(cleanPh(x.phone)) ? (skipped.push(String(x.phone || '') + ', ' + String(x.name || '') + ' (a facilitator number)'), false) : true);
     const r = await C(k, req, staff);
     if (skipped.length && r.ok) r.bad = (r.bad || []).concat(skipped);
     if (r.ok && a === 'data') {
       const t = await H('staffFor', { k });
-      r.staff = t.staff; r.me = who.me ? Object.assign({}, who.me, { role }) : null; r.owner = role === 'owner';
-      r.corner = { admin: who.admin, classes: who.classes, k, className: nameOf(k) };
+      r.staff = t.staff; r.me = who.me ? Object.assign({}, who.me, { role }) : null; r.owner = !who.admin && role === 'owner';
+      r.corner = { admin: who.admin, coordinator: who.admin, classes: who.classes, k, className: nameOf(k) };
       // a class made while its first setup step failed still gets its own ID prefix
       if (k !== 'cyber' && r.settings && r.settings.idPrefix === 'ACM-') await I(k, { op: 'newClass', prefix: prefixFor(nameOf(k)) });
     }
@@ -246,14 +254,14 @@ export default {
   }
 };
 
-/* ---------- the Corner: classes, people, instructors and roles ---------- */
+/* ---------- the Corner: classes, people, facilitators and roles ---------- */
 const HUB_SQL = [
   'CREATE TABLE IF NOT EXISTS props (k TEXT PRIMARY KEY, v TEXT)',
   'CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT, exp INTEGER)',
   "CREATE TABLE IF NOT EXISTS classes (id TEXT PRIMARY KEY, name TEXT, room TEXT, color TEXT, active TEXT, added TEXT, ord INTEGER)",
   'CREATE TABLE IF NOT EXISTS people (phone TEXT PRIMARY KEY, name TEXT, updated INTEGER)',
   'CREATE TABLE IF NOT EXISTS enrol (k TEXT, sid TEXT, phone TEXT, name TEXT, active TEXT, PRIMARY KEY (k, sid))',
-  'CREATE TABLE IF NOT EXISTS staff (id TEXT PRIMARY KEY, name TEXT, phone TEXT, salt TEXT, hash TEXT, active TEXT, admin TEXT, added TEXT, photo TEXT)',
+  'CREATE TABLE IF NOT EXISTS staff (id TEXT PRIMARY KEY, name TEXT, phone TEXT, salt TEXT, hash TEXT, active TEXT, admin TEXT, added TEXT, photo TEXT, setup TEXT)',
   'CREATE TABLE IF NOT EXISTS roles (sid TEXT, k TEXT, role TEXT, PRIMARY KEY (sid, k))'
 ];
 const cleanPh = v => { let d = String(v || '').replace(/\D/g, ''); if (d.length === 11 && d.startsWith('94')) d = '0' + d.slice(2); if (d.length === 9 && d[0] !== '0') d = '0' + d; return /^0\d{9}$/.test(d) ? d : ''; };
@@ -269,6 +277,8 @@ export class Corner extends DurableObject {
     super(ctx, env);
     this.sql = ctx.storage.sql;
     HUB_SQL.forEach(q => this.sql.exec(q));
+    // setup = 'no': a starter account that has not chosen its own password yet
+    if (!this.all('PRAGMA table_info(staff)').some(c => c.name === 'setup')) this.sql.exec("ALTER TABLE staff ADD COLUMN setup TEXT DEFAULT 'yes'");
   }
   all(q, ...a) { return this.sql.exec(q, ...a).toArray(); }
   one(q, ...a) { return this.all(q, ...a)[0] || null; }
@@ -276,10 +286,11 @@ export class Corner extends DurableObject {
   kvGet(k) { const r = this.one('SELECT v, exp FROM kv WHERE k = ?', k); return r && r.exp > Date.now() ? r.v : null; }
   kvPut(k, v, s) { this.sql.exec('INSERT INTO kv (k, v, exp) VALUES (?, ?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v, exp = excluded.exp', k, String(v), Date.now() + s * 1000); }
   epoch() { return this.prop('epoch') || '1'; }
-  staffOut(r) { return r ? { id: r.id, name: r.name, phone: r.phone, active: r.active !== 'no', admin: r.admin === 'yes', added: r.added } : null; }
+  staffOut(r) { return r ? { id: r.id, name: r.name, phone: r.phone, active: r.active !== 'no', added: r.added, mustSetup: r.setup === 'no' } : null; }
   classesOf(st) {
     const cls = this.all("SELECT id, name, color FROM classes WHERE active != 'no' ORDER BY ord, name");
-    if (!st || st.admin === 'yes') return cls.map(c => Object.assign(c, { role: 'owner' }));
+    // the coordinator (main password) sees every class
+    if (!st) return cls.map(c => Object.assign(c, { role: 'coordinator' }));
     const roles = {}; this.all('SELECT k, role FROM roles WHERE sid = ?', st.id).forEach(r => { roles[r.k] = r.role; });
     return cls.filter(c => roles[c.id]).map(c => Object.assign(c, { role: roles[c.id] }));
   }
@@ -291,7 +302,7 @@ export class Corner extends DurableObject {
       this.sql.exec("INSERT OR IGNORE INTO classes VALUES ('cyber', 'Cyber Security', '', '#002868', 'yes', ?, 0)", new Date().toISOString().slice(0, 10));
       if (seed.adminHash) { this.prop('adminHash', seed.adminHash); this.prop('adminSalt', seed.adminSalt); }
       (seed.staff || []).forEach(r => {
-        this.sql.exec("INSERT OR REPLACE INTO staff VALUES (?, ?, ?, ?, ?, ?, 'no', ?, ?)", r.id, r.name, r.phone, r.salt || '', r.hash || '', r.active === 'no' ? 'no' : 'yes', r.added || '', r.photo || '');
+        this.sql.exec("INSERT OR REPLACE INTO staff (id, name, phone, salt, hash, active, admin, added, photo, setup) VALUES (?, ?, ?, ?, ?, ?, 'no', ?, ?, 'yes')", r.id, r.name, r.phone, r.salt || '', r.hash || '', r.active === 'no' ? 'no' : 'yes', r.added || '', r.photo || '');
         this.sql.exec('INSERT OR REPLACE INTO roles VALUES (?, ?, ?)', r.id, 'cyber', r.role === 'owner' ? 'owner' : 'instructor');
       });
       this.syncClass('cyber', seed.students || []);
@@ -340,7 +351,7 @@ export class Corner extends DurableObject {
     if (req.phone) {
       st = this.one('SELECT * FROM staff WHERE phone = ?', cleanPh(req.phone));
       if (!st || st.active === 'no' || !st.hash || hashPw(String(req.password || ''), st.salt) !== st.hash) return bad('Wrong number or password.');
-      if (!this.classesOf(st).length) return fail('noclass', 'You are not an instructor in any class yet. Ask the Corner admin.');
+      if (!this.classesOf(st).length) return fail('noclass', 'You are not a facilitator in any class yet. Ask the coordinator.');
     } else {
       if (!this.prop('adminHash')) return fail('nopass', 'No main password yet. Set it in Setup › Cloudflare server tools.');
       if (hashPw(String(req.password || ''), this.prop('adminSalt')) !== this.prop('adminHash')) return bad('Wrong password.');
@@ -349,7 +360,7 @@ export class Corner extends DurableObject {
     this.kvPut('tok:' + token, JSON.stringify({ sid: st ? st.id : '', ep: this.epoch(), s8: st ? String(st.salt).slice(0, 8) : '' }), 21600);
     let tr = trust ? req.trust : randHex(16);
     this.kvPut('trust:' + tr, '1', 60 * 86400);
-    return { ok: true, token, now, hours: 6, trust: tr, me: this.staffOut(st), corner: { admin: !st || st.admin === 'yes', classes: this.classesOf(st) } };
+    return { ok: true, token, now, hours: 6, trust: tr, me: this.staffOut(st), corner: { admin: !st, classes: this.classesOf(st) } };
   }
   who(token) {
     if (!/^[a-f0-9]{16,64}$/.test(String(token || ''))) return { ok: false };
@@ -357,58 +368,65 @@ export class Corner extends DurableObject {
     if (!t || t.ep !== this.epoch()) return { ok: false };
     let st = null;
     if (t.sid) { st = this.one('SELECT * FROM staff WHERE id = ?', t.sid); if (!st || st.active === 'no' || String(st.salt).slice(0, 8) !== t.s8) return { ok: false }; }
-    return { ok: true, me: this.staffOut(st), admin: !st || st.admin === 'yes', classes: this.classesOf(st) };
+    return { ok: true, me: this.staffOut(st), admin: !st, classes: this.classesOf(st) };
   }
   staffFor(k) {
     return this.all("SELECT s.*, r.role FROM staff s LEFT JOIN roles r ON r.sid = s.id AND r.k = ? ORDER BY s.name", k)
-      .filter(r => r.role || r.admin === 'yes').map(r => Object.assign(this.staffOut(r), { role: r.admin === 'yes' ? 'owner' : r.role }));
+      .filter(r => r.role).map(r => Object.assign(this.staffOut(r), { role: r.role }));
   }
 
-  // add or change an instructor (Corner admin), or your own account (anyone)
+  // The coordinator (main password) makes starter accounts, ties them to a class, resets or deletes them.
+  // A facilitator finishes their own account at first sign-in (name, photo, own password).
+  // A lead facilitator ('owner') changes only roles in their own class.
   staffSave(req, who, mine) {
     const sid = mine ? (who.me ? who.me.id : '') : String(req.sid || '');
-    if (mine && !sid) return fail('input', 'You signed in with the main password. Add yourself under Instructors, then sign in with your number.');
+    if (mine && !sid) return fail('input', 'The coordinator has no facilitator account. Facilitators change their details here.');
     const k = String(req.k || '');
-    const myRole = who.admin ? 'owner' : (who.classes.find(c => c.id === k) || {}).role;
-    if (!mine && myRole !== 'owner') return fail('input', 'Only a class owner or the Corner admin can change instructors.');
     let cur = sid ? this.one('SELECT * FROM staff WHERE id = ?', sid) : null;
-    if (sid && !cur) return fail('input', 'That instructor is gone.');
-    // an owner who isn't the Corner admin may only manage people in their own class, and never the admin's account
-    if (!mine && !who.admin && cur && cur.admin === 'yes') return fail('input', 'Only the Corner admin can change that account.');
-    if (!mine && !who.admin && cur && !this.one('SELECT role FROM roles WHERE sid = ? AND k = ?', sid, k)) return fail('input', 'That instructor is not in this class. Ask the Corner admin.');
-    // their account (name, number, password, on/off, photo) is shared by every class they teach: a class owner may
-    // change it only when they own every one of those classes; otherwise only the role in this class
-    const ownsAll = () => this.all('SELECT k FROM roles WHERE sid = ?', sid).every(r => (who.classes.find(c => c.id === r.k) || {}).role === 'owner');
-    const touches = cur && ((req.name != null && cleanNm(req.name) !== cur.name) || (req.phone != null && cleanPh(req.phone) !== cur.phone) || req.password || (req.active != null && (req.active === false ? 'no' : 'yes') !== (cur.active === 'no' ? 'no' : 'yes')) || req.photo != null);
-    if (!mine && !who.admin && touches && !ownsAll()) return fail('input', cur.name + ' also teaches another class, so only the Corner admin can change their account. You can change their role here.');
+    if (sid && !cur) return fail('input', 'That facilitator is gone.');
+    if (!mine && !who.admin) {
+      if ((who.classes.find(c => c.id === k) || {}).role !== 'owner') return fail('input', 'Only the lead facilitator or the coordinator can change roles.');
+      if (!cur) return fail('input', 'Only the coordinator can make facilitator accounts.');
+      if (!this.one('SELECT role FROM roles WHERE sid = ? AND k = ?', sid, k)) return fail('input', 'That facilitator is not in this class. Ask the coordinator.');
+      if (who.me && who.me.id === sid) return fail('input', 'You cannot change your own role. Ask the coordinator.');
+      if (req.remove || req.role === '') { this.sql.exec('DELETE FROM roles WHERE sid = ? AND k = ?', sid, k); return { ok: true }; }
+      if (req.role !== 'owner' && req.role !== 'instructor') return fail('input', 'Pick a role.');
+      this.sql.exec('INSERT OR REPLACE INTO roles VALUES (?, ?, ?)', sid, k, req.role);
+      return { ok: true, staff: Object.assign(this.staffOut(cur), { role: req.role }) };
+    }
     if (!mine && req.remove) {
-      if (who.me && who.me.id === sid) return fail('input', 'You cannot remove yourself.');
-      if (!who.admin) { this.sql.exec('DELETE FROM roles WHERE sid = ? AND k = ?', sid, k); return { ok: true }; }
-      this.sql.exec('DELETE FROM staff WHERE id = ?', sid); this.sql.exec('DELETE FROM roles WHERE sid = ?', sid);
+      this.ctx.storage.transactionSync(() => { this.sql.exec('DELETE FROM staff WHERE id = ?', sid); this.sql.exec('DELETE FROM roles WHERE sid = ?', sid); });
       return { ok: true };
     }
-    const name = req.name == null && cur ? cur.name : cleanNm(req.name), phone = req.phone == null && cur ? cur.phone : cleanPh(req.phone);
+    const name = req.name == null && cur ? cur.name : (cleanNm(req.name) || (!mine && !cur ? 'New facilitator' : ''));
+    const phone = req.phone == null && cur ? cur.phone : cleanPh(req.phone);
     if (!okName(name)) return fail('input', 'Type a name with letters only.');
     if (!phone) return fail('input', 'Type a mobile number like 0771234567.');
     const clash = this.one('SELECT name FROM staff WHERE phone = ? AND id != ?', phone, sid);
-    if (clash) return fail('input', 'That number already belongs to instructor ' + clash.name + '.' + (cur ? '' : ' The Corner admin can add them to this class.'));
+    if (clash) return fail('input', 'That number already belongs to facilitator ' + clash.name + '.' + (cur ? '' : ' Add them to this class from the American Corner page.'));
     const stu = this.one('SELECT name FROM people WHERE phone = ?', phone);
-    if (stu) return fail('input', 'That number belongs to student ' + stu.name + '. An instructor needs a number of their own.');
+    if (stu) return fail('input', 'That number belongs to student ' + stu.name + '. A facilitator needs a number of their own.');
     if (req.photo != null && req.photo !== '' && !okPhoto(req.photo)) return fail('input', 'That photo could not be used. Try another one.');
     const pw = req.password == null ? '' : String(req.password);
-    if (pw && pw.length < 8) return fail('input', 'The password needs at least 8 characters.');
-    if (!cur && !pw) return fail('input', 'Give the new instructor a password (8 or more characters).');
-    if (mine && pw && hashPw(String(req.oldPassword || ''), cur.salt) !== cur.hash) return fail('input', 'Your current password is not right.');
-    if (!cur) { cur = { id: 'S' + randHex(4), added: new Date().toISOString().slice(0, 10), salt: '', hash: '', admin: 'no', photo: '' }; }
-    cur.name = name; cur.phone = phone;
-    if (!mine && req.active != null) { if (who.me && who.me.id === sid && req.active === false) return fail('input', 'You cannot switch yourself off.'); cur.active = req.active === false ? 'no' : 'yes'; }
-    cur.active = cur.active || 'yes';
-    if (!mine && who.admin && req.admin != null) { if (who.me && who.me.id === sid && !req.admin) return fail('input', 'You cannot remove your own Corner admin role.'); cur.admin = req.admin ? 'yes' : 'no'; }
+    const first = mine && cur.setup === 'no';
+    if (mine) {
+      if ((pw || first) && hashPw(String(req.oldPassword || ''), cur.salt) !== cur.hash) return fail('input', first ? 'The starter password is not right.' : 'Your current password is not right.');
+      if (first && !pw) return fail('input', 'Choose your own password (8 or more characters).');
+      if (pw && pw.length < 8) return fail('input', 'The password needs at least 8 characters.');
+      if (first && pw === String(req.oldPassword || '')) return fail('input', 'Choose a new password, not the starter one.');
+    } else {
+      if (!cur && !pw) return fail('input', 'Give the starter password (6 or more characters).');
+      if (pw && pw.length < 6) return fail('input', 'The starter password needs at least 6 characters.');
+      if (!cur && !(k && (req.role === 'owner' || req.role === 'instructor'))) return fail('input', 'Pick the class and role for this facilitator.');
+    }
+    if (!cur) cur = { id: 'S' + randHex(4), added: new Date().toISOString().slice(0, 10), salt: '', hash: '', admin: 'no', photo: '', setup: 'no' };
+    cur.name = name; cur.phone = phone; cur.active = cur.active || 'yes';
+    if (!mine && req.active != null) cur.active = req.active === false ? 'no' : 'yes';
     if (req.photo != null) cur.photo = req.photo || '';
-    if (pw) { cur.salt = randHex(20); cur.hash = hashPw(pw, cur.salt); }
+    if (pw) { cur.salt = randHex(20); cur.hash = hashPw(pw, cur.salt); cur.setup = mine ? 'yes' : 'no'; }
     this.ctx.storage.transactionSync(() => {
-      this.sql.exec('INSERT OR REPLACE INTO staff VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', cur.id, cur.name, cur.phone, cur.salt, cur.hash, cur.active, cur.admin || 'no', cur.added, cur.photo || '');
-      // the role in the class being looked at: owner, instructor, or '' (not in this class)
+      this.sql.exec('INSERT OR REPLACE INTO staff (id, name, phone, salt, hash, active, admin, added, photo, setup) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', cur.id, cur.name, cur.phone, cur.salt, cur.hash, cur.active, 'no', cur.added, cur.photo || '', cur.setup || 'yes');
+      // the coordinator ties the account to a class: lead facilitator, facilitator, or '' (not in this class)
       if (!mine && k && req.role != null) {
         if (req.role === 'owner' || req.role === 'instructor') this.sql.exec('INSERT OR REPLACE INTO roles VALUES (?, ?, ?)', cur.id, k, req.role);
         else this.sql.exec('DELETE FROM roles WHERE sid = ? AND k = ?', cur.id, k);
@@ -417,8 +435,25 @@ export class Corner extends DurableObject {
     return { ok: true, staff: Object.assign(this.staffOut(cur), { role: (this.one('SELECT role FROM roles WHERE sid = ? AND k = ?', cur.id, k) || {}).role || '' }) };
   }
 
+  // the coordinator deletes a class: it leaves the list, its roles and enrolments go; the class's own data is wiped after
+  classDelete(req, who) {
+    if (!who.admin) return fail('input', 'Only the coordinator can delete classes.');
+    const c = this.one('SELECT * FROM classes WHERE id = ?', String(req.id || ''));
+    if (!c) return fail('input', 'That class is gone.');
+    if (cleanNm(req.confirm).toLowerCase() !== cleanNm(c.name).toLowerCase()) return fail('input', 'Type the class name exactly to delete it.');
+    if (this.one('SELECT COUNT(*) AS n FROM classes').n < 2) return fail('input', 'Keep at least one class.');
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec('DELETE FROM classes WHERE id = ?', c.id);
+      this.sql.exec('DELETE FROM roles WHERE k = ?', c.id);
+      this.sql.exec('DELETE FROM enrol WHERE k = ?', c.id);
+      this.sql.exec('DELETE FROM people WHERE phone NOT IN (SELECT phone FROM enrol)');
+      this.sql.exec('DELETE FROM props WHERE k = ?', 'ver:' + c.id);
+    });
+    return { ok: true, id: c.id, name: c.name };
+  }
+
   classSave(req, who) {
-    if (!who.admin) return fail('input', 'Only the Corner admin can add or change classes.');
+    if (!who.admin) return fail('input', 'Only the coordinator can add or change classes.');
     let id = String(req.id || '').toLowerCase().trim();
     const cur = id ? this.one('SELECT * FROM classes WHERE id = ?', id) : null;
     const name = cleanNm(req.name == null && cur ? cur.name : req.name);
@@ -476,10 +511,19 @@ export class Corner extends DurableObject {
       case 'staffFor': return json({ staff: this.staffFor(q.k) });
       case 'staffPhotos': { const p = {}; this.all("SELECT id, photo FROM staff WHERE photo != ''").forEach(r => { p[r.id] = r.photo; }); return json({ photos: p }); }
       case 'staffSave': return json(this.staffSave(req, who, false));
-      case 'myAccount': return json(this.staffSave(req, who, true));
+      case 'myAccount': {
+        const r = this.staffSave(req, who, true);
+        // a new password ends the other sign-ins (new salt), but keeps this one
+        if (r.ok && req.password && /^[a-f0-9]{16,64}$/.test(String(req.token || ''))) {
+          const st = this.one('SELECT salt FROM staff WHERE id = ?', who.me.id);
+          this.kvPut('tok:' + req.token, JSON.stringify({ sid: who.me.id, ep: this.epoch(), s8: String(st.salt).slice(0, 8) }), 21600);
+        }
+        return json(r);
+      }
       case 'classSave': return json(this.classSave(req, who));
+      case 'classDelete': return json(this.classDelete(req, who));
       case 'people': {
-        if (!who.admin) return json(fail('input', 'Only the Corner admin can see everyone.'));
+        if (!who.admin) return json(fail('input', 'Only the coordinator can see everyone.'));
         const en = {}; this.all('SELECT phone, k, sid FROM enrol').forEach(e => { (en[e.phone] = en[e.phone] || []).push({ k: e.k, sid: e.sid }); });
         const roles = {}; this.all('SELECT sid, k, role FROM roles').forEach(r => { (roles[r.sid] = roles[r.sid] || []).push({ k: r.k, role: r.role }); });
         return json({ ok: true, people: this.all('SELECT phone, name FROM people ORDER BY name').map(p => Object.assign(p, { classes: en[p.phone] || [] })),
@@ -503,6 +547,11 @@ export class ClassRoom extends DurableObject {
     super(ctx, env);
     this.sql = ctx.storage.sql;
     this.tabs = {};   // each table kept in memory after the first read; only this object writes, so it stays right
+    this.tables();
+    this.cur = { net: null, staff: null };
+    this.env_ = this.makeEnv();
+  }
+  tables() {
     this.sql.exec('CREATE TABLE IF NOT EXISTS props (k TEXT PRIMARY KEY, v TEXT)');
     this.sql.exec('CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT, exp INTEGER)');
     this.sql.exec('CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, why TEXT, data TEXT)');
@@ -512,8 +561,6 @@ export class ClassRoom extends DurableObject {
       const have = this.sql.exec(`PRAGMA table_info(t_${t})`).toArray().map(r => r.name);
       for (const c of TABLES[t]) if (!have.includes(c)) this.sql.exec(`ALTER TABLE t_${t} ADD COLUMN "${c}" TEXT`);
     }
-    this.cur = { net: null, staff: null };
-    this.env_ = this.makeEnv();
   }
 
   // one request, all or nothing: its writes commit together, or (on an unexpected error) none of them do.
@@ -679,6 +726,8 @@ export class ClassRoom extends DurableObject {
 
   async fetch(request) {
     const url = new URL(request.url);
+    // a deleted class: everything it stored goes
+    if (url.pathname === '/int' && request.headers.get('x-wipe') !== null) { await this.ctx.storage.deleteAll(); this.tabs = {}; this.tables(); return json({ ok: true }); }
     if (url.pathname === '/cron' && request.headers.get('x-cron') === '1' && request.method === 'POST') {
       if (this.backupInfo().auto) { try { this.backupNow('daily'); } catch (e) { const i = this.backupInfo(); i.error = String(e.message || e); i.errorAt = Date.now(); this.env_.setProp('backup', JSON.stringify(i)); } }
       this.sql.exec('DELETE FROM kv WHERE exp < ?', Date.now());
