@@ -682,14 +682,14 @@ const serverUrl=id=>isCloud(id)?id+'/':'https://script.google.com/macros/s/'+id+
 // a QR link wins, then what Setup saved on this device (or demo), then the class server built in above
 // Order: demo, a QR link, the server the instructor connected in Setup on this device, the class server built in.
 // A server id a phone merely remembered from an old QR is not used when one is built in.
-const BUILT_IN=scriptIdFrom(SERVER_URL),wantDemo=params.get('s')==='demo'||(!params.get('s')&&store.get('att-server')==='demo');
+const BUILT_IN=scriptIdFrom(SERVER_URL),wantDemo=params.get('s')==='demo'||(!params.get('s')&&store.get('att-server')==='demo'&&store.get('att-demo-on')==='1');
 // a server the instructor connected in Setup sticks on that device (and its QR carries it to students' phones)
 const PIN=scriptIdFrom(store.get('att-server-pin')),QS=params.get('s')&&params.get('s')!=='demo'?scriptIdFrom(params.get('s')):'';
 let SID=wantDemo?'demo':QS||PIN||BUILT_IN||scriptIdFrom(store.get('att-server'));
 // a server from a link that is neither built in nor connected in Setup on this device
 const FOREIGN=!!QS&&SID===QS&&QS!==BUILT_IN&&QS!==PIN;
 if(BUILT_IN&&!wantDemo&&store.get('att-server')&&store.get('att-server')!==BUILT_IN)store.del('att-server');
-if(params.get('s')&&SID)store.set('att-server',SID);
+if(params.get('s')&&SID&&SID!=='demo')store.set('att-server',SID);
 const isDemo=()=>SID==='demo';
 let demoCore=null;
 async function loadDemo(){
@@ -819,7 +819,7 @@ async function scanQr(){
 }
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-scan]');if(!b)return;e.preventDefault();
   const c=await scanQr();if(!c)return;CODE=c;const i=$('#scode');if(i)i.value=c;toast('Code scanned');
-  const f=b.closest('form');if(!f)return;if(f.id==='qkForm'||cleanPhone(($('#sphone')||{}).value))f.requestSubmit();else{const p=$('#sphone');if(p)p.focus()}});
+  const f=b.closest('form');if(!f)return;if(f.id==='qkForm'||cleanPhone(($('#sphone')||{}).value)){if(f.requestSubmit)f.requestSubmit();else f.dispatchEvent(new Event('submit',{cancelable:true}))}else{const p=$('#sphone');if(p)p.focus()}});
 function readCode(){const el=$('#scode');if(el)CODE=el.value.toUpperCase().replace(/[^A-Z0-9]/g,'');return CODE}
 function msgBox(msg){return '<div id="ciMsg">'+(msg?'<div class="msg err">'+esc(msg)+'</div>':'')+'</div>'}
 
@@ -1019,6 +1019,9 @@ async function editProfile(msg){
     setProf(Object.assign({},me,r.student));const ck=getMe();if(ck&&(ck.id===me.id||ck.phone===me.phone))setMe(Object.assign({},ck,r.student));if(newPhoto!==null){if(newPhoto)store.set('att-me-photo',newPhoto);else store.del('att-me-photo')}
     renderMeCard();renderProfile('Saved.')};
 }
+// open or closed changes during the morning: ask the server again every minute and when the phone comes back to the page
+setInterval(()=>{if(!$('#studentView').hidden&&!document.hidden)refreshStatus()},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!$('#studentView').hidden)refreshStatus()});
 async function startStudent(){
   renderMeCard();renderProfile();paintAppBar();
   $('#stCard').innerHTML=stepper(1)+'<div class="skel" style="height:28px;width:40%;margin-bottom:16px"></div><div class="skel" style="height:56px;margin-bottom:16px"></div><div class="skel" style="height:54px"></div>';
@@ -1044,11 +1047,13 @@ addEventListener('appinstalled',()=>{installEvt=null;paintAppBar()});
 
 /* ---------- admin ---------- */
 let PHOTOS=null,photosAt=0;
-let TOKEN=sess.get('att-token'),QRKEY=sess.get('att-qrkey'),DATA=null,TAB='home',liveTimer=null,pollTimer=null,rView='summary';
+let authLost=false,TOKEN=sess.get('att-token'),QRKEY=sess.get('att-qrkey'),DATA=null,TAB='home',liveTimer=null,pollTimer=null,rView='summary';
 const RPT={th:Number(store.get('att-th')||80),useExc:store.get('att-useexc')!=='0',student:'',day:''};
 async function adminCall(body){
   const r=await api(Object.assign({token:TOKEN},body));
-  if(!r.ok&&r.reason==='auth'){logoutLocal();toast('Session ended. Log in again.',true)}
+  if(!r.ok&&r.reason==='auth'){
+    if(document.body.classList.contains('present')&&QRKEY){if(!authLost)toast('Session ended. The QR keeps working; sign in again after class.',true);authLost=true}
+    else{authLost=false;logoutLocal();toast('Session ended. Log in again.',true)}}
   if(!r.ok&&r.reason==='action')r.message='Apps Script still runs the old server code. Paste the new code and deploy a new version (see the red box at the top).';
   return r;
 }
@@ -1097,9 +1102,14 @@ function goTab(k){if(k==='more'){$('#moreSheet').showModal();return}if(k==='logo
 $('#moreSheet').addEventListener('click',e=>{if(e.target===$('#moreSheet'))$('#moreSheet').close()});
 const sig=d=>d?JSON.stringify([d.requests,d.students,d.attendance,d.excuses,d.days,d.settings,d.status&&d.status.open,d.status&&d.status.todayDone,d.status&&d.status.openDay]):'';
 async function loadData(show,quiet){
-  let r;try{r=await timedCall({action:'data'})}catch(e){if(!quiet)toast(e.message+' Your changes are kept under Operations.',true);return false}
+  let r;try{r=await timedCall({action:'data'})}catch(e){if(!quiet)toast(e.message+' Your changes are kept under Operations.',true);
+    // no server right now: show the last copy this tab had, so the live QR keeps working for students on mobile data
+    if(!DATA){try{const c=JSON.parse(sess.get('att-data')||'null');if(c&&QRKEY){DATA=c;STATUS=c.status;renderPane();toast('Offline: showing the last copy. The QR still works.',true)}}catch(e2){}}
+    return false}
   if(!r.ok){if(r.reason!=='auth'&&!quiet)toast(r.message,true);return false}
   if(quiet&&sig(r)===sig(DATA)){STATUS=r.status;OFFSET=r.now-Date.now();paintPill();return true}
+  if(r.qrKey){QRKEY=r.qrKey;sess.set('att-qrkey',QRKEY)}
+  try{sess.set('att-data',JSON.stringify(Object.assign({},r,{log:[]})))}catch(e){}
   DATA=r;STATUS=r.status;OFFSET=r.now-Date.now();paintPill();paintWho();if(r.me&&!PHOTOS)loadPhotos().then(paintWho);$('#winText').textContent=windowText(r.status.window);
   if(show)toast('Up to date');
   renderPane();return true;
@@ -1530,7 +1540,7 @@ async function absentRestDialog(){
   d.onclose=async()=>{const v=d.returnValue==='ok'?$('#raDay').value:null;ok.disabled=false;$('#dlgP').textContent='';if(!v)return;
     if(v<DATA.today&&!canEdit(v)){const o=await saveOp({action:'openDay',date:v,minutes:30});if(!o.ok){toast('Could not open '+niceDate(v)+': '+o.message,true);return}}
     const r=await saveOp({action:'absentRest',date:v});
-    if(r.ok){toast(r.absent+' marked absent on '+niceDate(v));regScroll=null;loadData()}else toast(r.message,true)};
+    if(r.ok){toast(r.absent+' marked absent on '+niceDate(v)+(r.skipped?'. '+r.skipped+' who joined later were left out (another class day lies between).':''));regScroll=null;loadData()}else toast(r.message,true)};
   d.showModal();setTimeout(()=>$('#raDay').focus(),30)}
 async function flushRegister(){
   const list=Object.values(regQueue);if(!list.length)return;regQueue={};
@@ -1707,7 +1717,15 @@ function opsLoad(){try{OPS=JSON.parse(store.get(OPS_KEY)||'[]')}catch(e){OPS=[]}
   const cut=Date.now()-opsCfg().keepDays*864e5;OPS=OPS.filter(o=>!(OP_FINAL.includes(o.state)&&o.updated<cut));
   OPS.forEach(o=>{if(o.state==='sending'||o.state==='slow'){o.nextAt=0;opHist(o,'retrying','The page closed before the server answered. Sending again. The server ignores a repeat of the same operation.')}});
   opsSave()}
+// another tab may have added or moved on operations: take what it saved before writing ours
+let opsSaved=new Set(),opsGone=new Set();
+function opsMerge(){
+  OPS.forEach(o=>opsSaved.delete(o.id));opsSaved.forEach(id=>opsGone.add(id));
+  try{const st=JSON.parse(localStorage.getItem(OPS_KEY)||'[]');if(!Array.isArray(st))return;const have=new Map(OPS.map(o=>[o.id,o]));
+    st.forEach(o=>{if(!o||!o.id||opsGone.has(o.id))return;const l=have.get(o.id);if(!l)OPS.push(o);else if((o.updated||0)>(l.updated||0)&&!opsWait[o.id])Object.assign(l,o)})}catch(e){}}
+window.addEventListener('storage',e=>{if(e.key===OPS_KEY){opsMerge();opsSaved=new Set(OPS.map(o=>o.id));opsPaint();pump()}});
 function opsSave(){
+  opsMerge();opsSaved=new Set(OPS.map(o=>o.id));
   try{localStorage.setItem(OPS_KEY,JSON.stringify(OPS))}catch(e){
     // storage full: drop the oldest finished records and try once more
     const fin=OPS.filter(o=>OP_FINAL.includes(o.state)).sort((a,b)=>a.updated-b.updated),drop=new Set(fin.slice(0,Math.max(20,fin.length>>1)).map(o=>o.id));
@@ -1741,7 +1759,10 @@ function supersede(o){const keys=new Set(cellsOf(o.body).map(m=>m.id+'|'+m.date)
     else{x.label=describeOp(x.body)[1];opHist(x,x.state,(before-x.body.list.length)+' of its cells were replaced by a newer change.')}})}
 // queue a change; resolves with the server answer, or {ok:false,message} when it is kept for a retry
 function saveOp(body){
-  const [kind,label]=describeOp(body),now=Date.now();
+  const [kind,label]=describeOp(body),now=Date.now(),js=JSON.stringify(body);
+  // the same change twice within a few seconds (a double tap) is one operation
+  const dup=OPS.find(x=>mine(x)&&!OP_FINAL.includes(x.state)&&now-x.created<4000&&JSON.stringify(x.body)===js);
+  if(dup)return new Promise(res=>{const prev=opsWait[dup.id];opsWait[dup.id]=r=>{if(prev)prev(r);res(r)}});
   const o={id:'op'+now.toString(36)+Math.random().toString(36).slice(2,8),sid:SID,kind,label,body:JSON.parse(JSON.stringify(body)),state:'queued',created:now,updated:now,attempts:0,history:[]};
   opHist(o,'queued','Kept on this device. Waiting to send.');supersede(o);OPS.push(o);opsSave();opsPaint();
   const p=new Promise(res=>{opsWait[o.id]=res});pump();return p}
@@ -2020,10 +2041,10 @@ function renderSetup(){
     try{const s=await api({action:'status'});if(!s.ok)throw new Error(s.message);store.set('att-server',SID);if(SID!==BUILT_IN)store.set('att-server-pin',SID);else store.del('att-server-pin');STATUS=s;OFFSET=s.now-Date.now();paintPill();TOKEN=null;sess.del('att-token');DATA=null;
       $('#srvMsg').innerHTML='<div class="msg good">Connected. Server time '+esc(s.time)+' Sri Lanka. '+(s.configured?'Admin password is set.':isCloud(SID)?'Now set the main password under Cloudflare server tools.':'Now set the admin password in the Sheet (Attendance menu).')+'</div>';showDemoBar(false)}
     catch(err){SID=old;$('#srvMsg').innerHTML='<div class="msg err">Could not connect: '+esc(err.message)+' Check the URL and that access is "Anyone".</div>'}};
-  $('#demoOn').onclick=async()=>{store.del('att-demo');SID='demo';store.set('att-server','demo');demoCore=null;
+  $('#demoOn').onclick=async()=>{store.del('att-demo');SID='demo';store.set('att-server','demo');store.set('att-demo-on','1');demoCore=null;
     try{const c=await loadDemo();c.setPassword('demo1234');TOKEN=null;sess.del('att-token');DATA=null;showDemoBar(true);await refreshStatus();toast('Demo ready. Password demo1234');renderSetup()}
     catch(e){toast('Demo needs the page served from GitHub Pages or a web server.',true)}};
-  const off=$('#demoOff');if(off)off.onclick=()=>{store.del('att-demo');store.del('att-server');SID=scriptIdFrom(store.get('att-server-pin'))||scriptIdFrom(SERVER_URL);TOKEN=null;sess.del('att-token');DATA=null;showDemoBar(false);refreshStatus();renderSetup()};
+  const off=$('#demoOff');if(off)off.onclick=()=>{store.del('att-demo');store.del('att-server');store.del('att-demo-on');SID=scriptIdFrom(store.get('att-server-pin'))||scriptIdFrom(SERVER_URL);TOKEN=null;sess.del('att-token');DATA=null;showDemoBar(false);refreshStatus();renderSetup()};
   const fs=$('#faultSeg');if(fs)fs.onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.v)sess.set('att-demo-fault',b.dataset.v);else sess.del('att-demo-fault');fs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));toast('Server: '+b.textContent)};
   $('#setupBox').querySelectorAll('[data-shift]').forEach(b=>b.onclick=async()=>{const c=await loadDemo(),d=c.load();
     if(b.dataset.shift==='real')d.shift=0;else{const want=b.dataset.shift==='sat'?6:0;const t=localParts(Date.now());let add=(want-t.wd+7)%7;
