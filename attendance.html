@@ -685,10 +685,12 @@ function randHex(n){const a=new Uint8Array(n);crypto.getRandomValues(a);return A
 const params=new URLSearchParams(location.search);
 function scriptIdFrom(v){v=String(v||'').trim();if(v==='demo')return 'demo';const m=v.match(/\/s\/([A-Za-z0-9_-]{20,})\//)||v.match(/^([A-Za-z0-9_-]{20,})$/);return m?m[1]:''}
 // a QR link wins, then what Setup saved on this device (or demo), then the class server built in above
-// With the class server built in, every device uses it (or demo mode). A server id saved earlier on a phone,
-// from an old QR or an old deployment, could point at an older copy of the code, so it is not used then.
+// Order: demo, a QR link, the server the instructor connected in Setup on this device, the class server built in.
+// A server id a phone merely remembered from an old QR is not used when one is built in.
 const BUILT_IN=scriptIdFrom(SERVER_URL),wantDemo=params.get('s')==='demo'||(!params.get('s')&&store.get('att-server')==='demo');
-let SID=BUILT_IN?(wantDemo?'demo':BUILT_IN):scriptIdFrom(params.get('s'))||scriptIdFrom(store.get('att-server'));
+// a server the instructor connected in Setup sticks on that device (and its QR carries it to students' phones)
+const PIN=scriptIdFrom(store.get('att-server-pin')),QS=params.get('s')&&params.get('s')!=='demo'?scriptIdFrom(params.get('s')):'';
+let SID=wantDemo?'demo':QS||PIN||BUILT_IN||scriptIdFrom(store.get('att-server'));
 if(BUILT_IN&&!wantDemo&&store.get('att-server')&&store.get('att-server')!==BUILT_IN)store.del('att-server');
 if(params.get('s')&&SID)store.set('att-server',SID);
 const isDemo=()=>SID==='demo';
@@ -1983,6 +1985,7 @@ function renderSetup(){
     <li>Paste the Web app URL here:</li></ol>
     <form id="srvForm" class="mt"><div class="field"><label for="srv">Web app URL</label><input id="srv" placeholder="https://script.google.com/macros/s/…/exec" value="${SID&&!isDemo()?'https://script.google.com/macros/s/'+esc(SID)+'/exec':''}"></div>
     <div class="row"><button class="btn">Connect</button><button type="button" class="btn ghost" id="toLogin">Instructor login</button></div></form><div id="srvMsg"></div>
+    ${!isDemo()&&BUILT_IN&&store.get('att-server-pin')&&SID!==BUILT_IN?`<div class="msg mt">This device uses the server you connected here, even after a refresh. Students get it through the classroom QR. To make it the default for every phone, send this URL to Claude to put in the page.<div class="row mt"><button type="button" class="btn small ghost" id="srvBuiltin">Use the built-in server again</button></div></div>`:''}
     <p class="hint mt">The classroom QR carries the server address, so students need nothing else. To make it work without the QR too (for "My attendance"), put the URL in <code>SERVER_URL</code> at the top of <code>attendance.html</code>.</p></div>
    <div class="card redline"><h2>Try it now</h2><p class="lead">Demo mode runs the same server code inside this browser. Nothing leaves this device.</p>
     <div class="row"><button class="btn red" id="demoOn">${isDemo()?'Restart demo':'Start demo'}</button>${isDemo()?'<button class="btn ghost" id="demoOff">Leave demo</button>':''}</div>
@@ -1992,16 +1995,17 @@ function renderSetup(){
     <p class="hint mt">Demo password: <b>demo1234</b>. To test a student check-in, open <a href="${esc(page)}?s=demo" target="_blank" rel="noopener">the student page</a> in another tab and type the code from Live QR.</p>`:''}
     <h3 class="mt">What the checks stop</h3><ul class="steps"><li>Check-ins outside ${esc(STATUS?windowText(STATUS.window):'Saturdays, 09:00 to 13:00')} (server clock).</li><li>Checking in from home: the QR code changes every 30 s.</li><li>Two check-ins for one student on one day.</li><li>One phone checking in several friends.</li><li>One mobile number registered twice, or a student marked without confirming their ID and name.</li><li>Anyone changing records without the admin password.</li></ul></div></div>`;
   $('#copyCode').onclick=copyServerCode;
+  const bi=$('#srvBuiltin');if(bi)bi.onclick=()=>{store.del('att-server-pin');store.del('att-server');SID=BUILT_IN;TOKEN=null;sess.del('att-token');DATA=null;refreshStatus();renderSetup();toast('Using the built-in server')};
   $('#toLogin').onclick=()=>{location.hash='#admin'};
   $('#srvForm').onsubmit=async e=>{e.preventDefault();const id=scriptIdFrom($('#srv').value);if(!id||id==='demo'){$('#srvMsg').innerHTML='<div class="msg err">That does not look like a Web app URL. It ends with /exec.</div>';return}
     const old=SID;SID=id;$('#srvMsg').innerHTML='<div class="spinner"></div>';
-    try{const s=await api({action:'status'});if(!s.ok)throw new Error(s.message);store.set('att-server',SID);STATUS=s;OFFSET=s.now-Date.now();paintPill();TOKEN=null;sess.del('att-token');DATA=null;
+    try{const s=await api({action:'status'});if(!s.ok)throw new Error(s.message);store.set('att-server',SID);if(SID!==BUILT_IN)store.set('att-server-pin',SID);else store.del('att-server-pin');STATUS=s;OFFSET=s.now-Date.now();paintPill();TOKEN=null;sess.del('att-token');DATA=null;
       $('#srvMsg').innerHTML='<div class="msg good">Connected. Server time '+esc(s.time)+' Sri Lanka. '+(s.configured?'Admin password is set.':'Now set the admin password in the Sheet (Attendance menu).')+'</div>';showDemoBar(false)}
     catch(err){SID=old;$('#srvMsg').innerHTML='<div class="msg err">Could not connect: '+esc(err.message)+' Check the URL and that access is "Anyone".</div>'}};
   $('#demoOn').onclick=async()=>{store.del('att-demo');SID='demo';store.set('att-server','demo');demoCore=null;
     try{const c=await loadDemo();c.setPassword('demo1234');TOKEN=null;sess.del('att-token');DATA=null;showDemoBar(true);await refreshStatus();toast('Demo ready. Password demo1234');renderSetup()}
     catch(e){toast('Demo needs the page served from GitHub Pages or a web server.',true)}};
-  const off=$('#demoOff');if(off)off.onclick=()=>{store.del('att-demo');store.del('att-server');SID=scriptIdFrom(SERVER_URL);TOKEN=null;sess.del('att-token');DATA=null;showDemoBar(false);refreshStatus();renderSetup()};
+  const off=$('#demoOff');if(off)off.onclick=()=>{store.del('att-demo');store.del('att-server');SID=scriptIdFrom(store.get('att-server-pin'))||scriptIdFrom(SERVER_URL);TOKEN=null;sess.del('att-token');DATA=null;showDemoBar(false);refreshStatus();renderSetup()};
   const fs=$('#faultSeg');if(fs)fs.onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.v)sess.set('att-demo-fault',b.dataset.v);else sess.del('att-demo-fault');fs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));toast('Server: '+b.textContent)};
   $('#setupBox').querySelectorAll('[data-shift]').forEach(b=>b.onclick=async()=>{const c=await loadDemo(),d=c.load();
     if(b.dataset.shift==='real')d.shift=0;else{const want=b.dataset.shift==='sat'?6:0;const t=localParts(Date.now());let add=(want-t.wd+7)%7;
