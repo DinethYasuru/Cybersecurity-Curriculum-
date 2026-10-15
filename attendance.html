@@ -395,6 +395,13 @@ body.present .names .offs{display:none}
 .pic{--sz:36px;width:var(--sz);height:var(--sz);border-radius:50%;flex:none;display:inline-grid;place-items:center;object-fit:cover;background:var(--navy-50);color:var(--navy);font:600 calc(var(--sz)*.38)/1 'Outfit';border:2px solid #fff;box-shadow:0 0 0 1px var(--navy-100);vertical-align:middle}
 .pic.lg{--sz:96px}.pic.md{--sz:48px}
 .team{display:flex;flex-direction:column;gap:2px}
+.picks{display:flex;flex-direction:column;gap:10px;margin-top:var(--s4)}
+.mecls{display:flex;align-items:center;gap:8px;margin-top:var(--s5);font-size:1.15rem}.mecls:first-child{margin-top:var(--s2)}
+.clsk{font-family:'Outfit';font-weight:600;font-size:.82rem;letter-spacing:.06em;text-transform:uppercase;color:var(--red);margin-bottom:2px}
+.clsw select{font:600 .95rem 'Outfit';color:var(--navy);border:1px solid var(--line);border-radius:999px;padding:8px 32px 8px 14px;background:#fff;max-width:200px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.ccls{flex-direction:column;justify-content:flex-start;text-align:left;cursor:pointer;font:inherit;border-top:4px solid var(--cc)}.ccls b{font-size:2rem}
+.cdot{width:14px;height:14px;border-radius:50%;flex:none;margin:0 6px}
 .tm{display:flex;align-items:center;gap:var(--s3);padding:12px 8px;border-bottom:1px solid var(--line)}.tm:last-child{border-bottom:0}
 .tm.off{opacity:.55}.tmtxt{flex:1;min-width:0;display:flex;flex-direction:column}.tmtxt b{font-family:'Outfit';font-weight:600;color:var(--ink)}.tmtxt span{color:var(--muted);font-size:.9rem}
 .tmside{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
@@ -539,7 +546,7 @@ body.present{background:#fff}
 <div class="demo" id="demoBar" hidden>Demo mode: data stays on this device only. Instructor › Setup to connect the real server.</div>
 <header class="topbar">
   <div class="tb-in">
-    <a class="tb-brand" href="attendance.html" id="tbBrand"><img id="acLogo" alt="American Corner Matara logo"><span class="tb-name"><b>Class Attendance</b><span>American Corner Matara · Cyber Security</span></span></a>
+    <a class="tb-brand" href="attendance.html" id="tbBrand"><img id="acLogo" alt="American Corner Matara logo"><span class="tb-name"><b>Class Attendance</b><span id="tbSub">American Corner Matara · Cyber Security</span></span></a>
     <span class="tb-sp"></span>
     <span class="tb-pill"><span class="pill" id="pill" role="status"><i></i><span>Checking the time…</span></span></span>
     <a class="tb-link" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg><span>Sessions</span></a>
@@ -551,7 +558,7 @@ body.present{background:#fff}
   <!-- STUDENT -->
   <section id="studentView">
     <div class="hero">
-      <div class="kicker">Cyber Security class</div>
+      <div class="kicker" id="heroKicker">Cyber Security class</div>
       <h1>Check in to <span>class</span></h1>
       <p id="heroLead">Scan the QR on the classroom screen, then confirm it is you. It takes about 10 seconds.</p>
       <div class="stars" id="stars" aria-hidden="true"></div>
@@ -654,6 +661,7 @@ const ICON={
   search:IC('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
   download:IC('<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>'),
   print:IC('<path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7" rx="1"/>'),
+  corner:IC('<path d="M3 21h18M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6M9 11h.01M15 11h.01"/>'),
   logout:IC('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>'),
   inbox:IC('<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/>')
 };
@@ -722,6 +730,9 @@ const FOREIGN=!!QS&&SID===QS&&QS!==BUILT_IN&&QS!==PIN;
 if(BUILT_IN&&!wantDemo&&store.get('att-server')&&store.get('att-server')!==BUILT_IN)store.del('att-server');
 if(params.get('s')&&SID&&SID!=='demo')store.set('att-server',SID);
 const isDemo=()=>SID==='demo';
+// many classes (Cloudflare): the QR link says which class (?k=); instructors pick theirs after signing in
+const okK=v=>/^[a-z0-9][a-z0-9-]{1,19}$/.test(v||'')?v:'';
+let STUK=okK(params.get('k')),ADMK=okK(store.get('att-k'));
 let demoCore=null;
 async function loadDemo(){
   if(demoCore)return demoCore;
@@ -755,6 +766,8 @@ async function api(body,ms){
     if(f==='down'||(f==='flaky'&&Math.random()<.5)){await sleep(700);throw netErr('network','Could not reach the attendance server. Check your internet and try again.')}
     if(f==='slow'){if(ms<=12000){await sleep(ms);throw netErr('timeout','The server took too long to answer.')}await sleep(12000)}
     await sleep(350);return JSON.parse(JSON.stringify(c.handle(body)))}
+  // which class this is for: the instructor's chosen class, or the class the student's QR named
+  if(body.k===undefined&&body.action!=='login'){const k=body.token?ADMK:STUK;if(k)body=Object.assign({k},body)}
   const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),ms);
   try{
     const r=await fetch(serverUrl(SID),{method:'POST',body:JSON.stringify(body),signal:ctl.signal,redirect:'follow'});
@@ -777,8 +790,25 @@ function toast(t,err){const el=$('#toast');el.textContent=t;el.className='toast 
 
 async function refreshStatus(){
   if(!SID){setPill('closed','Not set up yet');return null}
-  try{const s=await api({action:'status'});if(!s.ok)throw new Error(s.message);STATUS=s;OFFSET=s.now-Date.now();paintPill();$('#winText').textContent=windowText(s.window);return s}
+  try{const s=await api({action:'status'});if(!s.ok)throw new Error(s.message);STATUS=s;if(s.multi&&s.k)STUK=s.k;OFFSET=s.now-Date.now();paintPill();paintClass();$('#winText').textContent=windowText(s.window);return s}
   catch(e){setPill('closed','Offline: '+e.message.replace(/\.$/,''));return null}
+}
+// many classes: the class name in the header, and the student's ID for this class
+const multi=()=>!!(STATUS&&STATUS.multi);
+const clsName=k=>{const c=STATUS&&STATUS.classes&&STATUS.classes.find(x=>x.id===k);return c?c.name:''};
+function paintClass(){
+  if(!multi()||!$('#adminView').hidden)return;const n=clsName(STUK);
+  $('#heroKicker').textContent=n?n+' class':'American Corner classes';
+  $('#tbSub').textContent='American Corner Matara'+(n?' · '+n:'');
+}
+const myId=me=>!me?'':multi()?((me.ids||{})[STUK]||(STUK==='cyber'&&!me.ids?me.id:'')||''):me.id;
+function rememberMe(st,k){const old=getMe()||{},ids=Object.assign({},old.ids||(old.id&&old.phone===st.phone?{cyber:old.id}:{}));if(old.phone&&old.phone!==st.phone)for(const x in ids)delete ids[x];if(k)ids[k]=st.id;setMe(Object.assign({},st,{ids}))}
+// several classes open and no QR: the student taps theirs
+function renderPick(list,msg){
+  list=list||(STATUS.classes||[]).filter(c=>c.open);
+  $('#stCard').innerHTML=`${stepper(1)}<h2>Which class are you in?</h2><p class="lead">More than one class is open right now. Tap yours, or scan the QR on your classroom screen.</p>
+    <div class="picks">${list.map(c=>`<button class="btn ghost wide big" data-pk="${esc(c.id)}">${esc(c.name)}</button>`).join('')}</div>${msgBox(msg)}`;
+  $('#stCard').querySelectorAll('[data-pk]').forEach(b=>b.onclick=async()=>{STUK=b.dataset.pk;busy('Opening '+clsName(STUK)+'…',1);await refreshStatus();renderPhone()});
 }
 function setPill(cls,txt){const p=$('#pill');p.className='pill '+cls;p.querySelector('span').textContent=txt}
 function paintPill(){
@@ -858,7 +888,8 @@ function stepper(n){return '<ol class="stepper" aria-label="Check-in steps">'+['
 function renderPhone(msg,typed){
   const me=getMe()||{},c=$('#stCard');
   // this phone checked in before: one tap instead of typing the number again
-  if(!typed&&SID&&me.phone&&me.id&&me.name)return renderQuick(me,msg);
+  if(multi()&&STATUS.pick&&!STUK)return renderPick();
+  if(!typed&&SID&&me.phone&&myId(me)&&me.name)return renderQuick(Object.assign({},me,{id:myId(me)}),msg);
   c.innerHTML=`${stepper(1)}<h2>${me.name?'Hi '+esc(me.name.split(' ')[0])+'!':'Check in'}</h2>
     <p class="lead">${CODE?'Code scanned. Type your mobile number.':needCode()?'Scan the QR on the classroom screen, or type the 6-letter code you see under it.':'Type your mobile number.'}</p>
     ${SID?'':'<div class="msg err">Not connected to the attendance server yet, so check-in will not save. Instructor: <a href="#setup">connect it or try the demo</a>.</div>'}
@@ -884,6 +915,7 @@ function renderQuick(me,msg){
   $('#qkOther').onclick=()=>renderPhone(null,true);
 }
 function fail(r,retry){
+  if(r.reason==='pick'){CODE='';return renderPick(r.classes,'That code is not from a class open now. Pick your class, then scan or type the code again.')}
   if(r.reason==='code'){CODE='';TICKET=''}
   $('#stCard').innerHTML=`${stepper(r.reason==='closed'?1:2)}<div class="result">${BAD_SVG}<div class="headline">${r.reason==='closed'?'Check-in is closed':'Not checked in'}</div><p>${esc(r.message||'Something went wrong.')}${r.nextOpen?'<br>Opens '+esc(niceMs(r.nextOpen))+'.':''}</p><button class="btn big mt" id="again">Try again</button></div>`;
   $('#again').onclick=retry||(()=>renderPhone());
@@ -899,8 +931,10 @@ async function doLookup(raw){
   // the server shows only part of the name until the student confirms; this phone may know the full one
   const me=getMe();
   if(r.student){r.student.phone=phone;if(me&&me.phone===phone&&me.id===r.student.id)r.student.name=me.name}
+  if(r.k)STUK=r.k;
   if(!r.found){
     if(!r.canRegister)return fail({message:'This number is not on the class list. Talk to your instructor.'});
+    if(r.known)return renderJoin(phone,r);
     return renderRegister(phone,null,r.idExample);
   }
   if(r.already)return done({already:true,date:r.date,time:r.already,student:r.student});
@@ -922,6 +956,19 @@ function renderRegister(phone,msg,example){
     if(r.ticket)TICKET=r.ticket;
     renderConfirm(r.student,!r.existing)};
 }
+// already a student in another class at the Corner: one tap joins this class with the same name
+function renderJoin(phone,lk){
+  const me=getMe()||{},cn=lk.className||clsName(STUK)||'this class';
+  $('#stCard').innerHTML=`${stepper(2)}<h2>Join ${esc(cn)}?</h2><p class="lead">You already attend another class at the American Corner as <b>${esc(me.phone===phone&&me.name?me.name:lk.person.name)}</b>. Join this class with the same name and number.</p>
+    <div class="msg">Mobile <b>${esc(showPhone(phone))}</b> <button type="button" class="linkbtn" id="wrongNo">Change</button></div>
+    <button class="btn wide big mt" id="joinBtn">Join ${esc(cn)}</button><p class="hint mt" style="text-align:center">You get a student ID for this class next.</p>`;
+  $('#wrongNo').onclick=()=>renderPhone(null,true);
+  $('#joinBtn').onclick=async()=>{busy('Joining…');
+    const r=await stuApi({action:'register',phone,name:me.phone===phone&&me.name?me.name:'Student',code:CODE,ticket:TICKET,device:DEVICE},'Joining…');
+    if(!r.ok)return fail(r,()=>renderJoin(phone,lk));
+    if(r.ticket)TICKET=r.ticket;
+    renderConfirm(r.student,true)};
+}
 function renderConfirm(st,isNew){
   $('#stCard').innerHTML=`${stepper(2)}<h2>${isNew?'You’re registered':'Is this you?'}</h2>
     <p class="lead">${isNew?'This is your student ID. Check your details, then mark your attendance.':'Check your details before you mark your attendance.'}</p>
@@ -939,7 +986,7 @@ async function doConfirm(st){
   // the saved details no longer match the class list: forget them so the number is typed again
   if(!r.ok&&(r.reason==='changed'||r.reason==='unknown')){store.del('att-me');renderMeCard()}
   if(!r.ok)return fail(r);
-  setMe(r.student);done(r);
+  if(multi())rememberMe(r.student,r.k||STUK);else setMe(r.student);done(r);
 }
 function done(r){
   CODE='';TICKET='';
@@ -958,15 +1005,19 @@ function renderMeCard(){
 async function loadMine(quiet){
   const me=getMe();if(!me||!SID)return;const box=$('#mine');if(!box)return;
   if(!quiet)box.innerHTML='<div class="spinner"></div>';
-  let r;try{r=await api({action:'me',phone:me.phone,name:me.name,device:DEVICE})}catch(e){r={ok:false,message:e.message}}
+  let r;try{r=await api(Object.assign({action:'me',phone:me.phone,name:me.name,device:DEVICE},multi()?{all:1}:{}))}catch(e){r={ok:false,message:e.message}}
   if(!r.ok){box.innerHTML='<div class="msg">'+esc(r.message)+'</div>';return}
+  // many classes: one record per class the student attends
+  box.innerHTML=r.all?r.classes.map(c=>`<h3 class="mecls">${esc(c.className)} <span class="chip g">${esc(c.id||'')}</span></h3>`+mineHTML(c)).join(''):mineHTML(r);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>box.querySelectorAll('.ring .fg').forEach(c=>c.style.strokeDashoffset=c.dataset.off)));
+}
+function mineHTML(r){
   const P=r.records.filter(x=>x.status==='present').length,E=r.records.filter(x=>x.status==='excused').length,A=r.records.length-P-E,n=r.records.length;
   const pct=n?P/n*100:null,adj=n?(P+E)/n*100:null;
-  box.innerHTML=`<div class="me-top mt">${ringSVG(pct)}<div class="stats"><div class="stat"><b>${P}</b><span>Present</span></div><div class="stat"><b>${E}</b><span>Excused</span></div><div class="stat r"><b>${A}</b><span>Absent</span></div></div></div>
+  return `<div class="me-top mt">${ringSVG(pct)}<div class="stats"><div class="stat"><b>${P}</b><span>Present</span></div><div class="stat"><b>${E}</b><span>Excused</span></div><div class="stat r"><b>${A}</b><span>Absent</span></div></div></div>
     ${E?`<div class="msg good">With excused absences: <b>${Math.round(adj)}%</b></div>`:''}
     <div class="dates">${r.records.slice().reverse().map((x,i)=>`<div class="dl" style="animation-delay:${i*.04}s"><span>${esc(niceDate(x.date))}</span>${x.status==='present'?'<span class="chip p">Present '+esc(x.time)+'</span>':x.status==='excused'?'<span class="chip e">Excused</span>':'<span class="chip a">Absent</span>'}</div>`).join('')||'<p class="hint">No class days yet.</p>'}</div>
     ${r.upcomingExcuses.length?`<p class="hint mt">Excused ahead: ${r.upcomingExcuses.map(d=>esc(niceDate(d))).join(', ')}</p>`:''}`;
-  requestAnimationFrame(()=>requestAnimationFrame(()=>box.querySelectorAll('.ring .fg').forEach(c=>c.style.strokeDashoffset=c.dataset.off)));
 }
 /* ---------- my profile: name, number and photo, changed by the student ---------- */
 const okPhoto=p=>typeof p==='string'&&/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(p);
@@ -1007,7 +1058,7 @@ function renderProfileSignIn(msg,err,phone){
     const b=$('#kqIn');b.disabled=true;b.textContent='Checking…';
     const r=await stuApi({action:'keySignIn',phone:p,code,device:DEVICE},false);
     if(!r.ok)return renderProfileSignIn(null,r.message,p);
-    store.del('att-me-photo');setProf(Object.assign({},r.student,{key:r.key}));editProfile()};
+    store.del('att-me-photo');setProf(Object.assign({},r.student,{key:r.key},r.k?{k:r.k}:{}));editProfile()};
 }
 // any photo the phone gives (camera or gallery) becomes a 192 px square JPEG of about 10 KB
 async function squarePhoto(file){
@@ -1022,7 +1073,7 @@ async function squarePhoto(file){
 async function editProfile(msg){
   const me=getProf();if(!me)return renderProfile();const box=$('#pfCard');
   box.innerHTML='<div class="card-h"><h2>My profile</h2></div><div class="spinner"></div>';
-  const g=await stuApi({action:'profile',id:me.id,key:me.key,device:DEVICE},false);
+  const g=await stuApi(Object.assign({action:'profile',id:me.id,key:me.key,device:DEVICE},me.k?{k:me.k}:{}),false);
   if(!g.ok){if(g.reason==='key'){setProf(null);return renderProfile(null,g.message)}renderProfile();$('#pfCard').insertAdjacentHTML('beforeend','<div class="msg err mt">'+esc(g.message)+'</div>');return}
   if(g.photo)store.set('att-me-photo',g.photo);else store.del('att-me-photo');
   const photo=g.photo||'',st=g.student;
@@ -1045,7 +1096,7 @@ async function editProfile(msg){
     const name=$('#pfName').value.trim().replace(/\s+/g,' '),phone=cleanPhone($('#pfPhone').value);
     if(!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name))return err('Type your name with letters only.');
     if(!phone)return err('Type your mobile number, like 0771234567.');
-    const body={action:'profileSave',id:st.id,key:me.key,name,phone,device:DEVICE};if(newPhoto!==null)body.photo=newPhoto;
+    const body={action:'profileSave',id:st.id,key:me.key,name,phone,device:DEVICE};if(me.k)body.k=me.k;if(newPhoto!==null)body.photo=newPhoto;
     const b=$('#pfSave');b.disabled=true;b.textContent='Saving…';
     const r=await stuApi(body,false);
     if(!r.ok){if(r.reason==='key'){setProf(null);return renderProfile(null,r.message)}b.disabled=false;b.textContent='Save';return err(r.message)}
@@ -1060,7 +1111,7 @@ async function startStudent(){
   $('#stCard').innerHTML=stepper(1)+'<div class="skel" style="height:28px;width:40%;margin-bottom:16px"></div><div class="skel" style="height:56px;margin-bottom:16px"></div><div class="skel" style="height:54px"></div>';
   await refreshStatus();if(!getProf())renderProfile();
   const me=getMe();
-  if(CODE&&me&&me.phone&&!me.id&&SID){doLookup(me.phone);return}
+  if(CODE&&me&&me.phone&&!myId(me)&&SID){doLookup(me.phone);return}
   renderPhone();
 }
 /* Add to home screen: Android/Chrome offers its own prompt; iPhone needs Share › Add to Home Screen */
@@ -1105,22 +1156,29 @@ $('#loginForm').onsubmit=async e=>{
       if(!await ask({title:'Sign in to a different server?',text:'This link points to a server this page doesn\'t know: '+serverUrl(SID)+'. Your password would go there. Only continue if you set up this server yourself.',ok:'Continue'}))return;
       sess.set('att-foreign-ok','1');btn.disabled=true;btn.textContent='Checking…'}
     const r=await api(body);logRead('login',Date.now()-t0,r.ok?null:r.message);
-    if(r.ok){if(r.trust)store.set('att-trust',r.trust);TOKEN=r.token;QRKEY=r.qrKey;OFFSET=r.now-Date.now();sess.set('att-token',TOKEN);sess.set('att-qrkey',QRKEY);$('#pw').value='';showAdmin();opsAfterLogin()}
+    if(r.ok){if(r.trust)store.set('att-trust',r.trust);if(r.corner)pickClass(r.corner.classes);TOKEN=r.token;QRKEY=r.qrKey;OFFSET=r.now-Date.now();sess.set('att-token',TOKEN);sess.set('att-qrkey',QRKEY);$('#pw').value='';showAdmin();opsAfterLogin()}
     else $('#loginMsg').innerHTML='<div class="msg err">'+esc(r.message)+'</div>';
   }catch(err){logRead('login',Date.now()-t0,err.message);$('#loginMsg').innerHTML='<div class="msg err">'+esc(err.message)+'</div>'}
   btn.disabled=false;btn.textContent='Sign in';
 };
+// many classes: keep the class this browser used last, if the instructor still teaches it
+function pickClass(list){list=list||[];if(!list.some(c=>c.id===ADMK))ADMK=list[0]?list[0].id:'';if(ADMK)store.set('att-k',ADMK)}
+async function switchClass(k){if(k===ADMK)return;ADMK=k;store.set('att-k',k);stopLive();DATA=null;PHOTOS=null;photosAt=0;QRKEY=null;
+  if(TAB==='corner')TAB='home';paintNav();paintHead();$('#paneBox').innerHTML=skeleton();await loadData();toast('Now in '+(DATA&&DATA.corner?DATA.corner.className:'the class'))}
 $('#logout').onclick=async()=>{try{await api({action:'logout',token:TOKEN})}catch(e){}logoutLocal()};
 $('#toSetup').onclick=()=>{location.hash='#setup'};
 $('#toStudent').onclick=()=>{location.hash=''};
 $('#toAdmin').onclick=()=>{location.hash='#admin'};
 
-const TABS=[['home','Dashboard','Overview'],['inbox','Inbox','Overview'],['live','Live QR','Class'],['register','Register','Class'],['reports','Reports','Records'],['students','Students','Records'],['excuses','Excuses','Records'],['days','Class days','Records'],['team','Instructors','System'],['ops','Operations','System'],['log','Activity log','System'],['settings','Settings','System']];
-const PAGES={home:['Dashboard','Today at a glance, and who needs a nudge.'],inbox:['Inbox','Students asking for a profile key. Send each one their code on WhatsApp.'],live:['Live check-in','Show this on the projector. The code changes every few seconds so only people in the room can check in.'],
+const TABS_ALL=[['corner','American Corner','Overview'],['home','Dashboard','Overview'],['inbox','Inbox','Overview'],['live','Live QR','Class'],['register','Register','Class'],['reports','Reports','Records'],['students','Students','Records'],['excuses','Excuses','Records'],['days','Class days','Records'],['team','Instructors','System'],['ops','Operations','System'],['log','Activity log','System'],['settings','Settings','System']];
+// the American Corner page is for the Corner admin
+let TABS=TABS_ALL.filter(t=>t[0]!=='corner');
+const setTabs=()=>{TABS=TABS_ALL.filter(t=>t[0]!=='corner'||(DATA&&DATA.corner&&DATA.corner.admin))};
+const PAGES={corner:['American Corner','Every class today, the class list, everyone who attends and the instructors.'],home:['Dashboard','Today at a glance, and who needs a nudge.'],inbox:['Inbox','Students asking for a profile key. Send each one their code on WhatsApp.'],live:['Live check-in','Show this on the projector. The code changes every few seconds so only people in the room can check in.'],
   register:['Register','The class sheet. Tap a cell to mark present, tap again for absent.'],reports:['Reports','Pass marks, per-student and per-day records, and exports.'],
   students:['Students','Everyone on the class list, with their IDs and mobile numbers.'],excuses:['Excused absences','Approved absences count toward the pass mark when you choose.'],
   days:['Class days','Add a class nobody checked in to, or cancel a day so it does not count.'],ops:['Operations','Every change you save, its status, and retries when the server is slow.'],log:['Activity log','Every check-in try and admin change, newest first.'],settings:['Settings','Check-in window, security checks and the student ID format.'],
-  team:['Instructors','Everyone who runs the class. Each signs in with their own number and password.'],account:['My account','Your name, number, photo and password.']};
+  team:['Instructors','Everyone who runs this class. Each signs in with their own number and password.'],account:['My account','Your name, number, photo and password.']};
 const BNAV=['home','live','register','reports'];
 function navHTML(){let g='';return TABS.map(([k,l,grp])=>{const h=grp!==g?'<h6>'+grp+'</h6>':'';g=grp;return h+`<button class="nav-i${k===TAB?' on':''}" data-k="${k}"${k===TAB?' aria-current="page"':''}>${ICON[k]}<span>${l}</span></button>`}).join('')}
 function paintNav(){
@@ -1137,13 +1195,16 @@ const sig=d=>d?JSON.stringify([d.requests,d.students,d.attendance,d.excuses,d.da
 async function loadData(show,quiet){
   let r;try{r=await timedCall({action:'data'})}catch(e){if(!quiet)toast(e.message+' Your changes are kept under Operations.',true);
     // no server right now: show the last copy this tab had, so the live QR keeps working for students on mobile data
-    if(!DATA){try{const c=JSON.parse(sess.get('att-data')||'null');if(c&&QRKEY){DATA=c;STATUS=c.status;renderPane();toast('Offline: showing the last copy. The QR still works.',true)}}catch(e2){}}
+    if(!DATA){try{const c=JSON.parse(sess.get('att-data'+(ADMK?':'+ADMK:''))||'null');if(c&&QRKEY){DATA=c;STATUS=c.status;renderPane();toast('Offline: showing the last copy. The QR still works.',true)}}catch(e2){}}
     return false}
+  // the class this browser remembered is not theirs (any more): open their first class
+  if(!r.ok&&r.reason==='noclass'&&r.corner&&r.corner.classes&&r.corner.classes.length&&!r.corner.classes.some(c=>c.id===ADMK)){pickClass(r.corner.classes);return loadData(show,quiet)}
   if(!r.ok){if(r.reason!=='auth'&&!quiet)toast(r.message,true);return false}
   if(quiet&&sig(r)===sig(DATA)){STATUS=r.status;OFFSET=r.now-Date.now();paintPill();return true}
   if(r.qrKey){QRKEY=r.qrKey;sess.set('att-qrkey',QRKEY)}
-  try{sess.set('att-data',JSON.stringify(Object.assign({},r,{log:[]})))}catch(e){}
-  DATA=r;STATUS=r.status;OFFSET=r.now-Date.now();paintPill();paintWho();if(r.me&&!PHOTOS)loadPhotos().then(paintWho);$('#winText').textContent=windowText(r.status.window);
+  try{sess.set('att-data'+(ADMK?':'+ADMK:''),JSON.stringify(Object.assign({},r,{log:[]})))}catch(e){}
+  const tabsWas=TABS.length;DATA=r;STATUS=r.status;OFFSET=r.now-Date.now();paintPill();paintWho();setTabs();if(TABS.length!==tabsWas)paintNav();
+  if(r.corner){ADMK=r.corner.k;$('#tbSub').textContent='American Corner Matara · '+r.corner.className}if(r.me&&!PHOTOS)loadPhotos().then(paintWho);$('#winText').textContent=windowText(r.status.window);
   if(show)toast('Up to date');
   renderPane();return true;
 }
@@ -1151,7 +1212,8 @@ async function loadData(show,quiet){
 function paintWho(){
   const me=DATA&&DATA.me;
   $('#whoName').textContent=me?me.name:'Instructor';
-  $('#who').textContent=me?(me.role==='owner'?'Owner':'Instructor')+' · My account':(isDemo()?'Demo server on this device':'Main password');
+  const cn=DATA&&DATA.corner?' · '+DATA.corner.className:'';
+  $('#who').textContent=me?(me.role==='owner'?'Owner':'Instructor')+cn:(isDemo()?'Demo server on this device':'Main password'+cn);
   $('#whoPic').innerHTML=me?avatar(me.name,PHOTOS&&PHOTOS[me.id]):'<span class="av">I</span>';
 }
 $('#whoBtn').onclick=()=>goTab('account');
@@ -1172,16 +1234,20 @@ function showAdmin(){
   pump();opsPaint()
 }
 function skeleton(){return '<div class="kpis">'+'<div class="skel" style="height:104px"></div>'.repeat(4)+'</div><div class="skel" style="height:320px"></div>'}
-TAB=sess.get('att-tab')||'home';if(!TABS.some(t=>t[0]===TAB))TAB='home';
+TAB=sess.get('att-tab')||'home';if(!TABS_ALL.some(t=>t[0]===TAB))TAB='home';
 
 function stopLive(){clearInterval(liveTimer);clearInterval(pollTimer);liveTimer=pollTimer=null;document.body.classList.remove('present')}
+function clsSwitch(){const c=DATA&&DATA.corner;if(!c||c.classes.length<2)return '';
+  return `<label class="clsw"><span class="sr">Class</span><select id="clsSel">${c.classes.map(x=>`<option value="${esc(x.id)}"${x.id===c.k?' selected':''}>${esc(x.name)}</option>`).join('')}</select></label>`}
 function paintHead(acts){const [t,d]=PAGES[TAB];document.title=t+' · Class Attendance';
-  $('#phead').innerHTML=`<div><h1>${esc(t)}</h1><p>${esc(d)}</p></div><div class="acts noprint" id="pacts"><span id="opsChip"></span>${acts||''}<button class="btn ghost" id="refresh">${ICON.refresh}<span>Refresh</span></button></div>`;
-  $('#refresh').onclick=()=>loadData(true);opsPaint()}
+  const cn=DATA&&DATA.corner&&TAB!=='corner'?DATA.corner.className:'';
+  $('#phead').innerHTML=`<div>${cn?`<div class="clsk">${esc(cn)}</div>`:''}<h1>${esc(t)}</h1><p>${esc(d)}</p></div><div class="acts noprint" id="pacts">${clsSwitch()}<span id="opsChip"></span>${acts||''}<button class="btn ghost" id="refresh">${ICON.refresh}<span>Refresh</span></button></div>`;
+  $('#refresh').onclick=()=>loadData(true);const cs=$('#clsSel');if(cs)cs.onchange=()=>switchClass(cs.value);opsPaint()}
 function renderPane(){
   stopLive();if(!DATA)return;paintHead();
   const box=$('#paneBox');
-  ({home:paneHome,inbox:paneInbox,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,ops:paneOps,log:paneLog,settings:paneSettings,team:paneTeam,account:paneAccount})[TAB](box);
+  if(TAB==='corner'&&!(DATA.corner&&DATA.corner.admin)){TAB='home';paintNav();paintHead()}
+  ({corner:paneCorner,home:paneHome,inbox:paneInbox,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,ops:paneOps,log:paneLog,settings:paneSettings,team:paneTeam,account:paneAccount})[TAB](box);
   if(oldServer()){box.insertAdjacentHTML('afterbegin',oldServerHTML());$('#oldSrvCopy').onclick=copyServerCode}
   inboxBadge();
   const n=inboxN();if(n&&TAB==='home'){box.insertAdjacentHTML('afterbegin',`<div class="msg mb" id="inbNote"><b>${n} student${n===1?'':'s'}</b> asked for a profile key. <button class="btn small" id="inbGo">Open Inbox</button></div>`);$('#inbGo').onclick=()=>goTab('inbox')}
@@ -1279,7 +1345,7 @@ function qrSVG(text){
   for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(q.isDark(r,c))d+='M'+(c+m)+' '+(r+m)+'h1v1h-1z';
   return `<svg viewBox="0 0 ${n+2*m} ${n+2*m}" shape-rendering="crispEdges" role="img" aria-label="Check-in QR code"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#002868"/></svg>`;
 }
-function checkinUrl(code){const u=new URL('attendance.html',location.href);u.search='';u.hash='';u.searchParams.set('s',SID);u.searchParams.set('c',code);return u.toString()}
+function checkinUrl(code){const u=new URL('attendance.html',location.href);u.search='';u.hash='';u.searchParams.set('s',SID);if(DATA&&DATA.corner)u.searchParams.set('k',DATA.corner.k);u.searchParams.set('c',code);return u.toString()}
 let lastCount=-1;
 function paneLive(box){
   const s=DATA.status,slotSec=DATA.settings.slotSeconds||30;
@@ -1658,7 +1724,7 @@ function paneStudents(box){
 
 /* Instructors: each has their own number (never a student's), photo and password */
 const needV12=box=>{if(isDemo()||(DATA.status.version||0)>=12)return false;box.innerHTML='<div class="pane"><div class="msg err">Instructor accounts need server version 12. Update the server code (Setup has <b>Copy server code</b>), then Deploy › Manage deployments › the <b>Web app</b> › pencil › New version.</div></div>';return true};
-const roleChip=r=>r.role==='owner'?'<span class="chip p">Owner</span>':'<span class="chip g">Instructor</span>';
+const roleChip=r=>r.admin?'<span class="chip x">Corner admin</span>':r.role==='owner'?'<span class="chip p">Owner</span>':'<span class="chip g">Instructor</span>';
 async function staffCall(body){try{return await adminCall(body)}catch(e){return {ok:false,message:e.message}}}
 function paneTeam(box){
   if(needV12(box))return;
@@ -1674,7 +1740,8 @@ function paneTeam(box){
      <div class="field"><label for="tmName">Name</label><input id="tmName" maxlength="60" autocomplete="off"></div>
      <div class="field"><label for="tmPhone">Mobile number</label><input id="tmPhone" type="tel" inputmode="tel" maxlength="16" placeholder="07X XXX XXXX" autocomplete="off"><div class="hint">They sign in with it. It can't be a student's number.</div></div>
      <div class="field"><label for="tmPw" id="tmPwL">Password</label><input id="tmPw" type="password" minlength="8" autocomplete="new-password"><div class="hint" id="tmPwH">At least 8 characters. Share it with them, they can change it under My account.</div></div>
-     <div class="field"><label for="tmRole">Role</label><select id="tmRole"><option value="instructor">Instructor: runs the class</option><option value="owner">Owner: also manages instructors</option></select></div>
+     <div class="field"><label for="tmRole">Role${DATA.corner?' in '+esc(DATA.corner.className):''}</label><select id="tmRole"><option value="instructor">Instructor: runs the class</option><option value="owner">Owner: also manages instructors</option>${DATA.corner?'<option value="">Not in this class</option>':''}</select>${DATA.corner?'<div class="hint">One account works in every class. The role is for this class only.</div>':''}</div>
+     ${DATA.corner&&DATA.corner.admin?'<label class="check"><input type="checkbox" id="tmAdm">Corner admin: every class, adds classes and instructors</label>':''}
      <label class="check" id="tmActL" hidden><input type="checkbox" id="tmAct" checked>Can sign in</label>
      <div id="tmMsg"></div>
      <div class="row"><button class="btn" id="tmSave">Add instructor</button><button type="button" class="btn ghost" id="tmClear">Clear</button><button type="button" class="btn red" id="tmDel" hidden>Remove</button></div></form>`
@@ -1689,7 +1756,7 @@ function paneTeam(box){
   const msg=t=>{$('#tmMsg').innerHTML=t?'<div class="msg err">'+esc(t)+'</div>':''};
   function fill(x){edit=x;msg('');$('#tmTitle').textContent=x?'Edit '+x.name:'Add an instructor';$('#tmName').value=x?x.name:'';$('#tmPhone').value=x?showPhone(x.phone):'';$('#tmPw').value='';
     $('#tmPwL').textContent=x?'New password':'Password';$('#tmPwH').textContent=x?'Leave empty to keep their password.':'At least 8 characters. Share it with them, they can change it under My account.';
-    $('#tmRole').value=x?x.role:'instructor';$('#tmActL').hidden=!x;$('#tmAct').checked=!x||x.active;$('#tmDel').hidden=!x||(me&&me.id===x.id);$('#tmSave').textContent=x?'Save':'Add instructor';$('#tmName').focus()}
+    $('#tmRole').value=x?x.role:'instructor';if($('#tmAdm'))$('#tmAdm').checked=!!(x&&x.admin);$('#tmActL').hidden=!x;$('#tmAct').checked=!x||x.active;$('#tmDel').hidden=!x||(me&&me.id===x.id);$('#tmSave').textContent=x?'Save':'Add instructor';$('#tmName').focus()}
   $('#tmClear').onclick=()=>fill(null);
   $('#tmForm').onsubmit=async e=>{e.preventDefault();msg('');
     const name=$('#tmName').value.trim().replace(/\s+/g,' '),phone=cleanPhone($('#tmPhone').value),pw=$('#tmPw').value;
@@ -1697,12 +1764,55 @@ function paneTeam(box){
     if(!phone)return msg('Type a mobile number like 0771234567.');
     if(DATA.students.some(s=>s.phone===phone))return msg('That number belongs to a student. An instructor needs a number of their own.');
     if((!edit&&pw.length<8)||(pw&&pw.length<8))return msg('The password needs at least 8 characters.');
-    const body={action:'staffSave',sid:edit?edit.id:'',name,phone,role:$('#tmRole').value,active:$('#tmAct').checked};if(pw)body.password=pw;
+    const body={action:'staffSave',sid:edit?edit.id:'',name,phone,role:$('#tmRole').value,active:$('#tmAct').checked};if(pw)body.password=pw;if($('#tmAdm'))body.admin=$('#tmAdm').checked;
     const b=$('#tmSave');b.disabled=true;const r=await staffCall(body);b.disabled=false;
     if(!r.ok)return msg(r.message);toast(edit?'Saved':name+' added');edit=null;loadData()};
-  $('#tmDel').onclick=async()=>{if(!edit||!await ask({title:'Remove '+edit.name+'?',text:'They can no longer sign in. Their past changes stay in the Activity log.',ok:'Remove',danger:true}))return;
+  $('#tmDel').onclick=async()=>{const all=!DATA.corner||DATA.corner.admin;if(!edit||!await ask({title:'Remove '+edit.name+(all?'?':' from this class?'),text:all?'They can no longer sign in'+(DATA.corner?' to any class':'')+'. Their past changes stay in the Activity log.':'They keep their other classes. Their past changes stay in the Activity log.',ok:'Remove',danger:true}))return;
     const r=await staffCall({action:'staffSave',sid:edit.id,remove:true});if(r.ok){toast('Removed');loadData()}else msg(r.message)};
 }
+/* ---------- the American Corner: every class, people and instructors (Corner admin) ---------- */
+const CLS_COLORS=[['#002868','Blue'],['#BF0A30','Red'],['#3c4a5c','Slate'],['#0a6b4f','Green'],['#7a4b00','Brown']];
+async function paneCorner(box){
+  box.innerHTML=skeleton();
+  const r=await staffCall({action:'corner'});if(TAB!=='corner')return;
+  if(!r.ok){box.innerHTML='<div class="msg err">'+esc(r.message)+'</div>';return}
+  const cls=r.classes,cn=id=>(cls.find(c=>c.id===id)||{}).name||id;
+  box.innerHTML=`<div class="kpis">${cls.filter(c=>c.active).map(c=>`<button class="kpi ccls" data-go="${esc(c.id)}" style="--cc:${esc(c.color||'#002868')}"><span>${esc(c.name)}${c.room?' · '+esc(c.room):''}</span><b>${c.present}</b><span>${c.status&&c.status.open?'<span class="chip p">Open now</span>':'<span class="chip g">Closed</span>'}${c.alerts?' <span class="chip a">'+c.alerts+' to check</span>':''}</span></button>`).join('')}</div>
+   <div class="pane split wideleft">
+    <div class="stack">
+     <div class="card"><div class="card-h"><h3>Classes</h3><span class="chip g">${cls.length}</span></div><div class="team">${cls.map(c=>`<div class="tm${c.active?'':' off'}"><span class="cdot" style="background:${esc(c.color||'#002868')}"></span><div class="tmtxt"><b>${esc(c.name)}</b><span>${esc(c.room||'')}${c.active?'':' · archived'}</span></div><div class="tmside"><button class="btn small ghost" data-ce="${esc(c.id)}">Edit</button>${c.active?`<button class="btn small" data-go="${esc(c.id)}">Open</button>`:''}</div></div>`).join('')}</div></div>
+     <div class="card"><div class="card-h"><h3>Instructors</h3><span class="chip g">${r.staff.length}</span></div><div class="team">${r.staff.map(x=>`<div class="tm${x.active?'':' off'}"><span class="tmpic">${avatar(x.name,PHOTOS&&PHOTOS[x.id],'md')}</span><div class="tmtxt"><b>${esc(x.name)}</b><span>${esc(showPhone(x.phone))}</span></div><div class="tmside">${x.admin?'<span class="chip x">Corner admin</span>':''}${x.roles.map(o=>`<span class="chip ${o.role==='owner'?'p':'g'}">${esc(cn(o.k))}${o.role==='owner'?' · owner':''}</span>`).join('')}${!x.admin&&!x.roles.length?'<span class="chip a">No class</span>':''}<button class="btn small ghost" data-se="${esc(x.id)}">Classes</button></div></div>`).join('')||emptyHTML('No instructors yet','Add them under Instructors in a class.')}</div></div>
+     <div class="card"><div class="card-h"><h3>People</h3><span class="chip g">${r.people.length}</span></div><div class="toolbar"><div class="search">${ICON.search}<input id="pfind" placeholder="Search name or number" aria-label="Search people"></div><span class="count" id="pN"></span></div>
+      <div class="tblwrap"><table><thead><tr><th>Name</th><th>Mobile</th><th>Classes</th></tr></thead><tbody id="pBody"></tbody></table></div></div>
+    </div>
+    <div class="stack"><div class="card" id="cfCard"></div><div class="card" id="rlCard" hidden></div></div></div>`;
+  const drawP=()=>{const q=$('#pfind').value.trim().toLowerCase(),list=r.people.filter(p=>!q||p.name.toLowerCase().includes(q)||p.phone.includes(q.replace(/\D/g,'')||'#'));
+    $('#pN').textContent=list.length+' of '+r.people.length;
+    $('#pBody').innerHTML=list.slice(0,300).map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(showPhone(p.phone))}</td><td>${p.classes.map(c=>`<span class="chip g">${esc(cn(c.k))} ${esc(c.sid)}</span>`).join(' ')}</td></tr>`).join('')};
+  $('#pfind').oninput=drawP;drawP();
+  box.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{TAB='home';sess.set('att-tab',TAB);switchClass(b.dataset.go).then(()=>{paintNav();renderPane()})});
+  const form=c=>{$('#cfCard').innerHTML=`<h3>${c?'Edit '+esc(c.name):'Add a class'}</h3><form id="cfForm" novalidate>
+     <div class="field"><label for="cfName">Name</label><input id="cfName" maxlength="40" value="${esc(c?c.name:'')}" placeholder="English"></div>
+     <div class="field"><label for="cfRoom">Room</label><input id="cfRoom" maxlength="40" value="${esc(c?c.room:'')}" placeholder="Main hall"></div>
+     <div class="field"><label for="cfColor">Colour</label><select id="cfColor">${CLS_COLORS.map(([v,l])=>`<option value="${v}"${c&&c.color===v?' selected':''}>${l}</option>`).join('')}</select></div>
+     ${c?`<label class="check"><input type="checkbox" id="cfAct"${c.active?' checked':''}>Active (archived classes are hidden, their records stay)</label>`:'<p class="hint mb">The new class gets its own QR, students, IDs, schedule and settings. Set its days and times under Settings after you open it.</p>'}
+     <div id="cfMsg"></div><div class="row"><button class="btn">${c?'Save':'Add class'}</button>${c?'<button type="button" class="btn ghost" id="cfNew">New class</button>':''}</div></form>`;
+    if(c)$('#cfNew').onclick=()=>form(null);
+    $('#cfForm').onsubmit=async e=>{e.preventDefault();const body={action:'classSave',name:$('#cfName').value,room:$('#cfRoom').value,color:$('#cfColor').value};
+      if(c){body.id=c.id;body.active=$('#cfAct').checked}
+      const x=await staffCall(body);if(!x.ok){$('#cfMsg').innerHTML='<div class="msg err">'+esc(x.message)+'</div>';return}
+      toast(c?'Saved':x.class.name+' added');await refreshCorner();paneCorner(box)}};
+  form(null);
+  box.querySelectorAll('[data-ce]').forEach(b=>b.onclick=()=>form(cls.find(c=>c.id===b.dataset.ce)));
+  // which classes an instructor teaches, and their role in each
+  box.querySelectorAll('[data-se]').forEach(b=>b.onclick=()=>{const x=r.staff.find(s=>s.id===b.dataset.se),rc=$('#rlCard'),role=k=>(x.roles.find(o=>o.k===k)||{}).role||'';rc.hidden=false;
+    rc.innerHTML=`<h3>${esc(x.name)}'s classes</h3>${x.admin?'<p class="hint mb">Corner admin: owner in every class.</p>':''}${cls.filter(c=>c.active).map(c=>`<div class="field"><label for="rl-${esc(c.id)}">${esc(c.name)}</label><select id="rl-${esc(c.id)}" data-rk="${esc(c.id)}"><option value="">Not in this class</option><option value="instructor"${role(c.id)==='instructor'?' selected':''}>Instructor</option><option value="owner"${role(c.id)==='owner'?' selected':''}>Owner</option></select></div>`).join('')}<div id="rlMsg"></div>`;
+    rc.querySelectorAll('[data-rk]').forEach(sel=>sel.onchange=async()=>{const y=await staffCall({action:'staffSave',sid:x.id,k:sel.dataset.rk,role:sel.value});
+      if(!y.ok){$('#rlMsg').innerHTML='<div class="msg err">'+esc(y.message)+'</div>';return}toast('Saved');x.roles=x.roles.filter(o=>o.k!==sel.dataset.rk);if(sel.value)x.roles.push({k:sel.dataset.rk,role:sel.value})});
+    rc.scrollIntoView({behavior:'smooth',block:'nearest'})});
+}
+// the class list changed: the switcher learns it on the next data load
+async function refreshCorner(){await loadData(false,true)}
 function paneAccount(box){
   if(needV12(box))return;
   const me=DATA.me;
@@ -1841,6 +1951,8 @@ function supersede(o){const keys=new Set(cellsOf(o.body).map(m=>m.id+'|'+m.date)
     else{x.label=describeOp(x.body)[1];opHist(x,x.state,(before-x.body.list.length)+' of its cells were replaced by a newer change.')}})}
 // queue a change; resolves with the server answer, or {ok:false,message} when it is kept for a retry
 function saveOp(body){
+  // a change belongs to the class it was made in, even if it is sent after switching class
+  if(ADMK&&body.k===undefined)body=Object.assign({},body,{k:ADMK});
   const [kind,label]=describeOp(body),now=Date.now(),js=JSON.stringify(body);
   // the same change twice within a few seconds (a double tap) is one operation
   const dup=OPS.find(x=>mine(x)&&!OP_FINAL.includes(x.state)&&now-x.created<4000&&JSON.stringify(x.body)===js);

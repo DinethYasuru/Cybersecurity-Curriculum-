@@ -321,6 +321,7 @@ export class Corner extends DurableObject {
     if (sid && !cur) return fail('input', 'That instructor is gone.');
     // an owner who isn't the Corner admin may only manage people in their own class, and never the admin's account
     if (!mine && !who.admin && cur && cur.admin === 'yes') return fail('input', 'Only the Corner admin can change that account.');
+    if (!mine && !who.admin && cur && !this.one('SELECT role FROM roles WHERE sid = ? AND k = ?', sid, k)) return fail('input', 'That instructor is not in this class. Ask the Corner admin.');
     if (!mine && req.remove) {
       if (who.me && who.me.id === sid) return fail('input', 'You cannot remove yourself.');
       if (!who.admin) { this.sql.exec('DELETE FROM roles WHERE sid = ? AND k = ?', sid, k); return { ok: true }; }
@@ -331,7 +332,7 @@ export class Corner extends DurableObject {
     if (!okName(name)) return fail('input', 'Type a name with letters only.');
     if (!phone) return fail('input', 'Type a mobile number like 0771234567.');
     const clash = this.one('SELECT name FROM staff WHERE phone = ? AND id != ?', phone, sid);
-    if (clash) return fail('input', 'That number already belongs to instructor ' + clash.name + '.');
+    if (clash) return fail('input', 'That number already belongs to instructor ' + clash.name + '.' + (cur ? '' : ' The Corner admin can add them to this class.'));
     const stu = this.one('SELECT name FROM people WHERE phone = ?', phone);
     if (stu) return fail('input', 'That number belongs to student ' + stu.name + '. An instructor needs a number of their own.');
     if (req.photo != null && req.photo !== '' && !okPhoto(req.photo)) return fail('input', 'That photo could not be used. Try another one.');
