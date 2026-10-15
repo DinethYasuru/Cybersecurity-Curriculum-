@@ -848,9 +848,10 @@ function renderProfile(msg,err){
     <div class="pfhead">${avatar(me.name,myPhoto(),'lg')}<div><h3>${esc(me.name)}</h3><div class="hint">${esc(me.id)} · ${esc(showPhone(me.phone))}</div></div></div>
     ${msg?'<div class="msg good mt">'+esc(msg)+'</div>':''}
     <button class="btn ghost wide mt" id="pfEdit">Edit my profile</button>
-    <p class="hint mt" style="text-align:center"><button class="linkbtn" id="pfOut">Sign out of my profile on this phone</button></p>`;
+    <p class="hint mt" style="text-align:center"><button class="linkbtn" id="pfOut">Sign out on this phone</button></p>`;
   $('#pfEdit').onclick=()=>editProfile();
-  $('#pfOut').onclick=()=>{setProf(null);renderProfile()};
+  // a shared phone: forget the profile and the saved check-in name and number too
+  $('#pfOut').onclick=()=>{setProf(null);store.del('att-me');renderMeCard();renderPhone(null,true);renderProfile()};
 }
 function renderProfileSignIn(msg,err,phone){
   const box=$('#pfCard'),ck=getMe();phone=phone||(ck&&ck.phone)||'';
