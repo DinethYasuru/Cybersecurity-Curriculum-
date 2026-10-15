@@ -52,3 +52,13 @@ One server now runs every class at the American Corner.
 - **Instructors** sign in once and switch class at the top. The **Corner admin** (main password, or an instructor with the Corner admin box ticked) sees the American Corner page: today in every class, adding and archiving classes, who teaches where, and everyone who attends.
 - A new class gets an ID prefix from its name (English gives ENG-0001). Set its days and times under Settings after opening it.
 - The Google Sheet server stays single-class.
+
+## Data safety (server version 17)
+
+- Every request to a class runs as one transaction: all its changes are saved together, or none are.
+- Where a request came from and who sent it are never shared between requests that run at the same time.
+- A class's student list carries a version, so a late, older copy can't undo a newer change in the Corner.
+- A new name or number reaches a person's other classes first. The Corner records it only after each class accepted it.
+- Wrong passwords are counted per number and per internet address. A browser that signed in before has its own count.
+- Wrong server keys are counted once for the whole Corner.
+- Backups are stored in pieces, so a big class with photos still backs up.
