@@ -14,13 +14,11 @@
 html{-webkit-text-size-adjust:100%}
 body{background:var(--bg);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
 a{color:inherit}
-/* corner stripes + stars, behind content */
+/* corner stripes, behind content */
 .deco{position:absolute;top:0;left:0;right:0;height:560px;pointer-events:none;z-index:0;overflow:hidden}
 .stripes{position:absolute;top:-12vmin;left:-12vmin;width:46vmin;height:46vmin;transform:rotate(-45deg);display:grid;gap:2.2vmin;align-content:center;opacity:.9}
 .stripes i{display:block;height:2.2vmin;background:var(--red);transform-origin:left;animation:grow 1.4s var(--ease) both}
 .stripes i:nth-child(2){animation-delay:.12s}.stripes i:nth-child(3){animation-delay:.24s}.stripes i:nth-child(4){animation-delay:.36s}
-.stars{position:absolute;right:max(16px,calc(50% - 574px));top:170px;width:min(26vw,300px);display:grid;grid-template-columns:repeat(5,1fr);gap:1.4vmin;opacity:.14}
-.stars svg{width:100%;height:auto;fill:var(--navy);animation:fade 2.4s ease both}
 @keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 @keyframes up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
@@ -57,13 +55,12 @@ a.card:hover .go svg{transform:translateX(4px)}
 .card.soon h3{color:#5a6478}
 .tag{font-family:'Outfit';font-weight:600;font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;color:#8a94a8}
 footer{color:var(--muted);font-size:.95rem;text-align:center;border-top:1px solid var(--line);padding-top:24px}
-@media (max-width:820px){.stars{display:none}}
 @media (max-width:600px){.stripes{width:30vmin;height:30vmin;top:-9vmin;left:-9vmin;gap:1.6vmin}.stripes i{height:1.6vmin}header{margin-top:56px}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
-<div class="deco" aria-hidden="true"><div class="stripes"><i></i><i></i><i></i><i></i></div><div class="stars" id="stars"></div></div>
+<div class="deco" aria-hidden="true"><div class="stripes"><i></i><i></i><i></i><i></i></div></div>
 <main>
   <div class="brand" id="brand"></div>
   <header>
@@ -110,8 +107,6 @@ function usFlag(){
 document.getElementById('brand').innerHTML=usFlag()+
   '<img alt="United States Embassy Sri Lanka seal" src="'+EMB_IMG+'">'+
   '<img alt="American Corner Matara logo" src="'+ACM_IMG+'">';
-const starSVG='<svg viewBox="0 0 24 24"><polygon points="12,1 14.6,8.6 22.5,8.6 16.1,13.3 18.5,21 12,16.3 5.5,21 7.9,13.3 1.5,8.6 9.4,8.6"/></svg>';
-document.getElementById('stars').innerHTML=Array.from({length:15},(_,i)=>starSVG.replace('<svg','<svg style="animation-delay:'+(i*.08)+'s"')).join('');
 const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const arrow='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 let d=0;
