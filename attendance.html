@@ -7,6 +7,12 @@
 <meta name="description" content="American Corner Matara Cyber Security class: scan the classroom QR to check in.">
 <meta name="theme-color" content="#ffffff">
 <meta name="color-scheme" content="light">
+<link rel="manifest" href="attendance.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="attendance-icon-192.png">
+<link rel="apple-touch-icon" href="attendance-icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Attendance">
 <!-- the page may only talk to Google Apps Script and load its fonts and QR library; nothing else can be injected or sent out -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <meta name="referrer" content="no-referrer">
@@ -173,6 +179,8 @@ input[type=checkbox]{width:20px;height:20px;min-height:0;accent-color:var(--navy
 .chip.a{background:var(--red-50);color:var(--red)}
 .chip.x{background:var(--red);color:#fff}
 .chip.g{background:var(--canvas);color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+.msg.appbar{display:flex;align-items:center;gap:12px;background:var(--navy-50);border-color:var(--navy-100);margin:0 0 var(--s3)}
+.msg.appbar img{width:40px;height:40px;border-radius:10px;flex:none}.appbar span{flex:1;min-width:0}.appbar .x{background:none;border:0;font-size:1.4rem;line-height:1;color:var(--muted);cursor:pointer;padding:4px 6px}
 .msg{display:block;padding:12px 14px;border-radius:var(--r-sm);background:var(--canvas);border:1px solid var(--line);color:var(--ink-2);margin:var(--s3) 0;line-height:1.45;font-size:.95rem}
 .msg.err{background:var(--red-50);border-color:#f3c3cd;color:var(--red-d)}
 .msg.good{background:var(--navy-50);border-color:var(--navy-100);color:var(--navy)}
@@ -462,6 +470,7 @@ body.present{background:#fff}
     </div>
     <div class="page">
       <div class="wrap">
+        <div id="appBar" class="msg appbar" hidden></div>
         <div class="card anim" id="stCard"></div>
         <div class="card anim" id="meCard" style="animation-delay:.08s"></div>
         <div class="card anim" id="pfCard" style="animation-delay:.16s"></div>
@@ -714,8 +723,10 @@ function readCode(){const el=$('#scode');if(el)CODE=el.value.toUpperCase().repla
 function msgBox(msg){return '<div id="ciMsg">'+(msg?'<div class="msg err">'+esc(msg)+'</div>':'')+'</div>'}
 
 function stepper(n){return '<ol class="stepper" aria-label="Check-in steps">'+['Your number','Confirm','Done'].map((l,i)=>`<li class="${i+1<n?'done':i+1===n?'on':''}"${i+1===n?' aria-current="step"':''}>${i+1}. ${l}</li>`).join('')+'</ol>'}
-function renderPhone(msg){
+function renderPhone(msg,typed){
   const me=getMe()||{},c=$('#stCard');
+  // this phone checked in before: one tap instead of typing the number again
+  if(!typed&&SID&&me.phone&&me.id&&me.name)return renderQuick(me,msg);
   c.innerHTML=`${stepper(1)}<h2>${me.name?'Hi '+esc(me.name.split(' ')[0])+'!':'Check in'}</h2>
     <p class="lead">${CODE?'Code scanned. Type your mobile number.':needCode()?'Scan the QR on the classroom screen, or type the 6-letter code you see under it.':'Type your mobile number.'}</p>
     ${SID?'':'<div class="msg err">Not connected to the attendance server yet, so check-in will not save. Instructor: <a href="#setup">connect it or try the demo</a>.</div>'}
@@ -727,6 +738,19 @@ function renderPhone(msg){
   $('#ciForm').onsubmit=e=>{e.preventDefault();doLookup($('#sphone').value)};
   if(!me.phone)setTimeout(()=>{const i=$('#sphone');if(i&&!('ontouchstart' in window))i.focus()},60);
 }
+function renderQuick(me,msg){
+  const first=esc(me.name.split(' ')[0]);
+  $('#stCard').innerHTML=`${stepper(1)}<h2>Hi ${first}!</h2>
+    <p class="lead">${CODE?'Code scanned. Tap the button to check in.':needCode()?'Scan the QR on the classroom screen, or type the 6-letter code you see under it.':'Tap the button to check in.'}</p>
+    <div class="idcard"><div class="idk">Student ID</div><div class="idv">${esc(me.id)}</div>
+      <dl><dt>Name</dt><dd>${esc(me.name)}</dd><dt>Mobile</dt><dd>${esc(showPhone(me.phone))}</dd></dl></div>
+    <form id="qkForm" novalidate>${codeField()}<button class="btn wide big mt" id="qkBtn">Check in as ${first}</button></form>
+    <button class="btn ghost wide" style="margin-top:10px" id="qkOther">Not you? Use another number</button>${msgBox(msg)}`;
+  $('#qkForm').onsubmit=e=>{e.preventDefault();readCode();
+    if(needCode()&&CODE.length!==6)return renderQuick(me,'Type the 6-letter code from the screen.');
+    doConfirm({phone:me.phone,id:me.id,name:me.name})};
+  $('#qkOther').onclick=()=>renderPhone(null,true);
+}
 function fail(r,retry){
   if(r.reason==='code')CODE='';
   $('#stCard').innerHTML=`${stepper(r.reason==='closed'?1:2)}<div class="result">${BAD_SVG}<div class="headline">${r.reason==='closed'?'Check-in is closed':'Not checked in'}</div><p>${esc(r.message||'Something went wrong.')}${r.nextOpen?'<br>Opens '+esc(niceMs(r.nextOpen))+'.':''}</p><button class="btn big mt" id="again">Try again</button></div>`;
@@ -734,8 +758,8 @@ function fail(r,retry){
 }
 async function doLookup(raw){
   const phone=cleanPhone(raw);readCode();
-  if(!phone)return renderPhone('Type your mobile number, like 0771234567.');
-  if(needCode()&&CODE.length!==6)return renderPhone('Type the 6-letter code from the screen.');
+  if(!phone)return renderPhone('Type your mobile number, like 0771234567.',true);
+  if(needCode()&&CODE.length!==6)return renderPhone('Type the 6-letter code from the screen.',true);
   busy('Finding you…',1);
   const r=await stuApi({action:'lookup',phone,code:CODE,device:DEVICE},'Finding you…');
   if(!r.ok)return fail(r);
@@ -755,7 +779,7 @@ function renderRegister(phone,msg,example){
     <div class="msg">Mobile <b>${esc(showPhone(phone))}</b> <button type="button" class="linkbtn" id="wrongNo">Change</button></div>
     <form id="regForm" novalidate><div class="field"><label for="sname">Your name</label><input id="sname" autocomplete="name" maxlength="60" placeholder="First and last name" value="${esc(me.phone===phone?me.name||'':'')}"><div class="hint">Your full name, as your instructor should see it${example?'. Your ID will look like '+esc(example):''}.</div></div>
     <button class="btn wide big">Register</button></form>${msgBox(msg)}`;
-  $('#wrongNo').onclick=()=>renderPhone();
+  $('#wrongNo').onclick=()=>renderPhone(null,true);
   $('#regForm').onsubmit=async e=>{e.preventDefault();
     const name=$('#sname').value.trim().replace(/\s+/g,' ');
     if(!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name))return renderRegister(phone,'Type your name with letters only.',example);
@@ -773,11 +797,13 @@ function renderConfirm(st,isNew){
     <button class="btn wide big mt" id="yes">Yes, mark my attendance</button>
     <button class="btn ghost wide" style="margin-top:10px" id="no">No, this is not me</button>`;
   $('#yes').onclick=()=>doConfirm(st);
-  $('#no').onclick=()=>{const me=getMe();if(me&&me.phone===st.phone)store.del('att-me');renderMeCard();renderPhone('Check your number. If it is right but the name is wrong, tell your instructor.')};
+  $('#no').onclick=()=>{const me=getMe();if(me&&me.phone===st.phone)store.del('att-me');renderMeCard();renderPhone('Check your number. If it is right but the name is wrong, tell your instructor.',true)};
 }
 async function doConfirm(st){
   busy('Marking your attendance…');
   const r=await stuApi({action:'checkin',phone:st.phone,id:st.id,code:CODE,device:DEVICE},'Marking your attendance…');
+  // the saved details no longer match the class list: forget them so the number is typed again
+  if(!r.ok&&(r.reason==='changed'||r.reason==='unknown')){store.del('att-me');renderMeCard()}
   if(!r.ok)return fail(r);
   setMe(r.student);done(r);
 }
@@ -892,13 +918,27 @@ async function editProfile(msg){
     renderMeCard();renderProfile('Saved.')};
 }
 async function startStudent(){
-  renderMeCard();renderProfile();
+  renderMeCard();renderProfile();paintAppBar();
   $('#stCard').innerHTML=stepper(1)+'<div class="skel" style="height:28px;width:40%;margin-bottom:16px"></div><div class="skel" style="height:56px;margin-bottom:16px"></div><div class="skel" style="height:54px"></div>';
   await refreshStatus();if(!getProf())renderProfile();
   const me=getMe();
-  if(CODE&&me&&me.phone&&SID){doLookup(me.phone);return}
+  if(CODE&&me&&me.phone&&!me.id&&SID){doLookup(me.phone);return}
   renderPhone();
 }
+/* Add to home screen: Android/Chrome offers its own prompt; iPhone needs Share › Add to Home Screen */
+var installEvt=null;
+const isApp=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+function paintAppBar(){
+  const bar=$('#appBar');if(!bar)return;
+  if(isApp()||store.get('att-noapp')||!(installEvt||isIOS())){bar.hidden=true;return}
+  bar.hidden=false;
+  bar.innerHTML=`<img src="attendance-icon-192.png" alt=""><span>${installEvt?'Add Attendance to your home screen. It opens like an app.':'Add Attendance to your home screen: tap <b>Share</b>, then <b>Add to Home Screen</b>.'}</span>${installEvt?'<button class="btn small" id="appAdd" type="button">Add</button>':''}<button class="x" id="appX" type="button" aria-label="Hide">×</button>`;
+  const a=$('#appAdd');if(a)a.onclick=async()=>{const e=installEvt;installEvt=null;e.prompt();try{await e.userChoice}catch(x){}paintAppBar()};
+  $('#appX').onclick=()=>{store.set('att-noapp','1');paintAppBar()};
+}
+addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;paintAppBar()});
+addEventListener('appinstalled',()=>{installEvt=null;paintAppBar()});
 
 /* ---------- admin ---------- */
 let PHOTOS=null,photosAt=0;
