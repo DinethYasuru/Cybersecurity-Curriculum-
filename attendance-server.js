@@ -30,7 +30,7 @@
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 10;
+var SERVER_VERSION = 11;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -861,6 +861,7 @@ function doPost(e) {
   if (body.length > 300000) return json_({ ok: false, reason: 'input', message: 'Request too big.' });
   try { req = JSON.parse(body); } catch (err) { return json_({ ok: false, reason: 'input', message: 'Bad request.' }); }
   if (!req || typeof req !== 'object' || Array.isArray(req)) return json_({ ok: false, reason: 'input', message: 'Bad request.' });
+  if (req.action === 'data') ensureChangeTrigger_();
   return json_(AttendanceCore(sheetsEnv_()).handle(req));
 }
 // typing in the Sheet: forget the cached copy of that tab
@@ -868,6 +869,23 @@ function onEdit(e) {
   try {
     var name = e.range.getSheet().getName();
     for (var t in SHEET_NAMES) if (SHEET_NAMES[t] === name && CACHED_TABS[t]) tabGen_(CacheService.getScriptCache(), t, true);
+  } catch (err) {}
+}
+// deleting or inserting rows doesn't fire onEdit, so a change trigger forgets the cached tabs too
+function onSheetChange(e) {
+  try {
+    if (e && e.changeType === 'EDIT') return;
+    var cache = CacheService.getScriptCache();
+    Object.keys(CACHED_TABS).forEach(function (t) { tabGen_(cache, t, true); });
+  } catch (err) {}
+}
+function ensureChangeTrigger_() {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    if (props.getProperty('changeTrigger') === '1') return;
+    var has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'onSheetChange'; });
+    if (!has) ScriptApp.newTrigger('onSheetChange').forSpreadsheet(SpreadsheetApp.getActiveSpreadsheet()).onChange().create();
+    props.setProperty('changeTrigger', '1');
   } catch (err) {}
 }
 function onOpen() {
@@ -906,6 +924,7 @@ function menuReset() {
 function menuClearCache() {
   var cache = CacheService.getScriptCache();
   Object.keys(CACHED_TABS).forEach(function (t) { tabGen_(cache, t, true); });
+  PropertiesService.getScriptProperties().deleteProperty('changeTrigger'); ensureChangeTrigger_();
   SpreadsheetApp.getUi().alert('Done. The page reads the Sheet again.');
 }
 function createTabs() {
