@@ -30,7 +30,7 @@
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 9;
+var SERVER_VERSION = 10;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -108,6 +108,7 @@ function AttendanceCore(rawEnv) {
   function isOpen(now, s) {
     var t = local(now, s);
     if (extraWindow(now)) return true;
+    if (env.getProp('closedDay') === t.date) return false;
     return s.days.indexOf(t.day) >= 0 && t.time >= s.start && t.time < s.end && !cancelled(t.date);
   }
   // a past class day the instructor opened for a while so they can fix its marks in the register
@@ -125,7 +126,7 @@ function AttendanceCore(rawEnv) {
   // today's absences count only once the class window is over (13:00 by default)
   function todayDone(now, s) {
     var t = local(now, s);
-    return !isOpen(now, s) && (s.days.indexOf(t.day) < 0 || t.time >= s.end);
+    return !isOpen(now, s) && (s.days.indexOf(t.day) < 0 || t.time >= s.end || env.getProp('closedDay') === t.date);
   }
   function counted(date, now, s) {
     var today = local(now, s).date;
@@ -557,6 +558,30 @@ function AttendanceCore(rawEnv) {
       Object.keys(newDays).forEach(function (d) { if (!dd2.some(function (r) { return r.date === d; })) env.append('days', { date: d, status: 'held', note: '' }); });
       return { ok: true, changes: changes };
     }
+    if (a === 'absentRest') {
+      // everyone with no mark on that day gets 0; present and excused stay as they are
+      if (!validDate(req.date)) return fail('input', 'Pick a class day.');
+      if (req.date > t.date) return fail('input', 'You cannot mark a future day.');
+      if (cancelled(req.date)) return fail('input', 'That class was cancelled.');
+      if (!editable(req.date, now, s)) return fail('locked', LOCKED);
+      var markedA = {}, markedE = {}, firstA = {};
+      env.read('attendance').forEach(function (r) { if (r.date === req.date) markedA[r.id] = 1; if (!firstA[r.id] || r.date < firstA[r.id]) firstA[r.id] = r.date; });
+      env.read('excuses').forEach(function (r) { if (r.date === req.date) markedE[r.id] = 1; });
+      var sts = env.read('students'), absent = 0, moved = 0, ended = req.date === t.date && !todayDone(now, s);
+      sts.forEach(function (r) {
+        if (r.active === 'no' || markedA[r.id] || markedE[r.id]) return;
+        // a student who joined later only counts from the day they joined, so move that day back
+        var from = [firstA[r.id], r.added].filter(Boolean).sort()[0] || t.date;
+        if (s.fromFirst && from > req.date) { r.added = req.date; moved++; absent++; }
+        else if (ended) absent++;
+      });
+      if (moved) env.write('students', sts);
+      // today: end check-in now so the rest count as 0 straight away
+      if (ended) { env.setProp('extraUntil', '0'); env.setProp('closedDay', t.date); }
+      if (!env.read('days').some(function (r) { return r.date === req.date; })) env.append('days', { date: req.date, status: 'held', note: '' });
+      A('rest absent ' + req.date + ': ' + absent + (ended ? ', check-in ended' : ''));
+      return { ok: true, absent: absent, ended: ended };
+    }
     if (a === 'excuse') {
       if (!validId(id) || !validDate(req.date)) return fail('input', 'Pick a student and a date.');
       rows = env.read('excuses').filter(function (r) { return !(r.id === id && r.date === req.date); });
@@ -647,7 +672,7 @@ function AttendanceCore(rawEnv) {
 
   function backupInfo() { try { return JSON.parse(env.getProp('backup') || 'null') || { auto: false }; } catch (e) { return { auto: false }; } }
 
-  var WRITES = { mark: 1, marks: 1, excuse: 1, student: 1, bulk: 1, day: 1, extra: 1, openDay: 1, settings: 1, photo: 1, profileKey: 1, keyReq: 1, keyIssue: 1 };
+  var WRITES = { mark: 1, marks: 1, excuse: 1, student: 1, bulk: 1, day: 1, extra: 1, openDay: 1, absentRest: 1, settings: 1, photo: 1, profileKey: 1, keyReq: 1, keyIssue: 1 };
   // reading and backups don't wait for the lock, so the live screen never slows check-in down
   var NOLOCK = { data: 1, today: 1, logout: 1, export: 1, backup: 1, backupAuto: 1, photos: 1 };
   function handle(req) {
