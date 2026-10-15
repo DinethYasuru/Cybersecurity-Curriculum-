@@ -141,6 +141,16 @@ textarea{min-height:120px;resize:vertical}
 input:hover,select:hover,textarea:hover{border-color:#aab5c8}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(0,40,104,.15)}
 input[readonly]{background:var(--canvas);color:var(--muted)}
+.scanbtn{gap:10px}.scanbtn svg{width:24px;height:24px}
+.field .or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.85rem;margin:12px 0 8px}.field .or::before,.field .or::after{content:"";flex:1;height:1px;background:var(--line)}
+dialog.scan{border:0;padding:0;margin:0;width:100%;height:100%;max-width:100%;max-height:100%;background:#000;color:#fff}
+dialog.scan::backdrop{background:#000}
+dialog.scan video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+dialog.scan .frame{position:absolute;left:50%;top:45%;width:min(70vw,320px);aspect-ratio:1;transform:translate(-50%,-50%);border-radius:24px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45);outline:3px solid #fff;outline-offset:-3px}
+dialog.scan .scanbar{position:absolute;left:0;right:0;bottom:0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));text-align:center;display:grid;gap:14px}
+dialog.scan p{margin:0;font-size:1.05rem;line-height:1.4;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+dialog.scan .scanbar .btn{background:#fff;border-color:#fff;color:var(--navy)}
+dialog.scan h2{position:absolute;left:0;right:0;top:calc(18px + env(safe-area-inset-top));margin:0;text-align:center;color:#fff;font-family:'Outfit';font-size:1.25rem;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 input.code{font-family:'Outfit';font-weight:700;letter-spacing:.35em;text-transform:uppercase;font-size:1.5rem;text-align:center;min-height:58px}
 input.big{font-size:1.25rem;min-height:56px}
 input[type=checkbox]{width:20px;height:20px;min-height:0;accent-color:var(--navy);flex:none;padding:0}
@@ -504,6 +514,7 @@ body.present{background:#fff}
 </head>
 <body>
 <a class="sr" href="#main">Skip to content</a>
+<dialog class="scan" id="scanDlg" aria-label="Scan the QR"><video id="scanVid" muted playsinline></video><div class="frame"></div><h2>Scan the QR</h2><div class="scanbar"><p id="scanNote" role="status"></p><button type="button" class="btn ghost big wide" id="scanX">Close and type the code</button></div></dialog>
 <div class="demo" id="demoBar" hidden>Demo mode: data stays on this device only. Instructor › Setup to connect the real server.</div>
 <header class="topbar">
   <div class="tb-in">
@@ -776,7 +787,40 @@ async function stuApi(body,label){
   return last;
 }
 function busy(t,n){$('#stCard').innerHTML=stepper(n||2)+'<div class="result" role="status"><div class="spinner"></div><p>'+esc(t)+'</p></div>'}
-function codeField(){return needCode()?`<div class="field"${CODE?' hidden':''}><label for="scode">Code on the screen</label><input id="scode" class="code" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="••••••" value="${esc(CODE)}"></div>`:''}
+const CAN_SCAN=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.isSecureContext);
+function codeField(){return needCode()?`<div class="field"${CODE?' hidden':''}><label for="scode">Code on the screen</label>${CAN_SCAN?`<button type="button" class="btn ghost wide big scanbtn" data-scan><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/></svg>Scan the QR</button><div class="or"><span>or type the code</span></div>`:''}<input id="scode" class="code" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="••••••" value="${esc(CODE)}"></div>`:''}
+// camera QR scan inside the page: BarcodeDetector where the phone has it (Android Chrome), else jsQR (iPhone Safari)
+function codeFromQr(t){t=String(t||'').trim();let c='';try{c=new URL(t).searchParams.get('c')||''}catch(e){c=t}
+  c=c.toUpperCase().replace(/[^A-Z0-9]/g,'');return c.length===6?c:''}
+let jsQRp=null;
+function loadJsQR(){return jsQRp||(jsQRp=new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';sc.onload=()=>window.jsQR?ok(window.jsQR):no();sc.onerror=()=>{jsQRp=null;no()};document.head.appendChild(sc)}))}
+async function scanQr(){
+  const d=$('#scanDlg'),v=$('#scanVid'),note=$('#scanNote');let stream=null,done=false,raf=0;
+  const stop=()=>{done=true;cancelAnimationFrame(raf);if(stream)stream.getTracks().forEach(t=>t.stop());v.srcObject=null;if(d.open)d.close()};
+  return new Promise(async res=>{
+    $('#scanX').onclick=()=>{stop();res('')};d.oncancel=e=>{e.preventDefault();stop();res('')};
+    note.textContent='Point the camera at the QR on the classroom screen.';d.showModal();
+    try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false})}
+    catch(e){note.textContent='The camera is blocked. Allow the camera for this site, or close this and type the code.';return}
+    if(done){stream.getTracks().forEach(t=>t.stop());return}
+    v.srcObject=stream;v.setAttribute('playsinline','');try{await v.play()}catch(e){}
+    let det=null,jq=null;
+    try{if('BarcodeDetector' in window&&(await BarcodeDetector.getSupportedFormats()).includes('qr_code'))det=new BarcodeDetector({formats:['qr_code']})}catch(e){}
+    if(!det){try{jq=await loadJsQR()}catch(e){note.textContent='The scanner could not load. Close this and type the code.';return}}
+    const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});let busyF=false;
+    const tick=async()=>{if(done)return;raf=requestAnimationFrame(tick);if(busyF||v.readyState<2)return;busyF=true;
+      try{let txt='';
+        if(det){const r=await det.detect(v);txt=r[0]&&r[0].rawValue||''}
+        else{const w=v.videoWidth,h=v.videoHeight,k=Math.min(1,640/Math.max(w,h));cv.width=w*k|0;cv.height=h*k|0;cx.drawImage(v,0,0,cv.width,cv.height);
+          const q=jq(cx.getImageData(0,0,cv.width,cv.height).data,cv.width,cv.height,{inversionAttempts:'dontInvert'});txt=q?q.data:''}
+        if(txt){const c=codeFromQr(txt);if(c){if(navigator.vibrate)navigator.vibrate(60);stop();res(c);return}note.textContent='That QR is not the class code. Scan the one on the classroom screen.'}
+      }catch(e){}busyF=false};
+    tick();
+  });
+}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-scan]');if(!b)return;e.preventDefault();
+  const c=await scanQr();if(!c)return;CODE=c;const i=$('#scode');if(i)i.value=c;toast('Code scanned');
+  const f=b.closest('form');if(!f)return;if(f.id==='qkForm'||cleanPhone(($('#sphone')||{}).value))f.requestSubmit();else{const p=$('#sphone');if(p)p.focus()}});
 function readCode(){const el=$('#scode');if(el)CODE=el.value.toUpperCase().replace(/[^A-Z0-9]/g,'');return CODE}
 function msgBox(msg){return '<div id="ciMsg">'+(msg?'<div class="msg err">'+esc(msg)+'</div>':'')+'</div>'}
 
