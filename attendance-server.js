@@ -30,7 +30,7 @@
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 14;
+var SERVER_VERSION = 15;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -564,7 +564,7 @@ function AttendanceCore(rawEnv) {
     var byName = SESSION && SESSION.me ? SESSION.me.name : 'main password';
     var A = function (detail) { log(now, s, a, id, byName, 'admin', 'done', detail || ''); };
     // settings, the full download, bulk adds and removing students are for owners
-    var OWNER = { settings: 'change settings', export: 'download everything', bulk: 'add students in bulk', backupAuto: 'change backups' };
+    var OWNER = { settings: 'change settings', export: 'download everything', bulk: 'add students in bulk', backupAuto: 'change backups', dayDelete: 'delete a class day' };
     if ((OWNER[a] || (a === 'student' && req.remove)) && !isOwner()) return fail('input', 'Only an owner can ' + (OWNER[a] || 'remove students') + '.');
     if (a === 'logout') { env.cacheDel('adm:' + req.token); return { ok: true }; }
     if (a === 'data') {
@@ -801,6 +801,32 @@ function AttendanceCore(rawEnv) {
       env.write('days', rows);
       A(req.date + ' ' + (req.status || 'removed')); return { ok: true };
     }
+    // wipe a day as if it never happened (a test, or a day made by mistake): its check-ins, excuses, the day
+    // itself, and students who joined that day and have nothing on any other day. The Log keeps the record.
+    if (a === 'dayDelete') {
+      if (!validDate(req.date)) return fail('input', 'Pick a date.');
+      var dd = req.date, keepIds = {}, att0 = env.read('attendance'), exc0 = env.read('excuses');
+      att0.concat(exc0).forEach(function (r) { if (r.date !== dd) keepIds[r.id] = 1; });
+      var gone = env.read('students').filter(function (r) { return r.added === dd && !keepIds[r.id]; }).map(function (r) { return r.id; });
+      var goneSet = {}; gone.forEach(function (x) { goneSet[x] = 1; });
+      var nAtt = att0.filter(function (r) { return r.date === dd; }).length;
+      env.write('attendance', att0.filter(function (r) { return r.date !== dd; }));
+      env.write('excuses', exc0.filter(function (r) { return r.date !== dd; }));
+      env.write('days', env.read('days').filter(function (r) { return r.date !== dd; }));
+      if (gone.length) {
+        env.write('students', env.read('students').filter(function (r) { return !goneSet[r.id]; }));
+        env.write('profiles', env.read('profiles').filter(function (r) { return !goneSet[r.id]; }));
+        env.write('requests', env.read('requests').filter(function (r) { return !goneSet[r.id]; }));
+        // give the deleted IDs back, so the next real student doesn't skip numbers
+        var nx = Number(env.getProp('idNext') || 0);
+        while (nx > 0 && goneSet[formatId(s, nx - 1)]) nx--;
+        if (nx > 0) env.setProp('idNext', String(nx));
+      }
+      if (dd === t.date) { env.setProp('extraUntil', '0'); env.setProp('roomNet', ''); }
+      var od0 = openDay(now); if (od0 && od0.date === dd) env.setProp('openDay', '');
+      A(dd + ' deleted: ' + nAtt + ' check-ins, ' + gone.length + ' students' + (gone.length ? ' (' + gone.join(' ') + ')' : ''));
+      return { ok: true, checkins: nAtt, students: gone.length };
+    }
     if (a === 'extra') {
       var mins = Math.max(0, Math.min(240, Number(req.minutes) || 0));
       env.setProp('extraUntil', String(mins ? now + mins * 60000 : 0));
@@ -840,7 +866,7 @@ function AttendanceCore(rawEnv) {
 
   function backupInfo() { try { return JSON.parse(env.getProp('backup') || 'null') || { auto: false }; } catch (e) { return { auto: false }; } }
 
-  var WRITES = { staffSave: 1, myAccount: 1, mark: 1, marks: 1, excuse: 1, student: 1, bulk: 1, day: 1, extra: 1, openDay: 1, absentRest: 1, settings: 1, photo: 1, profileKey: 1, keyReq: 1, keyIssue: 1 };
+  var WRITES = { dayDelete: 1, staffSave: 1, myAccount: 1, mark: 1, marks: 1, excuse: 1, student: 1, bulk: 1, day: 1, extra: 1, openDay: 1, absentRest: 1, settings: 1, photo: 1, profileKey: 1, keyReq: 1, keyIssue: 1 };
   // reading and backups don't wait for the lock, so the live screen never slows check-in down
   var NOLOCK = { data: 1, today: 1, logout: 1, export: 1, backup: 1, backupAuto: 1, photos: 1 };
   function handle(req) {
