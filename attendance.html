@@ -207,6 +207,9 @@ dialog.sheet .snav{padding:var(--s4) var(--s4) calc(var(--s4) + env(safe-area-in
 .chart .col{flex:1 1 0;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;position:relative;cursor:default}
 .chart .col i{display:block;width:min(70%,44px);background:var(--navy);border-radius:4px 4px 0 0;transition:height .8s var(--ease);min-height:2px}
 .chart .col.low i{background:var(--red)}
+.chartwrap{overflow-x:auto;overflow-y:hidden;margin:0 -4px;padding:0 4px}
+.chart .col .ph{display:block;width:min(70%,44px);height:10px;border:1.5px dashed #c3cbd8;border-bottom:0;border-radius:4px 4px 0 0}
+.chart .col.off em{color:#b0b9c8}.chart .col.cx em{text-decoration:line-through}
 .chart .col:hover i,.chart .col:focus i{filter:brightness(1.35)}
 .chart .col em{position:absolute;bottom:-24px;font-style:normal;font-size:.75rem;color:var(--muted);white-space:nowrap}
 .chart .col .tip{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:.8rem;padding:6px 10px;border-radius:8px;white-space:nowrap;display:none;pointer-events:none;z-index:3}
@@ -1029,7 +1032,8 @@ function paneHome(box){
   const below70=counted.filter(r=>eff(r)<.7-1e-9).length;
   const absentToday=isClass?Math.max(0,active.length-todayAtt.length-todayExc.length):0;
   // turnout per class day: present out of everyone counted that day
-  const days=C.held.slice(-12).map(d=>{let P=0,n=0;C.rows.forEach(r=>{const c=r.cells[d];if(c==='P'||c==='E'||c==='A'){n++;if(c==='P')P++}});return {d,P,n,v:n?P/n:null}});
+  // every class day on the axis; bars only for days that were held
+  const days=[...new Set(DATA.days.map(x=>x.date).concat(C.held))].sort().map(d=>{if(!C.held.includes(d)){const i=DATA.days.find(y=>y.date===d)||{};return {d,off:i.status==='cancelled'?'Cancelled':'Not held yet'}}let P=0,n=0;C.rows.forEach(r=>{const c=r.cells[d];if(c==='P'||c==='E'||c==='A'){n++;if(c==='P')P++}});return {d,P,n,v:n?P/n:null}});
   const recent=todayAtt.length?todayAtt:(()=>{const last=C.held.filter(d=>d<today).slice(-1)[0];return last?DATA.attendance.filter(r=>r.date===last).sort((a,b)=>a.time<b.time?1:-1):[]})();
   const recentDay=todayAtt.length?today:(recent[0]&&recent[0].date);
   const upcoming=DATA.excuses.filter(e=>e.date>=today).sort((a,b)=>a.date<b.date?-1:1).slice(0,5);
@@ -1044,8 +1048,8 @@ function paneHome(box){
    </div>
    <div class="dash">
      <div class="stack">
-       <div class="card"><div class="card-h"><div><h3>Attendance by class day</h3><p class="hint">Share of the class present each day. The dashed line is the ${RPT.th}% pass mark.</p></div><button class="btn ghost small" data-go="reports">Open reports</button></div>
-         ${days.length?`<div class="chart" role="img" aria-label="Attendance by class day">${days.map(x=>`<div class="col${x.v!=null&&x.v<th?' low':''}" tabindex="0"><span class="tip">${esc(niceDate(x.d))}: ${x.P} of ${x.n} (${x.v==null?'–':Math.round(x.v*100)+'%'})</span><i style="height:0" data-h="${x.v==null?0:Math.max(1,x.v*100)}%"></i><em>${esc(niceDate(x.d,false))}</em></div>`).join('')}<div class="thr" style="bottom:calc(26px + (100% - 50px) * ${th})"><span>${RPT.th}%</span></div></div>`:emptyHTML('No class days yet','The chart fills in after the first class.')}
+       <div class="card"><div class="card-h"><div><h3>Attendance by class day</h3><p class="hint">Share of the class present each day. The dashed line is the ${RPT.th}% pass mark. Grey days are not held yet or cancelled.</p></div><button class="btn ghost small" data-go="reports">Open reports</button></div>
+         ${days.length?`<div class="chartwrap"><div class="chart" role="img" aria-label="Attendance by class day" style="min-width:${days.length*42+44}px">${days.map(x=>x.off?`<div class="col off${x.off==='Cancelled'?' cx':''}" tabindex="0"><span class="tip">${esc(niceDate(x.d))}: ${x.off.toLowerCase()}</span><b class="ph"></b><em>${esc(niceDate(x.d,false))}</em></div>`:`<div class="col${x.v!=null&&x.v<th?' low':''}" tabindex="0"><span class="tip">${esc(niceDate(x.d))}: ${x.P} of ${x.n} (${x.v==null?'–':Math.round(x.v*100)+'%'})</span><i style="height:0" data-h="${x.v==null?0:Math.max(1,x.v*100)}%"></i><em>${esc(niceDate(x.d,false))}</em></div>`).join('')}<div class="thr" style="bottom:calc(26px + (100% - 50px) * ${th})"><span>${RPT.th}%</span></div></div></div>`:emptyHTML('No class days yet','The chart fills in after the first class.')}
        </div>
        <div class="card"><div class="card-h"><div><h3>Needs attention</h3><p class="hint">Below ${RPT.th}%${RPT.useExc?', counting approved excuses':''}. Lowest first.</p></div>${below.length>6?`<button class="btn ghost small" data-go="reports" data-view="pass">See all ${below.length}</button>`:''}</div>
          ${below.length?`<div class="list">${below.slice(0,6).map(r=>`<div class="li risk"><div class="l">${avatar(r.s.name,PHOTOS&&PHOTOS[r.s.id])}<div class="nm"><b>${esc(r.s.name)}</b><span>${esc(r.s.id)} · ${r.P} of ${r.n} classes${r.E?' · '+r.E+' excused':''}</span></div></div>${barHTML(eff(r))}<span class="chip ${eff(r)<.7?'x':'a'}">${pct(eff(r))}</span></div>`).join('')}</div>`:emptyHTML('Everyone is on track','Nobody is below '+RPT.th+'% right now.')}
