@@ -30,7 +30,7 @@
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 12;
+var SERVER_VERSION = 13;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -158,10 +158,12 @@ function AttendanceCore(rawEnv) {
     if (!k) { k = env.random(); env.setProp('qrKey', k); }
     return k;
   }
+  // instructors' browsers get only today's key, so a copied key stops working at midnight
+  function dayKey(date) { return env.hmac(qrKey(), 'day:' + date).map(function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }
   function codeOk(code, now, s) {
     code = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (code.length !== 6) return false;
-    var slot = Math.floor(now / (s.slotSeconds * 1000)), key = qrKey();
+    var slot = Math.floor(now / (s.slotSeconds * 1000)), key = dayKey(local(now, s).date);
     for (var i = -1; i < s.codeSlots; i++) if (codeFor(key, slot - i) === code) return true;
     return false;
   }
@@ -220,10 +222,11 @@ function AttendanceCore(rawEnv) {
     if (!/^[a-z0-9]{8,40}$/i.test(device)) { L('rejected', 'no device id'); return fail('device', 'Open this page in a normal browser tab and try again.'); }
     if (rateLimited('rl:' + device, 20, 600)) { L('rejected', 'too many tries'); return fail('slow', 'Too many tries. Wait 10 minutes.'); }
     if (!cleanPhone(req.phone)) { L('rejected', 'bad number'); return fail('phone', 'Type your mobile number, like 0771234567.'); }
-    // a new device id per try is easy to fake, so each number has its own limit too
-    if (rateLimited('rp:' + cleanPhone(req.phone), 12, 600)) { L('rejected', 'too many tries for number'); return fail('slow', 'Too many tries for this number. Wait 10 minutes.'); }
     if (!isOpen(now, s)) { L('rejected', 'closed'); return fail('closed', 'Check-in is closed now.', { nextOpen: nextOpen(now, s) }); }
     if (s.requireCode && !codeOk(req.code, now, s)) { L('rejected', 'bad or old code'); return fail('code', 'That QR code has expired. Scan the screen again.'); }
+    // a new device id per try is easy to fake, so each number has its own limit too; counted only after the
+    // code check, so nobody outside the room can lock a classmate's number
+    if (rateLimited('rp:' + cleanPhone(req.phone), 12, 600)) { L('rejected', 'too many tries for number'); return fail('slow', 'Too many tries for this number. Wait 10 minutes.'); }
     return null;
   }
   function validName(n) { return n.length >= 2 && n.length <= 60 && /^[\p{L}\p{M} .'-]+$/u.test(n); }
@@ -273,8 +276,10 @@ function AttendanceCore(rawEnv) {
     if (!s.selfRegister) { L('rejected', 'self register off'); return fail('unknown', 'This number is not on the class list. Talk to your instructor.'); }
     if (!validName(name)) { L('rejected', 'bad name'); return fail('name', 'Type your name with letters only.'); }
     var hit = byPhone(phone);
-    if (hit) { L('duplicate', 'number already ' + hit.id); return { ok: true, student: studentOut(hit), existing: true }; }
+    if (hit) { L('duplicate', 'number already ' + hit.id); return { ok: true, student: { id: hit.id, name: maskName(hit.name), phone: hit.phone }, masked: true, existing: true }; }
     if (staffByPhone(phone)) { L('rejected', 'instructor number'); return fail('unknown', STAFF_PHONE); }
+    // made-up numbers: a few per phone a day, and not a flood for the whole class
+    if (rateLimited('rg:' + cleanDevice(req.device) + ':' + t.date, 3, 86400) || rateLimited('rgall', 100, 600)) { L('rejected', 'too many registrations'); return fail('slow', 'Too many new registrations right now. Ask your instructor.'); }
     var st = { id: nextId(s, env.read('students')), name: name, added: t.date, source: 'self', active: 'yes', phone: phone };
     env.append('students', st);
     L('accepted', st.id);
@@ -415,6 +420,8 @@ function AttendanceCore(rawEnv) {
     var salt = env.random();
     env.setProp('adminSalt', salt);
     env.setProp('adminHash', hashPw(pw, salt));
+    // a new main password signs every instructor browser out
+    env.setProp('admEpoch', String(Number(epoch()) + 1));
   }
   // a browser that signed in before gets a "trusted" key (90 days). Wrong passwords from other browsers
   // lock sign-in for 15 minutes, but not on a trusted browser, so students can't lock the instructor out.
@@ -446,9 +453,9 @@ function AttendanceCore(rawEnv) {
         return fail('password', 'Wrong number or password.');
       }
       var tk = env.random();
-      env.cachePut('adm:' + tk, epoch() + '|' + who.id, 21600);
+      env.cachePut('adm:' + tk, epoch() + '|' + who.id + '|' + String(who.salt).slice(0, 8), 21600);
       log(now, s, 'login', who.id, who.name, '', 'accepted', trust ? 'trusted browser' : 'new browser');
-      return { ok: true, token: tk, qrKey: qrKey(), now: now, hours: 6, trust: trust ? req.trust : trustNew(now), me: staffOut(who) };
+      return { ok: true, token: tk, qrKey: dayKey(local(now, s).date), now: now, hours: 6, trust: trust ? req.trust : trustNew(now), me: staffOut(who) };
     }
     if (!env.getProp('adminHash')) return fail('nopass', 'No admin password yet. Set it in the Google Sheet (Attendance menu) or in Setup › Cloudflare server tools.');
     if (Number(env.cacheGet(failKey) || 0) >= (trust ? 10 : 20)) { log(now, s, 'login', '', '', '', 'rejected', 'locked' + (trust ? ' (trusted browser)' : '')); return fail('locked', 'Too many wrong passwords. Wait 15 minutes, or unlock sign-in (Google Sheet: Attendance menu; Cloudflare: Setup › Cloudflare server tools).'); }
@@ -460,7 +467,7 @@ function AttendanceCore(rawEnv) {
     var token = env.random();
     env.cachePut('adm:' + token, epoch(), 21600);
     log(now, s, 'login', '', '', '', 'accepted', trust ? 'trusted browser' : 'new browser');
-    return { ok: true, token: token, qrKey: qrKey(), now: now, hours: 6, trust: trust ? req.trust : trustNew(now) };
+    return { ok: true, token: token, qrKey: dayKey(local(now, s).date), now: now, hours: 6, trust: trust ? req.trust : trustNew(now) };
   }
   // the session remembers who signed in: '' is the main password, otherwise an instructor id
   var SESSION = null;
@@ -470,7 +477,11 @@ function AttendanceCore(rawEnv) {
     var v = String(env.cacheGet('adm:' + req.token) || ''), parts = v.split('|');
     if (parts[0] !== epoch()) return false;
     var me = null;
-    if (parts[1]) { me = env.read('staff').filter(function (r) { return r.id === parts[1]; })[0]; if (!me || me.active === 'no') return false; }
+    if (parts[1]) {
+      me = env.read('staff').filter(function (r) { return r.id === parts[1]; })[0];
+      // a new password gives a new salt, which ends the sessions made with the old one
+      if (!me || me.active === 'no' || (parts[2] != null && parts[2] !== String(me.salt).slice(0, 8))) return false;
+    }
     SESSION = { me: me };
     return true;
   }
@@ -489,6 +500,9 @@ function AttendanceCore(rawEnv) {
     var s = settings(), t = local(now, s), a = req.action, rows, id = cleanId(req.id);
     var byName = SESSION && SESSION.me ? SESSION.me.name : 'main password';
     var A = function (detail) { log(now, s, a, id, byName, 'admin', 'done', detail || ''); };
+    // settings, the full download, bulk adds and removing students are for owners
+    var OWNER = { settings: 'change settings', export: 'download everything', bulk: 'add students in bulk', backupAuto: 'change backups' };
+    if ((OWNER[a] || (a === 'student' && req.remove)) && !isOwner()) return fail('input', 'Only an owner can ' + (OWNER[a] || 'remove students') + '.');
     if (a === 'logout') { env.cacheDel('adm:' + req.token); return { ok: true }; }
     if (a === 'data') {
       // only the newest 400 log lines; the Log tab keeps everything
@@ -498,7 +512,7 @@ function AttendanceCore(rawEnv) {
         days: env.read('days'), log: lg.slice(Math.max(0, lg.length - 400)), backup: backupInfo(),
         requests: env.read('requests').filter(function (r) { return now - Number(r.at) < 30 * 86400000; }),
         nextIdPreview: formatId(s, Math.max(Number(env.getProp('idNext') || 0), Number(s.idStart) || 1)),
-        staff: env.read('staff').map(staffOut), me: SESSION && SESSION.me ? staffOut(SESSION.me) : null, owner: isOwner() };
+        staff: env.read('staff').map(staffOut), me: SESSION && SESSION.me ? staffOut(SESSION.me) : null, owner: isOwner(), qrKey: dayKey(t.date) };
     }
     if (a === 'staffSave' || a === 'myAccount') {
       // owners add and change instructors; everyone changes their own name, number, photo and password
@@ -510,7 +524,7 @@ function AttendanceCore(rawEnv) {
       if (sid && !cur) return fail('input', 'That instructor is gone.');
       if (!mine && req.remove) {
         if (SESSION.me && SESSION.me.id === sid) return fail('input', 'You cannot remove yourself.');
-        if (cur.role === 'owner' && rows.filter(function (r) { return r.role === 'owner' && r.active !== 'no'; }).length < 2) return fail('input', 'Keep at least one owner.');
+        if (cur.role === 'owner' && cur.active !== 'no' && rows.filter(function (r) { return r.role === 'owner' && r.active !== 'no' && r.id !== sid; }).length < 1) return fail('input', 'Keep at least one owner.');
         env.write('staff', rows.filter(function (r) { return r.id !== sid; }));
         env.write('profiles', env.read('profiles').filter(function (r) { return r.id !== sid; }));
         log(now, s, a, sid, byName, 'admin', 'done', 'removed ' + cur.name); return { ok: true };
@@ -647,20 +661,26 @@ function AttendanceCore(rawEnv) {
       var markedA = {}, markedE = {}, firstA = {};
       env.read('attendance').forEach(function (r) { if (r.date === req.date) markedA[r.id] = 1; if (!firstA[r.id] || r.date < firstA[r.id]) firstA[r.id] = r.date; });
       env.read('excuses').forEach(function (r) { if (r.date === req.date) markedE[r.id] = 1; });
-      var sts = env.read('students'), absent = 0, moved = 0, ended = req.date === t.date && !todayDone(now, s);
+      if (req.date === t.date && t.time < s.start && !extraWindow(now)) return fail('input', 'Class has not started yet. Do this after ' + s.start + '.');
+      var held = env.read('days').filter(function (r) { return r.status !== 'cancelled'; }).map(function (r) { return r.date; });
+      var sts = env.read('students'), absent = 0, moved = 0, skipped = 0, ended = req.date === t.date && !todayDone(now, s);
       sts.forEach(function (r) {
         if (r.active === 'no' || markedA[r.id] || markedE[r.id]) return;
-        // a student who joined later only counts from the day they joined, so move that day back
+        // a student who joined later only counts from the day they joined, so move that day back,
+        // but only when no other class day lies in between (that would mark them absent there too)
         var from = [firstA[r.id], r.added].filter(Boolean).sort()[0] || t.date;
-        if (s.fromFirst && from > req.date) { r.added = req.date; moved++; absent++; }
+        if (s.fromFirst && from > req.date) {
+          if (held.some(function (d) { return d > req.date && d < from; })) { skipped++; return; }
+          r.added = req.date; moved++; absent++;
+        }
         else if (ended) absent++;
       });
       if (moved) env.write('students', sts);
       // today: end check-in now so the rest count as 0 straight away
       if (ended) { env.setProp('extraUntil', '0'); env.setProp('closedDay', t.date); }
       if (!env.read('days').some(function (r) { return r.date === req.date; })) env.append('days', { date: req.date, status: 'held', note: '' });
-      A('rest absent ' + req.date + ': ' + absent + (ended ? ', check-in ended' : ''));
-      return { ok: true, absent: absent, ended: ended };
+      A('rest absent ' + req.date + ': ' + absent + (ended ? ', check-in ended' : '') + (skipped ? ', ' + skipped + ' late joiners left out' : ''));
+      return { ok: true, absent: absent, ended: ended, skipped: skipped };
     }
     if (a === 'excuse') {
       if (!validId(id) || !validDate(req.date)) return fail('input', 'Pick a student and a date.');
@@ -775,7 +795,7 @@ function AttendanceCore(rawEnv) {
       if (NOLOCK[req.action]) return admin(req, now);
       return env.lock(function () {
         // the page retries a save when an answer gets lost; the same operation id returns the first answer
-        var key = req.opId && WRITES[req.action] ? 'op:' + String(req.opId).slice(0, 40) : '';
+        var key = req.opId && WRITES[req.action] ? 'op:' + req.action + ':' + String(req.opId).slice(0, 40) : '';
         if (key) { var seen = env.cacheGet(key); if (seen) { var o = JSON.parse(seen); o.repeat = true; return o; } }
         var res = admin(req, now);
         if (key && res && res.ok) env.cachePut(key, JSON.stringify(res), 21600);
@@ -871,7 +891,9 @@ function sheetsEnv_() {
     },
     // appends and writes only run inside the lock (see AttendanceCore), so rows never collide
     append: function (t, o) {
-      var sh = sheet(t), r = sh.getRange(sh.getLastRow() + 1, 1, 1, TABLES[t].length);
+      var sh = sheet(t), last = sh.getLastRow();
+      if (last >= sh.getMaxRows()) { sh.insertRowsAfter(sh.getMaxRows(), 1000); sh.getRange(last + 1, 1, 1000, TABLES[t].length).setNumberFormat('@'); }
+      var r = sh.getRange(last + 1, 1, 1, TABLES[t].length);
       r.setNumberFormat('@'); r.setValues([toRow(t, o)]);
       if (!CACHED_TABS[t]) return;
       var old = cacheLoad_(cache, t, tabGen_(cache, t)), g = tabGen_(cache, t, true);
@@ -880,6 +902,7 @@ function sheetsEnv_() {
     write: function (t, rows) {
       var sh = sheet(t), cols = TABLES[t].length, n = sh.getLastRow();
       if (n > 1) sh.getRange(2, 1, n - 1, cols).clearContent();
+      if (rows.length + 1 > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), rows.length + 1 - sh.getMaxRows() + 500);
       if (rows.length) { var r = sh.getRange(2, 1, rows.length, cols); r.setNumberFormat('@'); r.setValues(rows.map(function (o) { return toRow(t, o); })); }
       if (CACHED_TABS[t]) cacheSave_(cache, t, tabGen_(cache, t, true), rows.map(function (o) { var x = {}; TABLES[t].forEach(function (c) { x[c] = o[c] == null ? '' : String(o[c]); }); return x; }).filter(function (x) { return TABLES[t].map(function (c) { return x[c]; }).join('') !== ''; }));
     },
