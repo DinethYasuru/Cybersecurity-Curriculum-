@@ -306,17 +306,7 @@ tr.opd td{background:#fbfcfe;padding:0}
 .opd-in pre{background:#fff;border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;font-size:.82rem;overflow:auto;max-height:220px;margin:0 0 12px;white-space:pre-wrap;word-break:break-word}
 .tl{list-style:none;padding:0;margin:0;display:grid;gap:8px;font-size:.92rem}
 .tl li{line-height:1.45}
-.sdg{width:100%;height:auto;display:block;margin:8px 0 12px}
-.sdg .sd rect{fill:#fff;stroke:var(--line-2);stroke-width:1.5}
-.sdg .sd text{font-family:'Outfit';font-weight:700;font-size:15px;fill:var(--navy)}
-.sdg .sd.s rect{fill:var(--navy-50);stroke:var(--navy-100)}
-.sdg .sd.d rect{fill:var(--navy);stroke:var(--navy)}.sdg .sd.d text{fill:#fff}
-.sdg .sd.f rect{fill:var(--red-50);stroke:#f3c3cd}.sdg .sd.f text{fill:var(--red)}
-.sdg .sd.b rect{fill:var(--red);stroke:var(--red)}.sdg .sd.b text{fill:#fff}
-.sdg .sda{fill:none;stroke:#5b6b86;stroke-width:1.6}.sdg .sda.dash{stroke-dasharray:5 4}
-.sdg .sdl{font-family:'DM Sans';font-size:12px;fill:#5b6b86}
-.sdwrap{overflow-x:auto}
-@media (max-width:860px){.opd-in{grid-template-columns:minmax(0,1fr);position:sticky;left:0;width:calc(100vw - 2*var(--gut) - 4px);padding:var(--s4)}.sdg{min-width:620px}}
+@media (max-width:860px){.opd-in{grid-template-columns:minmax(0,1fr);position:sticky;left:0;width:calc(100vw - 2*var(--gut) - 4px);padding:var(--s4)}}
 .reg td.cell button.lk:hover{opacity:.7}
 .reg th .thb{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:inherit;border-radius:6px;padding:2px 4px}
 .reg th .thb svg{width:12px;height:12px;flex:none}
@@ -1853,20 +1843,6 @@ function paintOpsBody(){
   $('#opsRetryAll').hidden=!all.some(o=>o.state==='failed'&&!o.read);
   $('#opsBody').innerHTML=rows.length?rows.slice(0,400).map(o=>`<tr class="opr${opsOpen.has(o.id)?' open':''}" data-id="${esc(o.id)}"><td class="nowrap">${esc(opTime(o.created))}</td><td><b>${esc(o.label)}</b><br><span class="hint">${esc(o.kind)}</span></td><td>${opChip(o)}</td><td class="num">${o.attempts||0}</td><td class="num nowrap">${esc(secs(o.ms))}</td><td class="opdet">${esc(o.detail||'')}</td><td class="noprint"><div class="row nowrap">${opActs(o)}</div></td></tr>${opsOpen.has(o.id)?opDetailRow(o):''}`).join('')
     :`<tr><td colspan="7">${emptyHTML(opsF==='attn'?'Nothing needs you':'No operations yet',opsF==='attn'?'Every change reached the server.':'Changes you make show here with their status.')}</td></tr>`}
-function opsDiagram(){
-  const N=(x,y,t,c)=>`<g class="sd ${c}"><rect x="${x-62}" y="${y-19}" width="124" height="38" rx="10"/><text x="${x}" y="${y+5}" text-anchor="middle">${t}</text></g>`;
-  const A=(d,l,lx,ly,dash)=>`<path d="${d}" class="sda${dash?' dash':''}" marker-end="url(#sdh)"/>${l?`<text class="sdl" x="${lx}" y="${ly}" text-anchor="middle">${l}</text>`:''}`;
-  return `<div class="sdwrap"><svg class="sdg" viewBox="0 0 760 270" role="img" aria-label="Status flow of an operation"><defs><marker id="sdh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#5b6b86"/></marker></defs>
-    ${A('M147 60H198','','','')}${A('M327 60H378','','','')}${A('M507 60H558','','','')}
-    ${A('M265 41C265 6 625 6 625 39','answered',445,16)}
-    ${A('M78 79V131','offline',40,108)}${A('M92 131V81','back',122,108)}
-    ${A('M258 79V131','no answer / error',178,108)}${A('M272 131V81','auto, after a wait',352,108)}
-    ${A('M327 150H378','last try',352,140)}
-    ${A('M318 78L570 135','',0,0)}<text class="sdl" x="470" y="132" text-anchor="middle">signed out · day locked</text><text class="sdl" x="470" y="146" text-anchor="middle">· old server</text>
-    ${A('M445 169V222H10V60H21','',0,0,1)}${A('M625 169V222H448','',0,0,1)}<text class="sdl" x="300" y="240" text-anchor="middle">Retry · Unblock and retry → back to Queued</text>
-    ${N(85,60,'Queued','q')}${N(265,60,'Sending','s')}${N(445,60,'Slow','s')}${N(625,60,'Done','d')}
-    ${N(85,150,'Waiting','q')}${N(265,150,'Retrying','s')}${N(445,150,'Failed','f')}${N(625,150,'Blocked','b')}</svg></div>
-    <p class="hint">Anything not done yet can be cancelled. A newer tap on the same register cell replaces an older change that has not gone out (shown as Replaced). If the page closes while sending, it sends again next time; the server saves an operation only once.</p>`}
 function paneOps(box){
   paintHead(`<button class="btn ghost" id="opsRetryAll" hidden>${ICON.refresh}<span>Retry all failed</span></button><button class="btn ghost" id="opsExport">${ICON.download}<span>Export</span></button>`);
   const cfg=opsCfg(),sel=(id,v,opts)=>`<select id="${id}">${opts.map(([k,l])=>`<option value="${k}"${+k===+v?' selected':''}>${l}</option>`).join('')}</select>`;
@@ -1876,7 +1852,6 @@ function paneOps(box){
       <div class="search">${ICON.search}<input id="opsQ" type="search" placeholder="Search operations" aria-label="Search operations" autocomplete="off" value="${esc(opsQ)}"></div><span class="count" id="opsN"></span></div>
     <div class="tblwrap"><table class="ops"><thead><tr><th>When</th><th>Operation</th><th>Status</th><th class="num">Tries</th><th class="num">Took</th><th>Detail</th><th class="noprint"><span class="sr">Actions</span></th></tr></thead><tbody id="opsBody"></tbody></table></div>
     <p class="hint mt">Tap a row to see its full history and what was sent.</p>
-    <div class="card mt" style="animation:none"><h3>How the statuses work</h3>${opsDiagram()}</div>
     <div class="card mt" style="animation:none"><h3>Operations settings</h3><form id="opsCfgF">
       <div class="opscfg">
         <div class="field"><label for="ocKeep">Keep finished records for</label>${sel('ocKeep',cfg.keepDays,[[7,'1 week'],[14,'2 weeks'],[30,'1 month'],[60,'2 months'],[90,'3 months']])}</div>
