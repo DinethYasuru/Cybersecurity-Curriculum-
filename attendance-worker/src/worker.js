@@ -59,6 +59,8 @@ const STUDENT = { status: 1, lookup: 1, register: 1, checkin: 1, me: 1, profile:
 const HUB_ADMIN = { corner: 1, classSave: 1, classDelete: 1, people: 1, staffSave: 1, myAccount: 1 };
 // what a coordinator account may do inside a class: look, never change (and never get the QR key)
 const COORD_READ = { data: 1, today: 1, photos: 1, export: 1 };
+// one request may call only so many other objects on Cloudflare (50 on the free plan): today's numbers come in pages
+const CORNER_STATS = 20;
 const SYNC_AFTER = { register: 1, profileSave: 1, student: 1, bulk: 1, dayDelete: 1 };
 const doName = k => (k === 'cyber' ? 'class' : 'class:' + k);
 // student ID prefix for a new class: initials of a long name (Graphic Designing Foundations: GDF-), else its first letters (English: ENG-)
@@ -202,15 +204,18 @@ export default {
     if (who.me && who.me.mustSetup && a !== 'myAccount') return json({ ok: false, reason: 'setup', message: 'Set up your account first.', me: who.me });
     if (HUB_ADMIN[a]) {
       if (a === 'corner') {
-        // today in every class, for the Corner admin
+        // the class list, people and accounts come from the Corner alone; today's numbers need one call per class,
+        // so they come for at most CORNER_STATS classes per request (the page asks again for others)
         if (!who.hub) return json({ ok: false, reason: 'input', message: 'Only the admin and coordinators can see this.' });
         const owner = { id: who.me ? who.me.id : '', name: who.me ? who.me.name : 'Admin', role: who.admin ? 'owner' : 'coordinator' };
-        const today = await Promise.all(classes.map(async c => {
-          const r = c.active === 'no' ? null : await C(c.id, { action: 'today' }, owner);
-          return { id: c.id, name: c.name, room: c.room, color: c.color, active: c.active !== 'no', status: r && r.status, present: r && r.ok ? r.present.length : 0, alerts: r && r.alerts ? r.alerts.length : 0 };
-        }));
+        const want = Array.isArray(req.ids) ? req.ids.map(String) : req.stats === false ? [] : classes.filter(c => c.active !== 'no').slice(0, CORNER_STATS).map(c => c.id);
+        const ask = new Set(classes.filter(c => c.active !== 'no' && want.includes(c.id)).slice(0, CORNER_STATS).map(c => c.id));
+        const stats = {};
+        await Promise.all([...ask].map(async id => { const r = await C(id, { action: 'today' }, owner); stats[id] = { status: r.status, present: r.ok ? r.present.length : 0, alerts: r.alerts ? r.alerts.length : 0 }; }));
+        const list = classes.map(c => Object.assign({ id: c.id, name: c.name, room: c.room, color: c.color, active: c.active !== 'no' }, stats[c.id] || {}));
+        if (Array.isArray(req.ids)) return json({ ok: true, classes: list.filter(c => stats[c.id]) });
         const pp = await H('people', { who });
-        return json({ ok: true, classes: today, people: pp.people || [], staff: pp.staff || [] });
+        return json({ ok: true, classes: list, people: pp.people || [], staff: pp.staff || [] });
       }
       const r = await H(a, { req, who });
       // a new class starts with its own student ID prefix, like ENG-0001

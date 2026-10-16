@@ -1888,15 +1888,22 @@ async function paneCorner(box){
   const r=await staffCall({action:'corner'});if(TAB!=='corner')return;
   if(!r.ok){box.innerHTML='<div class="msg err">'+esc(r.message)+'</div>';return}
   const cls=r.classes,nC=r.staff.filter(x=>x.coord).length,nF=r.staff.length-nC;
-  box.innerHTML=`<div class="kpis">${cls.filter(c=>c.active).map(c=>`<button class="kpi ccls" data-go="${esc(c.id)}" style="--cc:${esc(c.color||'#002868')}"><span class="ccn">${esc(c.name)}${c.room?'<small>'+esc(c.room)+'</small>':''}</span><b>${c.present}</b><span>${c.status&&c.status.open?'<span class="chip p">Open now</span>':'<span class="chip g">Closed</span>'}${c.alerts?' <span class="chip a">'+c.alerts+' to check</span>':''}</span></button>`).join('')}</div>
+  const withStats=cls.filter(c=>c.active&&c.present!=null),nAct=cls.filter(c=>c.active).length;
+  box.innerHTML=`${nAct>withStats.length?`<p class="hint mb">Today's numbers for ${withStats.length} of ${nAct} classes. Open a class to see the rest.</p>`:''}<div class="kpis">${withStats.map(c=>`<button class="kpi ccls" data-go="${esc(c.id)}" style="--cc:${esc(c.color||'#002868')}"><span class="ccn">${esc(c.name)}${c.room?'<small>'+esc(c.room)+'</small>':''}</span><b>${c.present}</b><span>${c.status&&c.status.open?'<span class="chip p">Open now</span>':'<span class="chip g">Closed</span>'}${c.alerts?' <span class="chip a">'+c.alerts+' to check</span>':''}</span></button>`).join('')}</div>
    <div class="pane split wideleft">
     <div class="stack">
-     <div class="card"><div class="card-h"><h3>Classes</h3><span class="chip g">${cls.length}</span></div><div class="team">${cls.map(c=>`<div class="tm${c.active?'':' off'}"><span class="cdot" style="background:${esc(c.color||'#002868')}"></span><div class="tmtxt"><b>${esc(c.name)}</b><span>${esc(c.room||'')}${c.active?'':' · archived'}</span></div><div class="tmside"><button class="btn small ghost" data-ce="${esc(c.id)}">Edit</button>${c.active?`<button class="btn small" data-go="${esc(c.id)}">Open</button>`:''}</div></div>`).join('')}</div></div>
+     <div class="card"><div class="card-h"><h3>Classes</h3><span class="chip g">${cls.length}</span></div>${cls.length>8?`<div class="toolbar"><div class="search">${ICON.search}<input id="clFind" placeholder="Search classes" aria-label="Search classes"></div><span class="count" id="clN"></span></div>`:''}<div class="team" id="clBody"></div></div>
      <div class="card"><div class="card-h"><h3>Users</h3></div><p class="hint mb">${nC} coordinator${nC===1?'':'s'}, ${nF} facilitator${nF===1?'':'s'} and ${r.people.length} student${r.people.length===1?'':'s'}. Make accounts, change classes and roles, reset or delete them on the Users page.</p><button class="btn" id="toUsers">${ICON.users}Open Users</button></div>
     </div>
     <div class="stack"><div class="card" id="cfCard"></div></div></div>`;
   $('#toUsers').onclick=()=>goTab('users');
-  box.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{TAB='home';sess.set('att-tab',TAB);switchClass(b.dataset.go).then(()=>{paintNav();renderPane()})});
+  const go=b=>b.onclick=()=>{TAB='home';sess.set('att-tab',TAB);switchClass(b.dataset.go).then(()=>{paintNav();renderPane()})};
+  // a long class list shows the first 50 matches
+  const drawC=()=>{const q=($('#clFind')?$('#clFind').value:'').trim().toLowerCase(),list=cls.filter(c=>!q||c.name.toLowerCase().includes(q)||(c.room||'').toLowerCase().includes(q));
+    if($('#clN'))$('#clN').textContent=Math.min(list.length,50)+' of '+list.length;
+    $('#clBody').innerHTML=list.slice(0,50).map(c=>`<div class="tm${c.active?'':' off'}"><span class="cdot" style="background:${esc(c.color||'#002868')}"></span><div class="tmtxt"><b>${esc(c.name)}</b><span>${esc(c.room||'')}${c.active?'':' · archived'}</span></div><div class="tmside"><button class="btn small ghost" data-ce="${esc(c.id)}">Edit</button>${c.active?`<button class="btn small" data-go="${esc(c.id)}">Open</button>`:''}</div></div>`).join('')||emptyHTML('No class found','');
+    $('#clBody').querySelectorAll('[data-go]').forEach(go);$('#clBody').querySelectorAll('[data-ce]').forEach(b=>b.onclick=()=>{form(cls.find(c=>c.id===b.dataset.ce));$('#cfCard').scrollIntoView({behavior:'smooth',block:'nearest'})})};
+  box.querySelectorAll('.kpis [data-go]').forEach(go);
   const form=c=>{$('#cfCard').innerHTML=`<h3>${c?'Edit '+esc(c.name):'Add a class'}</h3><form id="cfForm" novalidate>
      <div class="field"><label for="cfName">Name</label><input id="cfName" maxlength="40" value="${esc(c?c.name:'')}" placeholder="English"></div>
      <div class="field"><label for="cfRoom">Room</label><input id="cfRoom" maxlength="40" value="${esc(c?c.room:'')}" placeholder="Main hall"></div>
@@ -1910,8 +1917,7 @@ async function paneCorner(box){
       if(c){body.id=c.id;body.active=$('#cfAct').checked}
       const x=await staffCall(body);if(!x.ok){$('#cfMsg').innerHTML='<div class="msg err">'+esc(x.message)+'</div>';return}
       toast(c?'Saved':x.class.name+' added');await refreshCorner();paneCorner(box)}};
-  form(null);
-  box.querySelectorAll('[data-ce]').forEach(b=>b.onclick=()=>form(cls.find(c=>c.id===b.dataset.ce)));
+  form(null);drawC();if($('#clFind'))$('#clFind').oninput=drawC;
 }
 /* ---------- Users: every coordinator, facilitator and student at the Corner (admin and coordinators) ----------
    The admin makes, resets and deletes coordinators; the admin and coordinators do the same for facilitators and
@@ -1922,9 +1928,12 @@ function welcomeFor(x,pw,cls){const u=new URL('attendance.html',location.href);u
   return `Hi${isStarter(x.name)?'':' '+x.name.split(' ')[0]}! Your American Corner ${x.coord?'coordinator account':'attendance account'+(cls?' for '+cls:'')} is ready.\n\nOpen ${u.toString()}\nNumber: ${x.phone}\nStarter password: ${pw}\n\nSign in, then add your name and photo and choose your own password.`}
 async function paneUsers(box){
   box.innerHTML=skeleton();
-  const r=await staffCall({action:'corner'});if(TAB!=='users')return;
+  const r=await staffCall({action:'corner',stats:false});if(TAB!=='users')return;
   if(!r.ok){box.innerHTML='<div class="msg err">'+esc(r.message)+'</div>';return}
   const adm=isAdmin(),act=r.classes.filter(c=>c.active),cn=id=>(r.classes.find(c=>c.id===id)||{}).name||id;
+  // pick a class by typing its name (a list of every class would be too long with many classes)
+  const clsPick=(id,val)=>`<input id="${id}" list="${id}L" autocomplete="off" placeholder="Type a class name" value="${esc(val||'')}"><datalist id="${id}L">${act.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist>`;
+  const clsOf=v=>{v=String(v||'').trim().toLowerCase();return (act.find(c=>c.name.toLowerCase()===v)||{}).id||''};
   const users=[].concat(
     r.staff.map(x=>Object.assign({kind:x.coord?'coord':'fac',key:'s:'+x.id},x)),
     r.people.map(p=>({kind:'stu',key:'p:'+p.phone,name:p.name,phone:p.phone,classes:p.classes,active:true})));
@@ -1960,7 +1969,7 @@ async function paneUsers(box){
       <div class="field"><label for="usPhone">Mobile number</label><input id="usPhone" type="tel" inputmode="tel" maxlength="16" placeholder="07X XXX XXXX"><div class="hint">They sign in with it. It can't be a student's number.</div></div>
       <div class="field"><label for="usName">Name (optional)</label><input id="usName" maxlength="60"></div>
       ${pwField(false)}
-      <div id="usFac"><div class="field"><label for="usCls">Class</label><select id="usCls">${act.map(c=>`<option value="${esc(c.id)}"${DATA.corner&&DATA.corner.k===c.id?' selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+      <div id="usFac"><div class="field"><label for="usCls">Class</label>${clsPick('usCls',DATA.corner&&act.some(c=>c.id===DATA.corner.k)?cn(DATA.corner.k):'')}</div>
        <div class="field"><label for="usRole">Role</label><select id="usRole">${ROLE_OPTS('instructor',false)}</select><div class="hint">Add more classes after the account is made.</div></div></div>
       <p class="hint mb">Students join themselves with the class QR.</p>
       <div id="usMsg"></div><button class="btn">Make account</button></form>`;
@@ -1972,7 +1981,7 @@ async function paneUsers(box){
         if(name&&!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name))return msg('Type a name with letters only, or leave it empty.');
         if(pw.length<6)return msg('The starter password needs at least 6 characters.');
         const body={action:'staffSave',phone,password:pw};if(name)body.name=name;
-        if(kind==='coord')body.kind='coord';else{if(!act.length)return msg('Add a class first on the American Corner page.');body.k=$('#usCls').value;body.role=$('#usRole').value}
+        if(kind==='coord')body.kind='coord';else{if(!act.length)return msg('Add a class first on the American Corner page.');body.k=clsOf($('#usCls').value);if(!body.k)return msg('Pick a class from the list.');body.role=$('#usRole').value}
         const y=await staffCall(body);if(!y.ok)return msg(y.message);sent(y.staff,pw,kind==='coord'?'':cn(body.k),false)};
       return}
     if(u.kind==='stu'){C().innerHTML=`<div class="pfphoto"><span>${avatar(u.name,'','xl')}</span></div><h3>${esc(u.name)}</h3><p class="hint mb">Student · ${esc(showPhone(u.phone))}</p>
@@ -1988,7 +1997,8 @@ async function paneUsers(box){
       <div class="field"><label for="usPhone">Mobile number</label><input id="usPhone" type="tel" inputmode="tel" maxlength="16" value="${esc(showPhone(u.phone))}"></div>
       <div class="field"><label for="usName">Name</label><input id="usName" maxlength="60" value="${esc(isStarter(u.name)?'':u.name)}"></div>
       ${pwField(true)}
-      ${u.kind==='fac'?`<h3 class="mt">Classes</h3>${act.map(c=>`<div class="field"><label for="ur-${esc(c.id)}">${esc(c.name)}</label><select id="ur-${esc(c.id)}" data-rk="${esc(c.id)}">${ROLE_OPTS(role(c.id),true)}</select></div>`).join('')}`:''}
+      ${u.kind==='fac'?`<h3 class="mt">Classes</h3>${(u.roles||[]).filter(o=>act.some(c=>c.id===o.k)).map(o=>`<div class="field"><label for="ur-${esc(o.k)}">${esc(cn(o.k))}</label><select id="ur-${esc(o.k)}" data-rk="${esc(o.k)}">${ROLE_OPTS(o.role,true)}</select></div>`).join('')||'<p class="hint mb">Not in any class yet.</p>'}
+       <div class="field"><label for="usAddCls">Add to a class</label>${clsPick('usAddCls','')}</div><div class="field"><label for="usAddRole" class="sr">Role in that class</label><select id="usAddRole">${ROLE_OPTS('instructor',false)}</select></div>`:''}
       <label class="check"><input type="checkbox" id="usAct"${u.active?' checked':''}>Can sign in</label>
       <div id="usMsg"></div><div class="row"><button class="btn">Save</button><button type="button" class="btn red" id="usDel">Delete account</button></div></form>`;
     $('#usGen').onclick=()=>{$('#usPw').value=starterPw()};
@@ -2004,6 +2014,8 @@ async function paneUsers(box){
       let y=await staffCall(body);
       // then each class whose role changed, one at a time
       if(y.ok&&u.kind==='fac')for(const sel of C().querySelectorAll('[data-rk]')){if(sel.value===role(sel.dataset.rk))continue;const z=await staffCall({action:'staffSave',sid:u.id,k:sel.dataset.rk,role:sel.value});if(!z.ok){y=z;break}}
+      const addTo=u.kind==='fac'?$('#usAddCls').value.trim():'';
+      if(y.ok&&addTo){const k=clsOf(addTo);y=k?await staffCall({action:'staffSave',sid:u.id,k,role:$('#usAddRole').value}):{ok:false,message:'Pick a class from the list.'}}
       b.disabled=false;if(!y.ok)return msg(y.message);
       if(pw){const fc=(u.roles||[]).map(o=>cn(o.k));sent(Object.assign({},u,y.staff,{coord:u.kind==='coord'}),pw,fc.length===1?fc[0]:'',true);return}
       toast('Saved');paneUsers(box)};
