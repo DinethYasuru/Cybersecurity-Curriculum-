@@ -57,7 +57,7 @@ const json = (o, status) => new Response(JSON.stringify(o), { status: status || 
    The Cyber Security class keeps its original database (named 'class'). */
 const STUDENT = { status: 1, lookup: 1, register: 1, checkin: 1, me: 1, profile: 1, keyRequest: 1, keySignIn: 1, profileSave: 1 };
 const HUB_ADMIN = { corner: 1, classSave: 1, classDelete: 1, people: 1, staffSave: 1, myAccount: 1 };
-// what the coordinator may do inside a class: look, never change
+// what a coordinator account may do inside a class: look, never change (and never get the QR key)
 const COORD_READ = { data: 1, today: 1, photos: 1, export: 1 };
 const SYNC_AFTER = { register: 1, profileSave: 1, student: 1, bulk: 1, dayDelete: 1 };
 const doName = k => (k === 'cyber' ? 'class' : 'class:' + k);
@@ -201,8 +201,8 @@ export default {
     if (HUB_ADMIN[a]) {
       if (a === 'corner') {
         // today in every class, for the Corner admin
-        if (!who.admin) return json({ ok: false, reason: 'input', message: 'Only the coordinator can see this.' });
-        const owner = { id: who.me ? who.me.id : '', name: who.me ? who.me.name : 'Main password', role: 'owner' };
+        if (!who.hub) return json({ ok: false, reason: 'input', message: 'Only the admin and coordinators can see this.' });
+        const owner = { id: who.me ? who.me.id : '', name: who.me ? who.me.name : 'Admin', role: who.admin ? 'owner' : 'coordinator' };
         const today = await Promise.all(classes.map(async c => {
           const r = c.active === 'no' ? null : await C(c.id, { action: 'today' }, owner);
           return { id: c.id, name: c.name, room: c.room, color: c.color, active: c.active !== 'no', status: r && r.status, present: r && r.ok ? r.present.length : 0, alerts: r && r.alerts ? r.alerts.length : 0 };
@@ -218,12 +218,13 @@ export default {
     }
     if (gone) return json({ ok: false, reason: 'noclass', message: 'That class is not running any more.', corner: who });
     if (!k) k = who.classes[0] ? who.classes[0].id : '';
-    const role = who.admin ? 'owner' : (who.classes.find(c => c.id === k) || {}).role;
+    // the admin (main password) has no limits; a coordinator account sees every class but changes none
+    const role = who.admin ? 'owner' : who.coord ? 'coordinator' : (who.classes.find(c => c.id === k) || {}).role;
     if (!k || !role) return json({ ok: false, reason: 'noclass', message: 'You are not a facilitator in this class.', corner: who });
-    if (who.admin && !COORD_READ[a]) return json(fail('readonly', 'The coordinator can see every class but not change it. Facilitators make the changes.'));
-    // the coordinator watching a Live QR elsewhere must not teach the class a wrong room network
-    if (who.admin && a === 'today') delete req.live;
-    const staff = { id: who.me ? who.me.id : '', name: who.me ? who.me.name : 'Main password', phone: who.me ? who.me.phone : '', role };
+    if (who.coord && !COORD_READ[a]) return json(fail('readonly', 'A coordinator can see every class but not change it. Facilitators make the changes.'));
+    // a coordinator never runs the Live QR, so it must not teach the class a room network either
+    if (who.coord && a === 'today') delete req.live;
+    const staff = { id: who.me ? who.me.id : '', name: who.me ? who.me.name : 'Admin', phone: who.me ? who.me.phone : '', role };
     // facilitator numbers live in the Corner now, so the class can't see them; keep them out of student lists
     const staffPhones = (await H('staffPhones')).phones || [];
     if (a === 'student' && !req.remove && staffPhones.includes(cleanPh(req.phone))) return json(fail('input', 'That number belongs to a facilitator.'));
@@ -237,8 +238,10 @@ export default {
     if (skipped.length && r.ok) r.bad = (r.bad || []).concat(skipped);
     if (r.ok && a === 'data') {
       const t = await H('staffFor', { k });
-      r.staff = t.staff; r.me = who.me ? Object.assign({}, who.me, { role }) : null; r.owner = !who.admin && role === 'owner';
-      r.corner = { admin: who.admin, coordinator: who.admin, classes: who.classes, k, className: nameOf(k) };
+      r.staff = t.staff; r.me = who.me ? Object.assign({}, who.me, { role }) : null; r.owner = role === 'owner';
+      r.corner = { admin: who.admin, coordinator: who.coord, hub: who.hub, classes: who.classes, k, className: nameOf(k) };
+      // the check-in codes come from this key: a coordinator can't make them
+      if (who.coord) delete r.qrKey;
       // a class made while its first setup step failed still gets its own ID prefix
       if (k !== 'cyber' && r.settings && r.settings.idPrefix === 'ACM-') await I(k, { op: 'newClass', prefix: prefixFor(nameOf(k)) });
     }
@@ -286,11 +289,12 @@ export class Corner extends DurableObject {
   kvGet(k) { const r = this.one('SELECT v, exp FROM kv WHERE k = ?', k); return r && r.exp > Date.now() ? r.v : null; }
   kvPut(k, v, s) { this.sql.exec('INSERT INTO kv (k, v, exp) VALUES (?, ?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v, exp = excluded.exp', k, String(v), Date.now() + s * 1000); }
   epoch() { return this.prop('epoch') || '1'; }
-  staffOut(r) { return r ? { id: r.id, name: r.name, phone: r.phone, active: r.active !== 'no', added: r.added, mustSetup: r.setup === 'no' } : null; }
+  staffOut(r) { return r ? { id: r.id, name: r.name, phone: r.phone, active: r.active !== 'no', added: r.added, mustSetup: r.setup === 'no', coord: r.admin === 'coord' } : null; }
   classesOf(st) {
     const cls = this.all("SELECT id, name, color FROM classes WHERE active != 'no' ORDER BY ord, name");
-    // the coordinator (main password) sees every class
-    if (!st) return cls.map(c => Object.assign(c, { role: 'coordinator' }));
+    // the admin (main password) and coordinator accounts see every class
+    if (!st) return cls.map(c => Object.assign(c, { role: 'admin' }));
+    if (st.admin === 'coord') return cls.map(c => Object.assign(c, { role: 'coordinator' }));
     const roles = {}; this.all('SELECT k, role FROM roles WHERE sid = ?', st.id).forEach(r => { roles[r.k] = r.role; });
     return cls.filter(c => roles[c.id]).map(c => Object.assign(c, { role: roles[c.id] }));
   }
@@ -360,7 +364,8 @@ export class Corner extends DurableObject {
     this.kvPut('tok:' + token, JSON.stringify({ sid: st ? st.id : '', ep: this.epoch(), s8: st ? String(st.salt).slice(0, 8) : '' }), 21600);
     let tr = trust ? req.trust : randHex(16);
     this.kvPut('trust:' + tr, '1', 60 * 86400);
-    return { ok: true, token, now, hours: 6, trust: tr, me: this.staffOut(st), corner: { admin: !st, classes: this.classesOf(st) } };
+    const coord = !!st && st.admin === 'coord';
+    return { ok: true, token, now, hours: 6, trust: tr, me: this.staffOut(st), corner: { admin: !st, coordinator: coord, hub: !st || coord, classes: this.classesOf(st) } };
   }
   who(token) {
     if (!/^[a-f0-9]{16,64}$/.test(String(token || ''))) return { ok: false };
@@ -368,26 +373,32 @@ export class Corner extends DurableObject {
     if (!t || t.ep !== this.epoch()) return { ok: false };
     let st = null;
     if (t.sid) { st = this.one('SELECT * FROM staff WHERE id = ?', t.sid); if (!st || st.active === 'no' || String(st.salt).slice(0, 8) !== t.s8) return { ok: false }; }
-    return { ok: true, me: this.staffOut(st), admin: !st, classes: this.classesOf(st) };
+    // admin: the main password, no limits. coord: a coordinator account. hub: either one (classes, accounts, people)
+    const coord = !!st && st.admin === 'coord';
+    return { ok: true, me: this.staffOut(st), admin: !st, coord, hub: !st || coord, classes: this.classesOf(st) };
   }
   staffFor(k) {
     return this.all("SELECT s.*, r.role FROM staff s LEFT JOIN roles r ON r.sid = s.id AND r.k = ? ORDER BY s.name", k)
       .filter(r => r.role).map(r => Object.assign(this.staffOut(r), { role: r.role }));
   }
 
-  // The coordinator (main password) makes starter accounts, ties them to a class, resets or deletes them.
-  // A facilitator finishes their own account at first sign-in (name, photo, own password).
+  // The admin (main password) makes coordinator accounts. The admin and coordinators make starter facilitator
+  // accounts, tie them to a class, reset or delete them. Anyone with an account finishes it at first sign-in
+  // (name, photo, own password) and keeps it up to date under My account.
   // A lead facilitator ('owner') changes only roles in their own class.
   staffSave(req, who, mine) {
     const sid = mine ? (who.me ? who.me.id : '') : String(req.sid || '');
-    if (mine && !sid) return fail('input', 'The coordinator has no facilitator account. Facilitators change their details here.');
+    if (mine && !sid) return fail('input', 'The admin password has no account. Change it in Setup › Cloudflare server tools.');
     const k = String(req.k || '');
     let cur = sid ? this.one('SELECT * FROM staff WHERE id = ?', sid) : null;
-    if (sid && !cur) return fail('input', 'That facilitator is gone.');
-    if (!mine && !who.admin) {
+    if (sid && !cur) return fail('input', 'That account is gone.');
+    // a coordinator account is the admin's to make, change or delete
+    const coordAcc = cur ? cur.admin === 'coord' : req.kind === 'coord';
+    if (!mine && coordAcc && !who.admin) return fail('input', 'Only the admin can make or change coordinator accounts.');
+    if (!mine && !who.hub) {
       if ((who.classes.find(c => c.id === k) || {}).role !== 'owner') return fail('input', 'Only the lead facilitator or the coordinator can change roles.');
       if (!cur) return fail('input', 'Only the coordinator can make facilitator accounts.');
-      if (!this.one('SELECT role FROM roles WHERE sid = ? AND k = ?', sid, k)) return fail('input', 'That facilitator is not in this class. Ask the coordinator.');
+      if (coordAcc || !this.one('SELECT role FROM roles WHERE sid = ? AND k = ?', sid, k)) return fail('input', 'That facilitator is not in this class. Ask the coordinator.');
       if (who.me && who.me.id === sid) return fail('input', 'You cannot change your own role. Ask the coordinator.');
       if (req.remove || req.role === '') { this.sql.exec('DELETE FROM roles WHERE sid = ? AND k = ?', sid, k); return { ok: true }; }
       if (req.role !== 'owner' && req.role !== 'instructor') return fail('input', 'Pick a role.');
@@ -398,12 +409,12 @@ export class Corner extends DurableObject {
       this.ctx.storage.transactionSync(() => { this.sql.exec('DELETE FROM staff WHERE id = ?', sid); this.sql.exec('DELETE FROM roles WHERE sid = ?', sid); });
       return { ok: true };
     }
-    const name = req.name == null && cur ? cur.name : (cleanNm(req.name) || (!mine && !cur ? 'New facilitator' : ''));
+    const name = req.name == null && cur ? cur.name : (cleanNm(req.name) || (!mine && !cur ? (coordAcc ? 'New coordinator' : 'New facilitator') : ''));
     const phone = req.phone == null && cur ? cur.phone : cleanPh(req.phone);
     if (!okName(name)) return fail('input', 'Type a name with letters only.');
     if (!phone) return fail('input', 'Type a mobile number like 0771234567.');
     const clash = this.one('SELECT name FROM staff WHERE phone = ? AND id != ?', phone, sid);
-    if (clash) return fail('input', 'That number already belongs to facilitator ' + clash.name + '.' + (cur ? '' : ' Add them to this class from the American Corner page.'));
+    if (clash) return fail('input', 'That number already belongs to ' + clash.name + '.' + (cur || coordAcc ? '' : ' Add them to this class from the American Corner page.'));
     const stu = this.one('SELECT name FROM people WHERE phone = ?', phone);
     if (stu) return fail('input', 'That number belongs to student ' + stu.name + '. A facilitator needs a number of their own.');
     if (req.photo != null && req.photo !== '' && !okPhoto(req.photo)) return fail('input', 'That photo could not be used. Try another one.');
@@ -417,17 +428,17 @@ export class Corner extends DurableObject {
     } else {
       if (!cur && !pw) return fail('input', 'Give the starter password (6 or more characters).');
       if (pw && pw.length < 6) return fail('input', 'The starter password needs at least 6 characters.');
-      if (!cur && !(k && (req.role === 'owner' || req.role === 'instructor'))) return fail('input', 'Pick the class and role for this facilitator.');
+      if (!cur && !coordAcc && !(k && (req.role === 'owner' || req.role === 'instructor'))) return fail('input', 'Pick the class and role for this facilitator.');
     }
-    if (!cur) cur = { id: 'S' + randHex(4), added: new Date().toISOString().slice(0, 10), salt: '', hash: '', admin: 'no', photo: '', setup: 'no' };
+    if (!cur) cur = { id: 'S' + randHex(4), added: new Date().toISOString().slice(0, 10), salt: '', hash: '', admin: coordAcc ? 'coord' : 'no', photo: '', setup: 'no' };
     cur.name = name; cur.phone = phone; cur.active = cur.active || 'yes';
     if (!mine && req.active != null) cur.active = req.active === false ? 'no' : 'yes';
     if (req.photo != null) cur.photo = req.photo || '';
     if (pw) { cur.salt = randHex(20); cur.hash = hashPw(pw, cur.salt); cur.setup = mine ? 'yes' : 'no'; }
     this.ctx.storage.transactionSync(() => {
-      this.sql.exec('INSERT OR REPLACE INTO staff (id, name, phone, salt, hash, active, admin, added, photo, setup) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', cur.id, cur.name, cur.phone, cur.salt, cur.hash, cur.active, 'no', cur.added, cur.photo || '', cur.setup || 'yes');
-      // the coordinator ties the account to a class: lead facilitator, facilitator, or '' (not in this class)
-      if (!mine && k && req.role != null) {
+      this.sql.exec('INSERT OR REPLACE INTO staff (id, name, phone, salt, hash, active, admin, added, photo, setup) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', cur.id, cur.name, cur.phone, cur.salt, cur.hash, cur.active, cur.admin === 'coord' ? 'coord' : 'no', cur.added, cur.photo || '', cur.setup || 'yes');
+      // the account is tied to a class: lead facilitator, facilitator, or '' (not in this class); a coordinator sees them all
+      if (!mine && !coordAcc && k && req.role != null) {
         if (req.role === 'owner' || req.role === 'instructor') this.sql.exec('INSERT OR REPLACE INTO roles VALUES (?, ?, ?)', cur.id, k, req.role);
         else this.sql.exec('DELETE FROM roles WHERE sid = ? AND k = ?', cur.id, k);
       }
@@ -437,7 +448,7 @@ export class Corner extends DurableObject {
 
   // the coordinator deletes a class: it leaves the list, its roles and enrolments go; the class's own data is wiped after
   classDelete(req, who) {
-    if (!who.admin) return fail('input', 'Only the coordinator can delete classes.');
+    if (!who.hub) return fail('input', 'Only the admin or a coordinator can delete classes.');
     const c = this.one('SELECT * FROM classes WHERE id = ?', String(req.id || ''));
     if (!c) return fail('input', 'That class is gone.');
     if (cleanNm(req.confirm).toLowerCase() !== cleanNm(c.name).toLowerCase()) return fail('input', 'Type the class name exactly to delete it.');
@@ -453,7 +464,7 @@ export class Corner extends DurableObject {
   }
 
   classSave(req, who) {
-    if (!who.admin) return fail('input', 'Only the coordinator can add or change classes.');
+    if (!who.hub) return fail('input', 'Only the admin or a coordinator can add or change classes.');
     let id = String(req.id || '').toLowerCase().trim();
     const cur = id ? this.one('SELECT * FROM classes WHERE id = ?', id) : null;
     const name = cleanNm(req.name == null && cur ? cur.name : req.name);
@@ -523,7 +534,7 @@ export class Corner extends DurableObject {
       case 'classSave': return json(this.classSave(req, who));
       case 'classDelete': return json(this.classDelete(req, who));
       case 'people': {
-        if (!who.admin) return json(fail('input', 'Only the coordinator can see everyone.'));
+        if (!who.hub) return json(fail('input', 'Only the admin or a coordinator can see everyone.'));
         const en = {}; this.all('SELECT phone, k, sid FROM enrol').forEach(e => { (en[e.phone] = en[e.phone] || []).push({ k: e.k, sid: e.sid }); });
         const roles = {}; this.all('SELECT sid, k, role FROM roles').forEach(r => { (roles[r.sid] = roles[r.sid] || []).push({ k: r.k, role: r.role }); });
         return json({ ok: true, people: this.all('SELECT phone, name FROM people ORDER BY name').map(p => Object.assign(p, { classes: en[p.phone] || [] })),
