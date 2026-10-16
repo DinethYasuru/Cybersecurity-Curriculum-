@@ -184,6 +184,29 @@ input[type=checkbox]{width:20px;height:20px;min-height:0;accent-color:var(--navy
 .tm.usr:hover{background:var(--canvas)}
 .tm.usr{flex-wrap:wrap}.tm.usr .tmtxt{flex:1 1 170px;min-width:0}.tm.usr .tmside{flex-wrap:wrap}
 @media (max-width:700px){.tm.usr .tmside{flex-basis:100%;flex-direction:row;align-items:center;justify-content:flex-start;padding-left:58px}}
+.dz-head{border-top:4px solid var(--red)}
+.dz-head h3{color:var(--red-d)}
+.dz-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:var(--s5);align-items:start;margin-top:var(--s5)}
+.dz-act{display:flex;gap:var(--s3);align-items:center;justify-content:space-between;padding:14px 0;border-top:1px solid var(--line)}
+.dz-act:first-of-type{border-top:0}
+.dz-act b{display:block;font-family:'Outfit';font-weight:600}
+.dz-act .btn{flex:none}
+.dz-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:var(--s3) 0}
+.dz-tabs button{font:inherit;font-size:.9rem;padding:8px 12px;min-height:40px;border:1px solid var(--line-2);border-radius:999px;background:#fff;color:var(--ink);cursor:pointer}
+.dz-tabs button small{color:var(--muted);margin-left:6px}
+.dz-tabs button.on{background:var(--navy);border-color:var(--navy);color:#fff}.dz-tabs button.on small{color:#c9d3e6}
+.dz-t td{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem;max-width:320px;overflow:hidden;text-overflow:ellipsis;padding:8px 12px}
+.dz-t th{padding:10px 12px;text-transform:none;letter-spacing:0;font-family:ui-monospace,Menlo,Consolas,monospace}
+.dz-t td.ed{cursor:pointer}.dz-t td.ed:hover{background:#eef3fb;box-shadow:inset 0 0 0 1px var(--navy)}
+.dz-t td.cut{color:var(--muted);cursor:not-allowed}
+.dz-t .nul{color:var(--muted);font-style:italic}
+.dz-t td.rid{color:var(--muted)}
+.dz-t .del{border:0;background:none;color:var(--red);cursor:pointer;width:36px;height:36px;border-radius:8px}.dz-t .del:hover{background:var(--red-50)}
+.dz-sql textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9rem;min-height:110px}
+.dz-add{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--s3);margin:var(--s3) 0}
+.dz-add label{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8rem;color:var(--muted)}
+.dz-log{list-style:none;margin:0;padding:0}.dz-log li{padding:10px 0;border-top:1px solid var(--line);font-size:.92rem}.dz-log li:first-child{border-top:0}
+.dz-log time{display:block;color:var(--muted);font-size:.8rem}
 .combo{position:relative}.combo input{padding-right:44px}
 .combo-b{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:0;background:none;color:var(--muted);cursor:pointer;display:grid;place-items:center}
 .combo-b svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2}
@@ -717,6 +740,7 @@ const ICON={
   download:IC('<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>'),
   print:IC('<path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7" rx="1"/>'),
   users:IC('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17.5" cy="9" r="2.5"/><path d="M16 14.2a5 5 0 0 1 6 4.8"/>'),
+  danger:IC('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>'),
   corner:IC('<path d="M3 21h18M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6M9 11h.01M15 11h.01"/>'),
   logout:IC('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>'),
   inbox:IC('<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/>')
@@ -1235,7 +1259,9 @@ function renderFirst(){
     if(!r.ok){if(r.reason==='auth'){logoutLocal();return}return msg(r.message)}
     STARTER='';SETUP_ME=null;toast('All set. Welcome!');DATA=null;showAdmin()};
 }
-function logoutLocal(){STARTER='';SETUP_ME=null;PHOTOS=null;photosAt=0;TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
+// the Danger zone's unlock lives in memory only; signing out locks it
+const DZ={pw:'',at:0,db:'corner',table:'',offset:0,find:'',classes:[],audit:[]};
+function logoutLocal(){DZ.pw='';STARTER='';SETUP_ME=null;PHOTOS=null;photosAt=0;TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
 // the admin signs in with the main password only: a mode to pick, not an empty box to remember
 function loginMode(admin){$('#lphoneF').hidden=admin;$('#loginT').textContent=admin?'Admin sign in':'Staff sign in';
   $('#loginP').textContent=admin?'The main password. It opens every class and every setting.':'Facilitators and coordinators sign in with their own number.';
@@ -1266,13 +1292,13 @@ $('#toSetup').onclick=()=>{location.hash='#setup'};
 $('#toStudent').onclick=()=>{location.hash=''};
 $('#toAdmin').onclick=()=>{location.hash='#admin'};
 
-const TABS_ALL=[['corner','Overview'],['users','Users'],['home','Today'],['live','Live QR'],['register','Register'],['students','Students'],['reports','Reports'],['excuses','Excuses'],['days','Class days'],['inbox','Inbox'],['team','Team'],['settings','Settings'],['log','Activity log'],['ops','Operations']];
+const TABS_ALL=[['corner','Overview'],['users','Users'],['home','Today'],['live','Live QR'],['register','Register'],['students','Students'],['reports','Reports'],['excuses','Excuses'],['days','Class days'],['inbox','Inbox'],['team','Team'],['settings','Settings'],['log','Activity log'],['ops','Operations'],['danger','Danger zone']];
 const TAB_NAME=Object.fromEntries(TABS_ALL);
 // who is using the page decides the menu: each role sees only what it can do
 // admin: main password, everything · coord: every class to look at, accounts · lead / fac: one class · single: older one-class server
 function roleNow(){const c=DATA&&DATA.corner;if(!c)return DATA&&DATA.me&&!DATA.owner?'fac':'single';if(c.coordinator)return 'coord';if(c.admin)return 'admin';return DATA.owner?'lead':'fac'}
 function tabsFor(r){const G=[],cn=DATA&&DATA.corner?DATA.corner.className:'This class';
-  if(r==='admin'||r==='coord')G.push(['American Corner',['corner','users']]);
+  if(r==='admin'||r==='coord')G.push(['American Corner',r==='admin'?['corner','users','danger']:['corner','users']]);
   G.push([cn,r==='coord'?['home','register','students','reports','excuses','days','team']:['home','live','register','students','reports','excuses','days','inbox','team']]);
   if(r==='admin'||r==='lead'||r==='single')G.push(['Class tools',['settings','log','ops']]);
   return G.flatMap(([g,ks])=>ks.map(k=>[k,TAB_NAME[k],g]))}
@@ -1282,7 +1308,8 @@ const PAGES={corner:['American Corner','Every class today. Add, archive and dele
   register:['Register','The class sheet. Tap a cell to mark present, tap again for absent.'],reports:['Reports','Pass marks, per-student and per-day records, and exports.'],
   students:['Students','Everyone on the class list, with their IDs and mobile numbers.'],excuses:['Excused absences','Approved absences count toward the pass mark when you choose.'],
   days:['Class days','Add a class nobody checked in to, or cancel a day so it does not count.'],ops:['Operations','Every change you save, its status, and retries when the server is slow.'],log:['Activity log','Every check-in try and admin change, newest first.'],settings:['Settings','Check-in window, security checks and the student ID format.'],
-  team:['Team','Who runs this class. Accounts are made on the Users page.'],account:['My account','Your name, number, photo and password.']};
+  team:['Team','Who runs this class. Accounts are made on the Users page.'],account:['My account','Your name, number, photo and password.'],
+  danger:['Danger zone','Prune old data, critical steps, and a data editor with SQL. Changes go straight into the database.']};
 let BNAV=[];
 function navHTML(){let g='';return TABS.map(([k,l,grp])=>{const h=grp!==g?'<h6>'+esc(grp)+'</h6>':'';g=grp;return h+`<button class="nav-i${k===TAB?' on':''}" data-k="${k}"${k===TAB?' aria-current="page"':''}>${ICON[k]}<span>${l}</span></button>`}).join('')}
 function paintNav(){
@@ -1293,7 +1320,8 @@ function paintNav(){
   opsPaint();
 }
 function goTab(k){if(k==='more'){$('#moreSheet').showModal();return}if(k==='logout'){$('#moreSheet').close();$('#logout').click();return}
-  TAB=k;sess.set('att-tab',TAB);if($('#moreSheet').open)$('#moreSheet').close();paintNav();renderPane();window.scrollTo({top:0})}
+  const was=TAB;TAB=k;sess.set('att-tab',TAB);if($('#moreSheet').open)$('#moreSheet').close();paintNav();renderPane();window.scrollTo({top:0});
+  if(was==='danger'&&DZ.dirty){DZ.dirty=false;loadData(false,true)}}
 ['#tabs','#bnav','#moreNav'].forEach(id=>$(id).addEventListener('click',e=>{const b=e.target.closest('button[data-k]');if(b)goTab(b.dataset.k)}));
 $('#moreSheet').addEventListener('click',e=>{if(e.target===$('#moreSheet'))$('#moreSheet').close()});
 const sig=d=>d?JSON.stringify([d.requests,d.students,d.attendance,d.excuses,d.days,d.settings,d.status&&d.status.open,d.status&&d.status.todayDone,d.status&&d.status.openDay]):'';
@@ -1376,7 +1404,7 @@ function renderPane(){
   stopLive();if(!DATA)return;paintHead();
   const box=$('#paneBox');
   if(!TABS.some(t=>t[0]===TAB)&&TAB!=='account'){TAB='home';paintNav();paintHead()}
-  ({corner:paneCorner,users:paneUsers,home:paneHome,inbox:paneInbox,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,ops:paneOps,log:paneLog,settings:paneSettings,team:paneTeam,account:paneAccount})[TAB](box);
+  ({corner:paneCorner,users:paneUsers,home:paneHome,inbox:paneInbox,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,ops:paneOps,danger:paneDanger,log:paneLog,settings:paneSettings,team:paneTeam,account:paneAccount})[TAB](box);
   if(oldServer()){box.insertAdjacentHTML('afterbegin',oldServerHTML());$('#oldSrvCopy').onclick=copyServerCode}
   if(isCoord()&&TAB!=='corner'&&TAB!=='team'&&TAB!=='account')box.insertAdjacentHTML('afterbegin','<div class="msg mb vo"><b>View only.</b> '+esc(COORD_MSG)+'</div>');
   inboxBadge();
@@ -2165,6 +2193,159 @@ function paneAccount(box){
     if(photo!==null){PHOTOS=PHOTOS||{};if(photo)PHOTOS[me.id]=photo;else delete PHOTOS[me.id]}
     if(phone!==me.phone)store.set('att-lphone',showPhone(phone));
     toast(nw?'Saved. Use the new password next time.':'Saved');await loadData()};
+}
+
+/* Danger zone: the admin only. The main password is typed once here and kept in memory (never stored) for 15 minutes. */
+async function dzCall(o){
+  if(DZ.pw&&nowMs()-DZ.at>15*60000)DZ.pw='';
+  if(!DZ.pw)return {ok:false,reason:'password',message:'Unlock the Danger zone first.'};
+  const r=await staffCall(Object.assign({action:'danger',password:DZ.pw},o));
+  if(r.ok)DZ.at=nowMs();
+  if(!r.ok&&(r.reason==='password'||r.reason==='locked'))DZ.pw='';
+  if(!r.ok&&r.reason==='action')r.message='Deploy the new server code first (version 21).';
+  return r;
+}
+const dzName=t=>t.replace(/^t_/,'');
+const dzDbName=id=>id==='corner'?'American Corner (shared)':((DZ.classes.find(c=>c.id===id)||{}).name||id)+((DZ.classes.find(c=>c.id===id)||{}).active===false?' (archived)':'');
+function paneDanger(box){
+  if(!isAdmin()){box.innerHTML='<div class="msg err">Only the admin can open the Danger zone.</div>';return}
+  if(!DZ.pw||nowMs()-DZ.at>15*60000){DZ.pw='';
+    box.innerHTML=`<div class="pane"><div class="card dz-head acct"><form id="dzUnlock" novalidate>
+      <h3>Danger zone</h3><p class="hint mb">Changes here go straight into the database and can't be undone from this page. Each class is backed up before its first change, and every change is recorded. Type the main password to unlock it for 15 minutes.</p>
+      <div class="field"><label for="dzPw">Main password</label><input id="dzPw" type="password" autocomplete="current-password"></div>
+      <div id="dzMsg"></div><button class="btn red big wide mt" id="dzGo">Unlock</button></form></div></div>`;
+    $('#dzPw').focus();
+    $('#dzUnlock').onsubmit=async e=>{e.preventDefault();DZ.pw=$('#dzPw').value;DZ.at=nowMs();const b=$('#dzGo');b.disabled=true;
+      const r=await dzCall({op:'open'});b.disabled=false;
+      if(!r.ok){$('#dzMsg').innerHTML='<div class="msg err">'+esc(r.message)+'</div>';return}
+      DZ.classes=r.classes;DZ.audit=r.audit;paneDanger(box)};
+    return}
+  const arch=DZ.classes.filter(c=>!c.active);
+  const dbPick=id=>`<div class="combo"><input id="${id}" role="combobox" aria-expanded="false" autocomplete="off" spellcheck="false" placeholder="Pick a database" value="${esc(dzDbName(DZ.db))}"><button type="button" class="combo-b" tabindex="-1" aria-label="Show every database"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="combo-l" role="listbox" hidden></div></div>`;
+  const clsBox=id=>`<div class="combo"><input id="${id}" role="combobox" aria-expanded="false" autocomplete="off" spellcheck="false" placeholder="Pick a class"><button type="button" class="combo-b" tabindex="-1" aria-label="Show every class"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="combo-l" role="listbox" hidden></div></div>`;
+  box.innerHTML=`<div class="pane">
+   <div class="card dz-head"><div class="row" style="justify-content:space-between"><div style="flex:1 1 240px;min-width:0"><h3>Unlocked for 15 minutes</h3><p class="hint">A class is backed up before its first change, and every change is recorded in Recent changes at the bottom.</p></div><button class="btn ghost" id="dzLock">Lock</button></div></div>
+   <div class="dz-grid">
+    <div class="card"><h3>Prune old data</h3><p class="hint mb">Frees space in every database. Students, attendance and accounts are never touched here.</p>
+     <div class="field"><label for="dzLogD">Activity log entries older than (days)</label><input id="dzLogD" type="number" min="0" inputmode="numeric" value="180"><div class="hint">0 keeps the whole log.</div></div>
+     <div class="field"><label for="dzBak">Backups to keep in each class</label><input id="dzBak" type="number" min="0" inputmode="numeric" value="10"><div class="hint">Leave empty to keep them all.</div></div>
+     <div class="field"><label for="dzAud">Recent changes older than (days)</label><input id="dzAud" type="number" min="0" inputmode="numeric" value="365"></div>
+     <p class="hint">Also goes: expired sign-ins and caches, used or old profile key requests, and enrolments, roles and people left behind by deleted classes or accounts.</p>
+     <div id="dzPrMsg"></div><button class="btn red mt" id="dzPrune">Prune every database</button></div>
+    <div class="card"><h3>Critical steps</h3>
+     <div class="dz-act"><div><b>Sign everyone out</b><span class="hint">Every facilitator, coordinator and admin signs in again; trusted browsers are forgotten. You stay signed in.</span></div><button class="btn danger" id="dzOut">Sign out all</button></div>
+     <div class="dz-act"><div><b>Unlock sign-in</b><span class="hint">After too many wrong passwords.</span></div><button class="btn danger" id="dzUnl">Unlock</button></div>
+     <div class="dz-act"><div><b>Delete archived classes</b><span class="hint">${arch.length?esc(arch.length+' archived: '+arch.slice(0,4).map(c=>c.name).join(', ')+(arch.length>4?'…':'')+'.'):'No archived classes.'} Their data goes for good.</span></div><button class="btn danger" id="dzArch"${arch.length?'':' disabled'}>Delete</button></div>
+     <div class="field mt"><label for="dzCls">A class</label>${clsBox('dzCls')}</div>
+     <div class="dz-act"><div><b>New check-in codes</b><span class="hint">The QR secret changes. Codes someone copied stop working; reopen the Live QR.</span></div><button class="btn danger" id="dzQr">Change</button></div>
+     <div class="dz-act"><div><b>Clear attendance</b><span class="hint">For a new term: the register, excuses, class days and log go. Students, team and settings stay. A backup is made first.</span></div><button class="btn danger" id="dzClr">Clear</button></div>
+     <div id="dzCrMsg"></div></div>
+   </div>
+   <div class="card mt"><div class="row" style="justify-content:space-between;align-items:flex-end"><div style="flex:1 1 280px"><h3>Data editor</h3><div class="field" style="margin:8px 0 0"><label for="dzDb">Database</label>${dbPick('dzDb')}</div></div>
+     <div class="row"><input id="dzFind" type="search" placeholder="Search this table" style="width:220px;max-width:100%;flex:1 1 160px"><button class="btn ghost" id="dzAddT">Add row</button></div></div>
+    <div class="dz-tabs" id="dzTabs"></div><div id="dzAddF"></div><div id="dzGrid"></div>
+    <div class="dz-sql mt"><h3>SQL</h3><p class="hint mb">Runs on the database picked above. SELECT shows up to 500 rows. Anything that writes asks first.</p>
+     <textarea id="dzSql" spellcheck="false" placeholder="SELECT * FROM t_students WHERE active = 'no'"></textarea>
+     <div class="row mt"><button class="btn" id="dzRun">Run</button><span class="hint" id="dzSqlN"></span></div><div id="dzSqlOut" class="mt"></div></div></div>
+   <div class="card mt"><h3>Recent changes</h3><ul class="dz-log" id="dzLog"></ul></div></div>`;
+  const m=(id,t,good)=>{$(id).innerHTML=t?'<div class="msg '+(good?'good':'err')+' mt">'+esc(t)+'</div>':''};
+  const paintLog=()=>{$('#dzLog').innerHTML=DZ.audit.length?DZ.audit.map(a=>`<li>${esc(a.what)} <span class="chip g">${esc(a.db)}</span><time>${esc(niceMs(Number(a.at)))}</time></li>`).join(''):'<li class="hint">Nothing changed here yet.</li>'};paintLog();
+  const refreshLog=async()=>{const r=await dzCall({op:'open'});if(r.ok){DZ.audit=r.audit;DZ.classes=r.classes;paintLog()}};
+  const relock=r=>{if(!DZ.pw){toast(r.message,true);paneDanger(box);return true}return false};
+  $('#dzLock').onclick=()=>{DZ.pw='';paneDanger(box)};
+  // pickers: the database (the Corner plus every class, archived too) and a class for the critical steps
+  const combo=(inp,items,onPick)=>{const cb=inp.parentNode,L=cb.querySelector('.combo-l');let hi=0,shown=[];
+    const close=()=>{L.hidden=true;inp.setAttribute('aria-expanded','false')};
+    const paint=()=>{L.querySelectorAll('[data-k]').forEach((b,i)=>b.classList.toggle('on',i===hi));const b=L.querySelectorAll('[data-k]')[hi];if(b)b.scrollIntoView({block:'nearest'})};
+    const open=all=>{const q=all?'':inp.value.trim().toLowerCase();shown=items().filter(c=>!q||c.name.toLowerCase().includes(q));hi=0;
+      L.innerHTML=shown.length?shown.slice(0,300).map(c=>`<button type="button" role="option" data-k="${esc(c.id)}">${esc(c.name)}${c.note?'<small>'+esc(c.note)+'</small>':''}</button>`).join(''):'<p class="hint">Nothing has that name.</p>';
+      L.hidden=false;inp.setAttribute('aria-expanded','true');paint()};
+    const pick=k=>{const c=items().find(x=>x.id===k);inp.value=c?c.name:'';inp.dataset.k=k;close();onPick(k)};
+    inp.addEventListener('focus',()=>{inp.select();open(true)});inp.addEventListener('input',()=>{inp.dataset.k='';open(false)});inp.addEventListener('blur',()=>setTimeout(close,150));
+    inp.addEventListener('keydown',e=>{const n=Math.min(shown.length,300);
+      if(e.key==='ArrowDown'){e.preventDefault();if(L.hidden)open(false);else{hi=Math.min(hi+1,n-1);paint()}}
+      else if(e.key==='ArrowUp'){e.preventDefault();hi=Math.max(hi-1,0);paint()}
+      else if(e.key==='Enter'&&!L.hidden&&n){e.preventDefault();pick(shown[hi].id)}
+      else if(e.key==='Escape')close()});
+    L.addEventListener('mousedown',e=>{e.preventDefault();const b=e.target.closest('[data-k]');if(b)pick(b.dataset.k)});
+    cb.querySelector('.combo-b').addEventListener('mousedown',e=>{e.preventDefault();if(L.hidden){inp.focus()}else close()})};
+  const dbItems=()=>[{id:'corner',name:dzDbName('corner'),note:'classes, people, accounts'}].concat(DZ.classes.map(c=>({id:c.id,name:c.name,note:c.active?'':'archived'})));
+  combo($('#dzDb'),dbItems,k=>{DZ.db=k;DZ.table='';DZ.offset=0;DZ.find='';$('#dzFind').value='';$('#dzAddF').innerHTML='';loadTables()});
+  $('#dzDb').addEventListener('blur',()=>setTimeout(()=>{$('#dzDb').value=dzDbName(DZ.db)},180));
+  combo($('#dzCls'),()=>DZ.classes.map(c=>({id:c.id,name:c.name,note:c.active?'':'archived'})),()=>{});
+  const pickedCls=()=>{const k=$('#dzCls').dataset.k;return DZ.classes.find(c=>c.id===k)||null};
+  // prune: the Corner, then each class in turn
+  $('#dzPrune').onclick=async()=>{
+    const ld=Math.max(0,Number($('#dzLogD').value)||0),bk=$('#dzBak').value.trim(),ad=Math.max(0,Number($('#dzAud').value)||0);
+    const what=[ld?'log entries older than '+ld+' days':'',bk!==''?'all but the newest '+bk+' backups in each class':'',ad?'recent changes older than '+ad+' days':''].filter(Boolean).join(', ');
+    if(!await ask({title:'Prune every database?',text:'Removes '+(what||'expired and left-over data only')+'. This cannot be undone.',ok:'Prune',danger:true}))return;
+    const b=$('#dzPrune');b.disabled=true;const tot={};const add=n=>{for(const k in n)tot[k]=(tot[k]||0)+n[k]};
+    const list=['corner'].concat(DZ.classes.map(c=>c.id));let bad='';
+    for(let i=0;i<list.length;i++){b.textContent='Pruning '+(i+1)+' of '+list.length+'…';
+      const r=await dzCall(list[i]==='corner'?{op:'prune',db:'corner',auditDays:ad}:{op:'prune',db:list[i],logDays:ld,backupsKept:bk===''?'':Math.max(0,Math.floor(Number(bk)))});
+      if(!r.ok){bad=r.message;if(relock(r))return;break}add(r.n)}
+    b.disabled=false;b.textContent='Prune every database';
+    const parts=Object.keys(tot).filter(k=>tot[k]).map(k=>tot[k]+' '+k);
+    m('#dzPrMsg',bad||(parts.length?'Removed '+parts.join(', ')+'.':'Nothing to remove.'),!bad);refreshLog()};
+  const crit=async(o,okText)=>{const r=await dzCall(o);if(!r.ok){if(relock(r))return null;m('#dzCrMsg',r.message);return null}m('#dzCrMsg',okText,true);refreshLog();return r};
+  $('#dzOut').onclick=async()=>{const v=await ask({title:'Sign everyone out?',text:'Every facilitator and coordinator must sign in again, and trusted browsers are forgotten. Type SIGN OUT to confirm.',input:'',label:'Type SIGN OUT',ok:'Sign out all',danger:true});
+    if(v!=null)crit({op:'signOutAll',confirm:v},'Everyone else is signed out.')};
+  $('#dzUnl').onclick=()=>crit({op:'unlockAll'},'Sign-in is unlocked.');
+  $('#dzArch').onclick=async()=>{const v=await ask({title:'Delete '+arch.length+' archived class'+(arch.length===1?'':'es')+'?',text:'Their students, attendance and backups go for good. Type DELETE to confirm.',input:'',label:'Type DELETE',ok:'Delete',danger:true});
+    if(v==null)return;const r=await crit({op:'deleteArchived',confirm:v},'Deleted.');if(r){m('#dzCrMsg',r.deleted.length?'Deleted '+r.deleted.join(', ')+'.':'Nothing was deleted.',true);await refreshLog();paneDanger(box)}};
+  $('#dzQr').onclick=async()=>{const c=pickedCls();if(!c)return m('#dzCrMsg','Pick a class first.');
+    if(await ask({title:'New check-in codes for '+c.name+'?',text:'The QR on screen changes. Codes and links someone copied stop working.',ok:'Change codes',danger:true}))crit({op:'rotateQr',db:c.id},'New check-in codes for '+c.name+'. Reopen its Live QR.')};
+  $('#dzClr').onclick=async()=>{const c=pickedCls();if(!c)return m('#dzCrMsg','Pick a class first.');
+    const v=await ask({title:'Clear attendance in '+c.name+'?',text:'The register, excuses, class days and log go. Students, team and settings stay. Type the class name to confirm.',input:'',label:'Type '+c.name,ok:'Clear',danger:true});
+    if(v!=null){const r=await crit({op:'clearAttendance',db:c.id,confirm:v},'Cleared. A backup was made first.');if(r)DZ.dirty=true}};
+  // the data editor
+  let T=null;
+  const cellHTML=(row,c)=>{const v=row[c],cut=row._cut&&row._cut.includes(c);
+    return `<td class="${cut?'cut':'ed'}" data-c="${esc(c)}" title="${cut?'Too long to edit here':'Tap to edit'}">${v===null?'<span class="nul">NULL</span>':esc(String(v))+(cut?'…':'')}</td>`};
+  const gridHTML=(cols,rows,edit)=>`<div class="tblwrap" style="max-height:60vh"><table class="dz-t"><thead><tr>${edit?'<th>rowid</th>':''}${cols.map(c=>`<th>${esc(c)}</th>`).join('')}${edit?'<th></th>':''}</tr></thead><tbody>${rows.map(r=>edit?`<tr data-r="${r._rowid}"><td class="rid">${r._rowid}</td>${cols.map(c=>cellHTML(r,c)).join('')}<td><button class="del" aria-label="Delete row ${r._rowid}" title="Delete row">✕</button></td></tr>`:`<tr>${cols.map(c=>`<td>${r[c]===null||r[c]===undefined?'<span class="nul">NULL</span>':esc(String(r[c]))}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="${cols.length+2}" class="hint">No rows.</td></tr>`}</tbody></table></div>`;
+  async function loadTables(){$('#dzTabs').innerHTML='<span class="hint">Loading…</span>';$('#dzGrid').innerHTML='';
+    const r=await dzCall({op:'db',db:DZ.db,q:{op:'tables'}});if(!r.ok){if(relock(r))return;$('#dzTabs').innerHTML='<div class="msg err">'+esc(r.message)+'</div>';return}
+    if(!DZ.table||!r.tables.some(t=>t.name===DZ.table))DZ.table=(r.tables.find(t=>t.name==='t_students'||t.name==='classes')||r.tables[0]||{}).name||'';
+    $('#dzTabs').innerHTML=r.tables.map(t=>`<button data-t="${esc(t.name)}" class="${t.name===DZ.table?'on':''}">${esc(dzName(t.name))}<small>${t.rows}</small></button>`).join('');
+    loadRows()}
+  $('#dzTabs').onclick=e=>{const b=e.target.closest('[data-t]');if(!b)return;DZ.table=b.dataset.t;DZ.offset=0;DZ.find='';$('#dzFind').value='';$('#dzAddF').innerHTML='';
+    $('#dzTabs').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));loadRows()};
+  async function loadRows(){if(!DZ.table){$('#dzGrid').innerHTML='';return}
+    const r=await dzCall({op:'db',db:DZ.db,q:{op:'rows',table:DZ.table,offset:DZ.offset,limit:50,find:DZ.find}});
+    if(!r.ok){if(relock(r))return;$('#dzGrid').innerHTML='<div class="msg err">'+esc(r.message)+'</div>';return}
+    T=r;const to=Math.min(r.offset+r.rows.length,r.total);
+    $('#dzGrid').innerHTML=gridHTML(r.cols,r.rows,true)+`<div class="row mt" style="justify-content:space-between"><span class="hint">${r.total?(r.offset+1)+' to '+to+' of '+r.total+', newest first':''}${DZ.find?' matching “'+esc(DZ.find)+'”':''}</span><div class="row"><button class="btn ghost small" id="dzPrev"${r.offset?'':' disabled'}>Newer</button><button class="btn ghost small" id="dzNext"${to<r.total?'':' disabled'}>Older</button></div></div>`;
+    $('#dzPrev').onclick=()=>{DZ.offset=Math.max(0,DZ.offset-50);loadRows()};$('#dzNext').onclick=()=>{DZ.offset+=50;loadRows()}}
+  let ft;$('#dzFind').oninput=e=>{clearTimeout(ft);ft=setTimeout(()=>{DZ.find=e.target.value.trim();DZ.offset=0;loadRows()},300)};
+  $('#dzGrid').onclick=async e=>{const tr=e.target.closest('tr[data-r]');if(!tr||!T)return;const rid=Number(tr.dataset.r),row=T.rows.find(x=>x._rowid===rid);
+    if(e.target.closest('.del')){
+      if(!await ask({title:'Delete row '+rid+' from '+dzName(T.table)+'?',text:Object.keys(row).filter(k=>k[0]!=='_').slice(0,4).map(k=>k+': '+row[k]).join(' · '),ok:'Delete row',danger:true}))return;
+      const r=await dzCall({op:'db',db:DZ.db,q:{op:'del',table:T.table,rowid:rid}});if(!r.ok){if(!relock(r))toast(r.message,true);return}
+      toast('Row deleted');afterWrite();return}
+    const td=e.target.closest('td.ed');if(!td)return;const c=td.dataset.c;
+    const v=await ask({title:dzName(T.table)+' · row '+rid+' · '+c,text:'The new value goes straight into the database.',input:row[c]===null?'':String(row[c]),label:c,ok:'Save'});
+    if(v==null||v===String(row[c]==null?'':row[c]))return;
+    const r=await dzCall({op:'db',db:DZ.db,q:{op:'cell',table:T.table,rowid:rid,col:c,value:v}});if(!r.ok){if(!relock(r))toast(r.message,true);return}
+    Object.assign(row,r.row);td.outerHTML=cellHTML(row,c);toast('Saved');afterWrite(true)};
+  $('#dzAddT').onclick=()=>{if(!T)return;const f=$('#dzAddF');if(f.innerHTML){f.innerHTML='';return}
+    f.innerHTML=`<form id="dzAddForm" class="card" style="box-shadow:none;margin-bottom:12px"><b>New row in ${esc(dzName(T.table))}</b><div class="dz-add">${T.cols.map(c=>`<div><label for="dzA_${esc(c)}">${esc(c)}</label><input id="dzA_${esc(c)}" data-c="${esc(c)}"></div>`).join('')}</div><div class="row"><button class="btn">Add row</button><button type="button" class="btn ghost" id="dzAddX">Cancel</button></div></form>`;
+    $('#dzAddX').onclick=()=>{f.innerHTML=''};
+    $('#dzAddForm').onsubmit=async e=>{e.preventDefault();const values={};f.querySelectorAll('input[data-c]').forEach(i=>{if(i.value!=='')values[i.dataset.c]=i.value});
+      const r=await dzCall({op:'db',db:DZ.db,q:{op:'add',table:T.table,values}});if(!r.ok){if(!relock(r))toast(r.message,true);return}
+      f.innerHTML='';toast('Row added');DZ.offset=0;afterWrite()}};
+  // after a change: the table and counts reload, and this class's page data too
+  // (this class's page data reloads when the admin leaves the Danger zone, so a reload here can't wipe the SQL box)
+  const afterWrite=soft=>{if(!soft)loadTables();refreshLog();DZ.dirty=true};
+  $('#dzRun').onclick=async()=>{const q=$('#dzSql').value.trim();if(!q)return;
+    if(!/^\s*(select|pragma|explain)\b/i.test(q)&&!await ask({title:'Run this on '+dzDbName(DZ.db)+'?',text:'It can change or delete data. '+(DZ.db==='corner'?'':'The class is backed up first.'),ok:'Run',danger:true}))return;
+    const b=$('#dzRun');b.disabled=true;$('#dzSqlN').textContent='Running…';
+    const r=await dzCall({op:'db',db:DZ.db,q:{op:'sql',sql:q}});b.disabled=false;
+    if(!r.ok){$('#dzSqlN').textContent='';if(relock(r))return;$('#dzSqlOut').innerHTML='<div class="msg err">'+esc(r.message)+'</div>';return}
+    $('#dzSqlN').textContent=r.rows.length+(r.more?'+':'')+' rows · '+r.read+' read · '+r.written+' written';
+    $('#dzSqlOut').innerHTML=r.cols.length?gridHTML(r.cols,r.rows,false):'<div class="msg good">Done.</div>';
+    if(r.written)afterWrite()};
+  $('#dzSql').onkeydown=e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();$('#dzRun').click()}};
+  loadTables();
 }
 
 /* Excuses */

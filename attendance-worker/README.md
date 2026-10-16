@@ -86,3 +86,14 @@ The admin and coordinators have a **Users** page with every coordinator, facilit
 - Accounts are made only on the Users page. A class's Team page lists who runs it and lets the lead change roles.
 - The sign-in card has **Sign in as admin** (main password, no number).
 - The admin changes the main password under **My account** with the current password. Other admin sign-ins end; facilitators and coordinators stay signed in. Setup › Cloudflare server tools still works if the password is forgotten.
+
+## Danger zone (server version 21)
+
+Only the admin (main password) sees **Danger zone** under American Corner. It asks for the main password again and stays unlocked for 15 minutes in that tab only (never saved). Five wrong passwords lock it for 15 minutes.
+
+- **Prune old data:** activity log older than N days, all but the newest N backups in each class, old Recent changes, expired sign-ins and caches, used or old profile key requests, and enrolments, roles and people left behind by deleted classes or accounts. Students, attendance and accounts are never pruned.
+- **Critical steps:** sign everyone out (type SIGN OUT), unlock sign-in, delete archived classes (type DELETE), new check-in codes for a class, clear a class's attendance for a new term (type the class name; students, team and settings stay).
+- **Data editor:** pick the American Corner database or any class, pick a table, search and page through rows, tap a cell to change it, delete or add rows. Photos and backups are too long to edit here.
+- **SQL:** runs on the database picked. SELECT shows up to 500 rows; anything that writes asks first.
+
+A class is backed up before its first change (at most once every 10 minutes, and always before clearing attendance). Every change is listed under Recent changes. After a change to a class's students, the American Corner's people list follows.
