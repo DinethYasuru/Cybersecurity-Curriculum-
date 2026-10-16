@@ -416,7 +416,20 @@ body.present .names .offs{display:none}
 .clsw:focus-within{outline:2px solid var(--navy);outline-offset:2px}
 .clsn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .clsw svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
-.clsw select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px}
+.clswrap{position:relative;display:inline-block;max-width:100%}
+.clsmenu{position:absolute;left:0;top:calc(100% + 2px);z-index:45;width:min(360px,calc(100vw - 32px));background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh-3);padding:8px;animation:up .18s var(--ease) both}
+.clsmh{font:600 .72rem 'Outfit';letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:6px 10px 8px}
+.clsq{margin:0 2px 6px}
+.clsl{max-height:min(360px,60vh);overflow:auto;display:flex;flex-direction:column;gap:2px}
+.clso{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:8px 10px;border:0;border-radius:10px;background:none;font:500 1rem 'DM Sans';color:var(--ink);text-align:left;cursor:pointer}
+.clso .clsot{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clso small{font:600 .75rem 'Outfit';color:var(--muted)}
+.clso svg{width:18px;height:18px;flex:none;fill:none;stroke:var(--navy);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.clso:hover,.clso.hi{background:var(--navy-50);color:var(--navy)}
+.clso[aria-selected="true"]{font-weight:700;color:var(--navy)}
+.clso .cdot{width:10px;height:10px;border-radius:50%;flex:none;margin:0}
+.clsl .hint{padding:10px}
+.clsw:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .ccls{flex-direction:column;justify-content:flex-start;text-align:left;cursor:pointer;font:inherit;border-top:4px solid var(--cc)}.ccls b{font-size:2rem}.ccn{display:block;color:var(--ink)!important}.ccn small{display:block;margin-top:2px;font-weight:500;color:var(--muted);font-size:.82rem}
 .cdot{width:14px;height:14px;border-radius:50%;flex:none;margin:0 6px}
@@ -1335,11 +1348,30 @@ function stopLive(){clearInterval(liveTimer);clearInterval(pollTimer);liveTimer=
 // the class name above the page title; with more than one class it is also the switcher (a native list over a pill, so long names never get cut)
 function clsSwitch(cn){const c=DATA&&DATA.corner;if(!cn)return '';
   if(!c||c.classes.length<2)return `<div class="clsk">${esc(cn)}</div>`;
-  return `<label class="clsw" title="Switch class"><span class="clsn">${esc(cn)}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg><select id="clsSel" aria-label="Class">${c.classes.map(x=>`<option value="${esc(x.id)}"${x.id===c.k?' selected':''}>${esc(x.name)}</option>`).join('')}</select></label>`}
+  return `<div class="clswrap"><button type="button" class="clsw" id="clsBtn" aria-haspopup="listbox" aria-expanded="false" title="Switch class"><span class="clsn">${esc(cn)}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+    <div class="clsmenu" id="clsMenu" hidden><div class="clsmh">Switch class</div>${c.classes.length>6?`<div class="search clsq">${ICON.search}<input id="clsQ" placeholder="Search classes" aria-label="Search classes" autocomplete="off"></div>`:''}<div class="clsl" id="clsL" role="listbox" aria-label="Classes"></div></div></div>`}
+// the class menu: every class you can open, the current one ticked; search when there are many
+function wireClsMenu(){const btn=$('#clsBtn');if(!btn)return;const M=$('#clsMenu'),L=$('#clsL'),Q=$('#clsQ'),c=DATA.corner;let hi=0,list=[];
+  const roleTxt=r=>r==='owner'?'Lead':r==='instructor'?'Facilitator':'';
+  const draw=()=>{const q=Q?Q.value.trim().toLowerCase():'';list=c.classes.filter(x=>!q||x.name.toLowerCase().includes(q));hi=Math.max(0,list.findIndex(x=>x.id===c.k));if(q)hi=0;
+    L.innerHTML=list.slice(0,200).map((x,i)=>`<button type="button" role="option" class="clso${i===hi?' hi':''}" data-k="${esc(x.id)}" aria-selected="${x.id===c.k}"><span class="cdot" style="background:${esc(x.color||'#002868')}"></span><span class="clsot">${esc(x.name)}</span>${roleTxt(x.role)?`<small>${roleTxt(x.role)}</small>`:''}${x.id===c.k?'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>':''}</button>`).join('')||'<p class="hint">No class has that name.</p>'};
+  const paint=()=>L.querySelectorAll('.clso').forEach((b,i)=>{b.classList.toggle('hi',i===hi);if(i===hi)b.scrollIntoView({block:'nearest'})});
+  const open=()=>{M.hidden=false;btn.setAttribute('aria-expanded','true');if(Q)Q.value='';draw();setTimeout(()=>(Q||L.querySelector('.hi')||L).focus(),0);document.addEventListener('mousedown',out,true)};
+  const close=f=>{M.hidden=true;btn.setAttribute('aria-expanded','false');document.removeEventListener('mousedown',out,true);if(f)btn.focus()};
+  const out=e=>{if(!e.target.closest('.clswrap'))close()};
+  const go=k=>{close();if(k!==c.k)switchClass(k)};
+  btn.onclick=()=>M.hidden?open():close(true);
+  L.onclick=e=>{const b=e.target.closest('[data-k]');if(b)go(b.dataset.k)};
+  if(Q)Q.oninput=draw;
+  M.onkeydown=e=>{const n=Math.min(list.length,200);
+    if(e.key==='Escape'){e.preventDefault();close(true)}
+    else if(e.key==='ArrowDown'){e.preventDefault();hi=Math.min(hi+1,n-1);paint();if(!Q)L.querySelectorAll('.clso')[hi].focus()}
+    else if(e.key==='ArrowUp'){e.preventDefault();hi=Math.max(hi-1,0);paint();if(!Q)L.querySelectorAll('.clso')[hi].focus()}
+    else if(e.key==='Enter'&&Q&&document.activeElement===Q&&n){e.preventDefault();go(list[hi].id)}}}
 function paintHead(acts){const [t,d]=PAGES[TAB];document.title=t+' · Class Attendance';
   const cn=DATA&&DATA.corner&&!['corner','users','account'].includes(TAB)?DATA.corner.className:'';
   $('#phead').innerHTML=`<div class="phtxt">${clsSwitch(cn)}<h1>${esc(t)}</h1><p>${esc(d)}</p></div><div class="acts noprint" id="pacts"><span id="opsChip"></span>${acts||''}<button class="btn ghost" id="refresh">${ICON.refresh}<span>Refresh</span></button></div>`;
-  $('#refresh').onclick=()=>loadData(true);const cs=$('#clsSel');if(cs)cs.onchange=()=>switchClass(cs.value);opsPaint()}
+  $('#refresh').onclick=()=>loadData(true);wireClsMenu();opsPaint()}
 function renderPane(){
   stopLive();if(!DATA)return;paintHead();
   const box=$('#paneBox');
