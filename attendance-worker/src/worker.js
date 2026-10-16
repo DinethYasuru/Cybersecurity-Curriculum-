@@ -200,8 +200,67 @@ export default {
     if (!who.ok) return json({ ok: false, reason: 'auth', message: 'Please log in again.' });
     // while Cloudflare swaps in new code, the Corner can still answer the older way (no coord/hub): the main password stays the admin
     who.coord = !!who.coord; who.hub = !!(who.hub || who.admin || who.coord);
+    // the admin's Danger zone: prune, critical steps and the data editor. Only the main password, typed again each time.
+    const danger = async () => {
+      if (!who.admin) return fail('input', 'Only the admin can use the Danger zone.');
+      const ck = await H('dangerCheck', { password: req.password });
+      if (!ck.ok) return ck;
+      const op = String(req.op || ''), db = String(req.db || 'corner');
+      const cls = classes.find(c => c.id === db);
+      if (db !== 'corner' && !cls) return fail('input', 'That class is gone.');
+      const where = db === 'corner' ? 'American Corner' : cls.name;
+      const note = what => H('audit', { db: where, what });
+      if (op === 'open') {
+        const a = await H('auditList');
+        return { ok: true, audit: a.audit || [], classes: classes.map(c => ({ id: c.id, name: c.name, active: c.active !== 'no' })) };
+      }
+      if (op === 'db') {
+        const d = req.q && typeof req.q === 'object' ? req.q : {};
+        const r = db === 'corner' ? await H('dangerDb', { q: d }) : await I(db, { op: 'danger:db', q: d });
+        const wrote = d.op === 'cell' || d.op === 'del' || d.op === 'add' || (d.op === 'sql' && r.written > 0);
+        if (r.ok && wrote) {
+          await note(d.op === 'sql' ? 'SQL: ' + String(d.sql).trim().slice(0, 240) + ' (' + r.written + ' rows written)'
+            : d.op === 'cell' ? 'Edited ' + d.table + ' row ' + d.rowid + ', ' + d.col
+            : d.op === 'del' ? 'Deleted ' + d.table + ' row ' + d.rowid : 'Added a row to ' + d.table);
+          if (db !== 'corner') await sync(db);
+        }
+        return r;
+      }
+      if (op === 'prune') {
+        // one database per request: the page goes through the classes one by one
+        const r = db === 'corner' ? await H('prune', { auditDays: Number(req.auditDays) || 0 }) : await I(db, { op: 'danger:prune', logDays: req.logDays, backupsKept: req.backupsKept });
+        if (r.ok) { const parts = Object.keys(r.n).filter(x => r.n[x]).map(x => r.n[x] + ' ' + x); if (parts.length) await note('Pruned ' + parts.join(', ')); }
+        return r;
+      }
+      if (op === 'rotateQr' || op === 'clearAttendance') {
+        if (!cls) return fail('input', 'Pick a class.');
+        if (op === 'clearAttendance' && cleanNm(req.confirm).toLowerCase() !== cleanNm(cls.name).toLowerCase()) return fail('input', 'Type the class name exactly to clear it.');
+        const r = await I(db, { op: 'danger:' + op });
+        if (r.ok) await note(op === 'rotateQr' ? 'New check-in codes (QR secret changed)' : 'Cleared attendance, excuses, class days and log');
+        return r;
+      }
+      if (op === 'signOutAll') {
+        if (String(req.confirm || '').trim().toUpperCase() !== 'SIGN OUT') return fail('input', 'Type SIGN OUT to confirm.');
+        const r = await H('signOutAll', { req });
+        if (r.ok) await note('Signed everyone out');
+        return r;
+      }
+      if (op === 'unlockAll') { const r = await H('unlockAll'); if (r.ok) await note('Unlocked sign-in'); return r; }
+      if (op === 'deleteArchived') {
+        if (String(req.confirm || '').trim().toUpperCase() !== 'DELETE') return fail('input', 'Type DELETE to confirm.');
+        const gone = [];
+        for (const c of classes.filter(x => x.active === 'no').slice(0, CORNER_STATS)) {
+          const r = await H('classDelete', { req: { id: c.id, confirm: c.name }, who });
+          if (r.ok) { await I(c.id, { op: 'wipe' }); gone.push(c.name); }
+        }
+        if (gone.length) await note('Deleted archived classes: ' + gone.join(', '));
+        return { ok: true, deleted: gone };
+      }
+      return fail('action', 'Unknown step.');
+    };
     // a starter account first chooses its own password
     if (who.me && who.me.mustSetup && a !== 'myAccount') return json({ ok: false, reason: 'setup', message: 'Set up your account first.', me: who.me });
+    if (a === 'danger') return json(await danger());
     if (HUB_ADMIN[a]) {
       if (a === 'corner') {
         // the class list, people and accounts come from the Corner alone; today's numbers need one call per class,
@@ -272,7 +331,9 @@ const HUB_SQL = [
   'CREATE TABLE IF NOT EXISTS people (phone TEXT PRIMARY KEY, name TEXT, updated INTEGER)',
   'CREATE TABLE IF NOT EXISTS enrol (k TEXT, sid TEXT, phone TEXT, name TEXT, active TEXT, PRIMARY KEY (k, sid))',
   'CREATE TABLE IF NOT EXISTS staff (id TEXT PRIMARY KEY, name TEXT, phone TEXT, salt TEXT, hash TEXT, active TEXT, admin TEXT, added TEXT, photo TEXT, setup TEXT)',
-  'CREATE TABLE IF NOT EXISTS roles (sid TEXT, k TEXT, role TEXT, PRIMARY KEY (sid, k))'
+  'CREATE TABLE IF NOT EXISTS roles (sid TEXT, k TEXT, role TEXT, PRIMARY KEY (sid, k))',
+  // what the admin changed in the Danger zone, newest kept
+  'CREATE TABLE IF NOT EXISTS audit (at INTEGER, db TEXT, what TEXT)'
 ];
 const cleanPh = v => { let d = String(v || '').replace(/\D/g, ''); if (d.length === 11 && d.startsWith('94')) d = '0' + d.slice(2); if (d.length === 9 && d[0] !== '0') d = '0' + d; return /^0\d{9}$/.test(d) ? d : ''; };
 const cleanNm = v => String(v || '').trim().replace(/\s+/g, ' ');
@@ -280,6 +341,63 @@ const okName = n => n.length >= 2 && n.length <= 60 && /^[\p{L}\p{M} .'-]+$/u.te
 const mask = n => cleanNm(n).split(' ').map(w => w.slice(0, 2) + (w.length > 2 ? '*'.repeat(w.length - 2) : '')).join(' ');
 const hashPw = (pw, salt) => { let h = salt + ':' + pw; for (let i = 0; i < 300; i++) h = SHA.hex(salt + h); return h; };
 const fail = (reason, message) => ({ ok: false, reason, message });
+// the admin's Danger zone: look at any table, change a cell, delete or add a row, or run SQL.
+// Long values (photos, backups) are cut for the screen and can't be edited from there.
+const DB_SKIP = /^(_cf_|sqlite_|__)/;  // Cloudflare's own tables (and the local test server's)
+const SHOW_MAX = 300;
+const dbCell = v => (v instanceof ArrayBuffer ? '[' + v.byteLength + ' bytes]' : typeof v === 'string' && v.length > SHOW_MAX ? v.slice(0, SHOW_MAX) : v);
+const dbRow = r => { const o = {}, cut = []; for (const c in r) { o[c] = dbCell(r[c]); if (typeof r[c] === 'string' && r[c].length > SHOW_MAX) cut.push(c); } if (cut.length) o._cut = cut; return o; };
+const READ_SQL = /^\s*(select|pragma|explain)\b/i;
+function dbTool(sql, tx, q) {
+  const all = (s, ...a) => sql.exec(s, ...a).toArray();
+  const tables = all("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").map(r => r.name).filter(n => !DB_SKIP.test(n));
+  const op = String(q.op || '');
+  try {
+    if (op === 'tables') return { ok: true, tables: tables.map(t => ({ name: t, rows: all(`SELECT COUNT(*) AS n FROM "${t}"`)[0].n })) };
+    if (op === 'sql') {
+      const text = String(q.sql || '').trim();
+      if (!text) return fail('input', 'Type a query.');
+      if (text.length > 20000) return fail('input', 'That query is too long.');
+      const out = { ok: true, cols: [], rows: [], more: false, read: 0, written: 0 };
+      tx(() => {
+        const cur = sql.exec(text);
+        for (const r of cur) { if (out.rows.length >= 500) { out.more = true; break; } out.rows.push(dbRow(r)); }
+        out.cols = cur.columnNames || []; out.read = cur.rowsRead; out.written = cur.rowsWritten;
+      });
+      return out;
+    }
+    const t = String(q.table || '');
+    if (!tables.includes(t)) return fail('input', 'Pick a table.');
+    const cols = all(`PRAGMA table_info("${t}")`).map(c => c.name);
+    const rid = Number(q.rowid);
+    if (op === 'rows') {
+      const lim = Math.min(Math.max(Number(q.limit) || 50, 1), 200), off = Math.max(Number(q.offset) || 0, 0);
+      const f = String(q.find || '').trim().slice(0, 100);
+      const where = f ? ' WHERE ' + cols.map(c => `CAST("${c}" AS TEXT) LIKE ?`).join(' OR ') : '';
+      const args = f ? cols.map(() => '%' + f + '%') : [];
+      const total = all(`SELECT COUNT(*) AS n FROM "${t}"${where}`, ...args)[0].n;
+      return { ok: true, table: t, cols, total, offset: off, limit: lim, rows: all(`SELECT rowid AS _rowid, * FROM "${t}"${where} ORDER BY rowid DESC LIMIT ? OFFSET ?`, ...args, lim, off).map(dbRow) };
+    }
+    if (op === 'cell') {
+      if (!cols.includes(q.col)) return fail('input', 'Pick a column.');
+      const v = q.value === null ? null : String(q.value == null ? '' : q.value);
+      let n = 0; tx(() => { n = sql.exec(`UPDATE "${t}" SET "${q.col}" = ? WHERE rowid = ?`, v, rid).rowsWritten; });
+      return n ? { ok: true, row: dbRow(all(`SELECT rowid AS _rowid, * FROM "${t}" WHERE rowid = ?`, rid)[0] || {}) } : fail('input', 'That row is gone. Reload the table.');
+    }
+    if (op === 'del') {
+      let n = 0; tx(() => { n = sql.exec(`DELETE FROM "${t}" WHERE rowid = ?`, rid).rowsWritten; });
+      return n ? { ok: true } : fail('input', 'That row is gone. Reload the table.');
+    }
+    if (op === 'add') {
+      const v = q.values && typeof q.values === 'object' ? q.values : {};
+      const use = cols.filter(c => v[c] != null && v[c] !== '');
+      if (!use.length) return fail('input', 'Fill in at least one column.');
+      let id = 0; tx(() => { id = sql.exec(`INSERT INTO "${t}" (${use.map(c => `"${c}"`).join(', ')}) VALUES (${use.map(() => '?').join(', ')}) RETURNING rowid AS r`, ...use.map(c => String(v[c]))).one().r; });
+      return { ok: true, rowid: id };
+    }
+  } catch (e) { return fail('input', 'The database said: ' + String(e && e.message || e).replace(/^Error:\s*/, '')); }
+  return fail('action', 'Unknown step.');
+}
 const okPhoto = p => typeof p === 'string' && p.length <= 40000 && /^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+\/]+=*$/.test(p);
 
 export class Corner extends DurableObject {
@@ -560,6 +678,40 @@ export class Corner extends DurableObject {
         return json({ ok: true, people: this.all('SELECT phone, name FROM people ORDER BY name').map(p => Object.assign(p, { classes: en[p.phone] || [] })),
           staff: this.all('SELECT * FROM staff ORDER BY name').map(s => Object.assign(this.staffOut(s), { roles: roles[s.id] || [] })) });
       }
+      // the Danger zone: the main password is typed again for every step; 5 wrong tries lock it for 15 minutes
+      case 'dangerCheck': {
+        const n = Number(this.kvGet('dangerfail') || 0);
+        if (n >= 5) return json(fail('locked', 'Too many wrong passwords. Wait 15 minutes.'));
+        if (!this.prop('adminHash') || hashPw(String(q.password || ''), this.prop('adminSalt')) !== this.prop('adminHash')) { this.kvPut('dangerfail', n + 1, 900); return json(fail('password', 'The main password is not right.')); }
+        this.sql.exec("DELETE FROM kv WHERE k = 'dangerfail'");
+        return json({ ok: true });
+      }
+      case 'dangerDb': return json(dbTool(this.sql, fn => this.ctx.storage.transactionSync(fn), q.q || {}));
+      case 'audit':
+        this.sql.exec('INSERT INTO audit VALUES (?, ?, ?)', Date.now(), String(q.db || ''), String(q.what || '').slice(0, 300));
+        this.sql.exec('DELETE FROM audit WHERE rowid NOT IN (SELECT rowid FROM audit ORDER BY at DESC LIMIT 300)');
+        return json({ ok: true });
+      case 'auditList': return json({ audit: this.all('SELECT at, db, what FROM audit ORDER BY at DESC LIMIT 50') });
+      case 'prune': {
+        // what nothing points to any more: old sign-ins, enrolments and roles of deleted classes or accounts, people in no class
+        const n = {};
+        this.ctx.storage.transactionSync(() => {
+          n.signins = this.sql.exec('DELETE FROM kv WHERE exp < ?', Date.now()).rowsWritten;
+          n.enrolments = this.sql.exec('DELETE FROM enrol WHERE k NOT IN (SELECT id FROM classes)').rowsWritten;
+          n.roles = this.sql.exec('DELETE FROM roles WHERE k NOT IN (SELECT id FROM classes) OR sid NOT IN (SELECT id FROM staff)').rowsWritten;
+          n.people = this.sql.exec('DELETE FROM people WHERE phone NOT IN (SELECT phone FROM enrol)').rowsWritten;
+          if (q.auditDays > 0) n.audit = this.sql.exec('DELETE FROM audit WHERE at < ?', Date.now() - q.auditDays * 86400000).rowsWritten;
+        });
+        return json({ ok: true, n });
+      }
+      case 'signOutAll': {
+        // everyone signs in again, every trusted browser is forgotten; this admin's sign-in is renewed
+        this.prop('epoch', Number(this.epoch()) + 1);
+        this.sql.exec("DELETE FROM kv WHERE k LIKE 'tok:%' OR k LIKE 'trust:%' OR k LIKE 'loginfail%'");
+        if (/^[a-f0-9]{16,64}$/.test(String(req.token || ''))) this.kvPut('tok:' + req.token, JSON.stringify({ sid: '', ep: this.epoch(), s8: '', aep: this.prop('aep') || '1' }), 21600);
+        return json({ ok: true });
+      }
+      case 'unlockAll': return json({ ok: true, n: this.sql.exec("DELETE FROM kv WHERE k LIKE 'loginfail%' OR k = 'maintfail'").rowsWritten });
       case 'maint':
         if (req.op === 'setPassword') { const salt = randHex(20); this.prop('adminSalt', salt); this.prop('adminHash', hashPw(String(req.password || ''), salt)); this.prop('epoch', Number(this.epoch()) + 1); }
         if (req.op === 'unlock') this.sql.exec("DELETE FROM kv WHERE k LIKE 'loginfail%' OR k = 'maintfail'");
@@ -729,6 +881,56 @@ export class ClassRoom extends DurableObject {
     return { ok: false, reason: 'action', message: 'Unknown setup step.' };
   }
 
+  // the admin's Danger zone in this class: a backup comes first (at most one every 10 minutes), and the cached tables are dropped after
+  dangerBackup() {
+    const last = Number(this.env_.getProp('dangerBak') || 0);
+    if (Date.now() - last < 600000) return;
+    this.backupNow('before a Danger zone change');
+    this.env_.setProp('dangerBak', String(Date.now()));
+  }
+  danger(q) {
+    const op = q.op.slice(7), E = this.env_;
+    const after = r => { this.tabs = {}; return r; };
+    if (op === 'db') {
+      const d = q.q || {};
+      const writes = d.op === 'cell' || d.op === 'del' || d.op === 'add' || (d.op === 'sql' && !READ_SQL.test(String(d.sql || '')));
+      if (writes) {
+        try { this.dangerBackup(); } catch (e) { return fail('error', 'Could not back up the class first, so nothing was changed: ' + String(e.message || e)); }
+        // the Corner's copy of the students follows the class's list
+        const r = dbTool(this.sql, fn => this.ctx.storage.transactionSync(fn), d);
+        if (r.ok) { const v = Number(E.getProp('sver') || 0) + 1; E.setProp('sver', String(v)); }
+        return after(r);
+      }
+      return dbTool(this.sql, fn => this.ctx.storage.transactionSync(fn), d);
+    }
+    if (op === 'prune') {
+      const n = { log: 0, backups: 0, requests: 0, cache: 0 };
+      const days = Math.max(Number(q.logDays) || 0, 0), keep = q.backupsKept === '' || q.backupsKept == null ? -1 : Math.floor(Number(q.backupsKept));
+      this.ctx.storage.transactionSync(() => {
+        if (days) n.log = this.sql.exec('DELETE FROM t_log WHERE CAST(ts AS INTEGER) < ?', Date.now() - days * 86400000).rowsWritten;
+        if (keep >= 0) {
+          n.backups = this.sql.exec('DELETE FROM backups WHERE id NOT IN (SELECT id FROM backups ORDER BY id DESC LIMIT ?)', keep).rowsWritten;
+          this.sql.exec('DELETE FROM backup_parts WHERE bid NOT IN (SELECT id FROM backups)');
+        }
+        // profile key requests that were used, dismissed, or never answered in 30 days
+        n.requests = this.sql.exec("DELETE FROM t_requests WHERE status IN ('used', 'dismissed') OR CAST(at AS INTEGER) < ?", Date.now() - 30 * 86400000).rowsWritten;
+        n.cache = this.sql.exec('DELETE FROM kv WHERE exp < ?', Date.now()).rowsWritten;
+      });
+      const info = this.backupInfo(); info.count = this.sql.exec('SELECT COUNT(*) AS n FROM backups').one().n; E.setProp('backup', JSON.stringify(info));
+      return after({ ok: true, n });
+    }
+    // new check-in codes: the QR on screen changes, and a code someone copied stops working
+    if (op === 'rotateQr') { E.setProp('qrKey', E.random()); E.setProp('trusted', '{}'); return { ok: true }; }
+    // a new term: the register, excuses, class days and log go; students, team and settings stay
+    if (op === 'clearAttendance') {
+      try { this.backupNow('before clearing attendance'); } catch (e) { return fail('error', 'Could not back up the class first, so nothing was cleared: ' + String(e.message || e)); }
+      const n = {};
+      this.ctx.storage.transactionSync(() => { for (const t of ['attendance', 'excuses', 'days', 'log']) n[t] = this.sql.exec(`DELETE FROM t_${t}`).rowsWritten; });
+      return after({ ok: true, n });
+    }
+    return fail('action', 'Unknown step.');
+  }
+
   // asked by the front door only (clients can't reach these paths)
   internal(q) {
     const E = this.env_;
@@ -738,6 +940,7 @@ export class ClassRoom extends DurableObject {
       return { adminHash: E.getProp('adminHash'), adminSalt: E.getProp('adminSalt'), staff: E.read('staff').map(r => Object.assign({}, r, { photo: photos[r.id] || '' })),
         students: E.read('students').map(r => ({ id: r.id, name: r.name, phone: r.phone, active: r.active })) };
     }
+    if (String(q.op || '').startsWith('danger:')) return this.danger(q);
     if (q.op === 'newClass') { if (!E.getProp('settings')) E.setProp('settings', JSON.stringify({ idPrefix: q.prefix })); return { ok: true }; }
     if (q.op === 'applyPerson') {
       // the same person changed their name or number in another class (both tables change together, or neither)
