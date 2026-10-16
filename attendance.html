@@ -184,6 +184,12 @@ input[type=checkbox]{width:20px;height:20px;min-height:0;accent-color:var(--navy
 .tm.usr:hover{background:var(--canvas)}
 .tm.usr{flex-wrap:wrap}.tm.usr .tmtxt{flex:1 1 170px;min-width:0}.tm.usr .tmside{flex-wrap:wrap}
 @media (max-width:700px){.tm.usr .tmside{flex-basis:100%;flex-direction:row;align-items:center;justify-content:flex-start;padding-left:58px}}
+.combo{position:relative}.combo input{padding-right:44px}
+.combo-b{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:0;background:none;color:var(--muted);cursor:pointer;display:grid;place-items:center}
+.combo-b svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2}
+.combo-l{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-2);max-height:280px;overflow:auto;padding:4px}
+.combo-l button{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;padding:10px 12px;border:0;border-radius:8px;background:none;font:inherit;color:var(--ink);cursor:pointer}
+.combo-l button small{color:var(--muted)}.combo-l button.on,.combo-l button:hover{background:var(--canvas);color:var(--navy)}.combo-l .hint{padding:10px 12px;margin:0}
 .seg button.on{background:#fff;color:var(--navy);box-shadow:var(--sh-1),0 0 0 1px var(--line)}
 
 /* ===== Badges & messages ===== */
@@ -1932,8 +1938,25 @@ async function paneUsers(box){
   if(!r.ok){box.innerHTML='<div class="msg err">'+esc(r.message)+'</div>';return}
   const adm=isAdmin(),act=r.classes.filter(c=>c.active),cn=id=>(r.classes.find(c=>c.id===id)||{}).name||id;
   // pick a class by typing its name (a list of every class would be too long with many classes)
-  const clsPick=(id,val)=>`<input id="${id}" list="${id}L" autocomplete="off" placeholder="Type a class name" value="${esc(val||'')}"><datalist id="${id}L">${act.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist>`;
-  const clsOf=v=>{v=String(v||'').trim().toLowerCase();return (act.find(c=>c.name.toLowerCase()===v)||{}).id||''};
+  // pick a class: the list shows every class and narrows as you type any part of the name
+  const clsPick=(id,val)=>`<div class="combo"><input id="${id}" role="combobox" aria-expanded="false" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Pick or type a class" value="${esc(val||'')}"><button type="button" class="combo-b" tabindex="-1" aria-label="Show every class"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="combo-l" role="listbox" hidden></div></div>`;
+  const clsOf=v=>{v=String(v||'').trim().toLowerCase();if(!v)return '';const ex=act.find(c=>c.name.toLowerCase()===v);if(ex)return ex.id;const m=act.filter(c=>c.name.toLowerCase().includes(v));return m.length===1?m[0].id:''};
+  const wireCombos=root=>root.querySelectorAll('.combo').forEach(cb=>{const inp=cb.querySelector('input'),L=cb.querySelector('.combo-l');let hi=0,shown=[];
+    const close=()=>{L.hidden=true;inp.setAttribute('aria-expanded','false')};
+    const paint=()=>{L.querySelectorAll('[data-k]').forEach((b,i)=>b.classList.toggle('on',i===hi));const b=L.querySelectorAll('[data-k]')[hi];if(b)b.scrollIntoView({block:'nearest'})};
+    const open=all=>{const q=all?'':inp.value.trim().toLowerCase();shown=act.filter(c=>!q||c.name.toLowerCase().includes(q));hi=0;
+      L.innerHTML=shown.length?shown.slice(0,300).map(c=>`<button type="button" role="option" data-k="${esc(c.id)}">${esc(c.name)}${c.room?'<small>'+esc(c.room)+'</small>':''}</button>`).join('')+(shown.length>300?'<p class="hint">Type to narrow the list.</p>':''):'<p class="hint">No class has that name.</p>';
+      L.hidden=false;inp.setAttribute('aria-expanded','true');paint()};
+    const pick=k=>{inp.value=cn(k);close()};
+    inp.addEventListener('focus',()=>open(true));inp.addEventListener('click',()=>{if(L.hidden)open(true)});inp.addEventListener('input',()=>open(false));
+    inp.addEventListener('blur',()=>setTimeout(close,150));
+    inp.addEventListener('keydown',e=>{const n=Math.min(shown.length,300);
+      if(e.key==='ArrowDown'){e.preventDefault();if(L.hidden)open(false);else{hi=Math.min(hi+1,n-1);paint()}}
+      else if(e.key==='ArrowUp'){e.preventDefault();hi=Math.max(hi-1,0);paint()}
+      else if(e.key==='Enter'&&!L.hidden&&n){e.preventDefault();pick(shown[hi].id)}
+      else if(e.key==='Escape')close()});
+    L.addEventListener('mousedown',e=>{e.preventDefault();const b=e.target.closest('[data-k]');if(b)pick(b.dataset.k)});
+    cb.querySelector('.combo-b').addEventListener('mousedown',e=>{e.preventDefault();if(L.hidden){inp.focus();open(true)}else close()})});
   const users=[].concat(
     r.staff.map(x=>Object.assign({kind:x.coord?'coord':'fac',key:'s:'+x.id},x)),
     r.people.map(p=>({kind:'stu',key:'p:'+p.phone,name:p.name,phone:p.phone,classes:p.classes,active:true})));
@@ -1973,7 +1996,7 @@ async function paneUsers(box){
        <div class="field"><label for="usRole">Role</label><select id="usRole">${ROLE_OPTS('instructor',false)}</select><div class="hint">Add more classes after the account is made.</div></div></div>
       <p class="hint mb">Students join themselves with the class QR.</p>
       <div id="usMsg"></div><button class="btn">Make account</button></form>`;
-      $('#usGen').onclick=()=>{$('#usPw').value=starterPw()};
+      $('#usGen').onclick=()=>{$('#usPw').value=starterPw()};wireCombos(C());
       $('#usKind').onchange=()=>{$('#usFac').hidden=$('#usKind').value!=='fac'};
       $('#usForm').onsubmit=async e=>{e.preventDefault();msg('');
         const kind=$('#usKind').value,phone=cleanPhone($('#usPhone').value),name=$('#usName').value.trim().replace(/\s+/g,' '),pw=$('#usPw').value.trim();
@@ -2001,7 +2024,7 @@ async function paneUsers(box){
        <div class="field"><label for="usAddCls">Add to a class</label>${clsPick('usAddCls','')}</div><div class="field"><label for="usAddRole" class="sr">Role in that class</label><select id="usAddRole">${ROLE_OPTS('instructor',false)}</select></div>`:''}
       <label class="check"><input type="checkbox" id="usAct"${u.active?' checked':''}>Can sign in</label>
       <div id="usMsg"></div><div class="row"><button class="btn">Save</button><button type="button" class="btn red" id="usDel">Delete account</button></div></form>`;
-    $('#usGen').onclick=()=>{$('#usPw').value=starterPw()};
+    $('#usGen').onclick=()=>{$('#usPw').value=starterPw()};wireCombos(C());
     $('#usDel').onclick=async()=>{if(!await ask({title:'Delete '+u.name+"'s account?",text:'They can no longer sign in'+(u.kind==='fac'?' to any class':'')+'. Their past changes stay in the Activity log.',ok:'Delete',danger:true}))return;
       const y=await staffCall({action:'staffSave',sid:u.id,remove:true});if(!y.ok)return msg(y.message);toast('Account deleted');paneUsers(box)};
     $('#usForm').onsubmit=async e=>{e.preventDefault();msg('');
