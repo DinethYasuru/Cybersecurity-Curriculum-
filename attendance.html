@@ -494,6 +494,28 @@ dialog.dlg[open]{animation:up .3s var(--ease) both}
 @media (max-width:700px){.hero::after{display:none}.hero::before{width:260px;height:260px;right:-90px;top:-120px}}
 @media (max-width:1023px){body.adm .bnav{background:rgba(255,255,255,.85)!important;backdrop-filter:saturate(1.6) blur(14px)}.bnav button.on{background:#fff;box-shadow:var(--sh-1),0 0 0 1px #e3e8f1}}
 
+/* ===== Theme v20: navy side menu, white work area, flag colours only (no glass) ===== */
+.side{background:linear-gradient(180deg,var(--navy) 0%,var(--navy-d) 100%);backdrop-filter:none;border-right:0;color:#fff;padding:var(--s5) var(--s3) var(--s4)}
+.side .snav h6{color:rgba(255,255,255,.62);letter-spacing:.14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side .nav-i{color:rgba(255,255,255,.86);min-height:44px;border-radius:12px;box-shadow:none}
+.side .nav-i svg{color:rgba(255,255,255,.62)}
+.side .nav-i:hover{background:rgba(255,255,255,.08);color:#fff}
+.side .nav-i:hover svg{color:#fff}
+.side .nav-i.on{background:#fff;color:var(--navy);box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.side .nav-i.on svg{color:var(--red)}
+.side .nav-i.on::before{left:-12px;background:var(--red);width:5px}
+.side .nav-i:focus-visible{box-shadow:0 0 0 3px var(--navy),0 0 0 5px #fff}
+.side .nbadge{background:var(--red);color:#fff}
+.side-foot{border-top:1px solid rgba(255,255,255,.14)}
+.side .who{color:rgba(255,255,255,.72)}.side .who:hover{background:rgba(255,255,255,.08)}
+.side .who b{color:#fff}.side .who .av{background:#fff;color:var(--navy)}
+.side #logout{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}.side #logout:hover{background:rgba(255,255,255,.1)}
+.phead h1{letter-spacing:-.02em}
+.card{border-radius:18px}
+.btn{min-height:44px}.btn.small{min-height:36px}
+.nav-i{min-height:44px}
+@media (max-width:1023px){body.adm .bnav{background:#fff!important;backdrop-filter:none!important;border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(11,22,48,.06)}body.adm .bnav button{min-height:52px}body.adm .bnav button.on{background:var(--navy);color:#fff;box-shadow:none}body.adm .bnav button.on svg{color:#fff}}
+
 /* ===== Projector mode ===== */
 body.present .topbar,body.present .side,body.present .bnav,body.present .phead,body.present .demo,body.present .noproj{display:none!important}
 body.present .console{display:block}
@@ -598,14 +620,15 @@ body.present{background:#fff}
     <div class="auth" id="loginBox">
       <div class="card anim">
         <div class="lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
-        <h2>Staff sign in</h2>
-        <p class="hint mb">Records, reports and the live QR for the class.</p>
+        <h2 id="loginT">Staff sign in</h2>
+        <p class="hint mb" id="loginP">Facilitators and coordinators sign in with their own number.</p>
         <form id="loginForm" autocomplete="on">
-          <div class="field"><label for="lphone">Mobile number</label><input id="lphone" name="username" type="tel" inputmode="tel" maxlength="16" autocomplete="username" placeholder="07X XXX XXXX"><div class="hint">Your facilitator account. Coordinator: leave it empty and use the main password.</div></div>
+          <div class="field" id="lphoneF"><label for="lphone">Mobile number</label><input id="lphone" name="username" type="tel" inputmode="tel" maxlength="16" autocomplete="username" placeholder="07X XXX XXXX"></div>
           <div class="field"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required minlength="6"></div>
           <button class="btn wide big" id="loginBtn">Sign in</button>
         </form>
         <div id="loginMsg"></div>
+        <p class="hint mt"><button class="linkbtn" id="adminMode" type="button">Sign in as admin</button></p>
         <p class="hint mt"><button class="linkbtn" id="toSetup">Setup and demo</button> · <button class="linkbtn" id="toStudent">Back to check-in</button></p>
       </div>
     </div>
@@ -1200,10 +1223,16 @@ function renderFirst(){
     STARTER='';SETUP_ME=null;toast('All set. Welcome!');DATA=null;showAdmin()};
 }
 function logoutLocal(){STARTER='';SETUP_ME=null;PHOTOS=null;photosAt=0;TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
+// the admin signs in with the main password only: a mode to pick, not an empty box to remember
+function loginMode(admin){$('#lphoneF').hidden=admin;$('#loginT').textContent=admin?'Admin sign in':'Staff sign in';
+  $('#loginP').textContent=admin?'The main password. It opens every class and every setting.':'Facilitators and coordinators sign in with their own number.';
+  $('#adminMode').textContent=admin?'Sign in with your number instead':'Sign in as admin';if(admin)$('#lphone').value='';else if(!$('#lphone').value)$('#lphone').value=store.get('att-lphone')||'';store.set('att-admin-mode',admin?'1':'')}
+$('#adminMode').onclick=()=>{loginMode($('#lphoneF').hidden?false:true);(($('#lphoneF').hidden||$('#lphone').value)?$('#pw'):$('#lphone')).focus()};
 $('#loginForm').onsubmit=async e=>{
   e.preventDefault();const btn=$('#loginBtn');btn.disabled=true;btn.textContent='Checking…';$('#loginMsg').innerHTML='';
   const t0=Date.now();
   try{const lp=$('#lphone').value.trim(),body={action:'login',password:$('#pw').value,trust:store.get('att-trust')||''};
+    if(!lp&&!$('#lphoneF').hidden&&isCloud(SID)&&!isDemo()){$('#loginMsg').innerHTML='<div class="msg err">Type your mobile number, or choose Sign in as admin.</div>';btn.disabled=false;btn.textContent='Sign in';return}
     if(lp){body.phone=cleanPhone(lp);if(!body.phone){$('#loginMsg').innerHTML='<div class="msg err">Type a mobile number like 0771234567, or leave it empty.</div>';btn.disabled=false;btn.textContent='Sign in';return}store.set('att-lphone',lp)}else store.del('att-lphone');
     // a link can carry another server (?s=); never send the password there without asking
     if(FOREIGN&&!sess.get('att-foreign-ok')){btn.disabled=false;btn.textContent='Sign in';
@@ -1224,21 +1253,29 @@ $('#toSetup').onclick=()=>{location.hash='#setup'};
 $('#toStudent').onclick=()=>{location.hash=''};
 $('#toAdmin').onclick=()=>{location.hash='#admin'};
 
-const TABS_ALL=[['corner','American Corner','Overview'],['users','Users','Overview'],['home','Dashboard','Overview'],['inbox','Inbox','Overview'],['live','Live QR','Class'],['register','Register','Class'],['reports','Reports','Records'],['students','Students','Records'],['excuses','Excuses','Records'],['days','Class days','Records'],['team','Facilitators','System'],['ops','Operations','System'],['log','Activity log','System'],['settings','Settings','System']];
-// the American Corner page is for the Corner admin
-let TABS=TABS_ALL.filter(t=>t[0]!=='corner'&&t[0]!=='users');
-const setTabs=()=>{TABS=TABS_ALL.filter(t=>t[0]==='corner'||t[0]==='users'?isHub():t[0]==='live'?!isCoord():true)};
-const PAGES={corner:['American Corner','Every class today. Add, archive and delete classes.'],users:['Users','Everyone at the American Corner in one place: coordinators, facilitators and students. Make accounts, change classes and roles, reset or delete.'],home:['Dashboard','Today at a glance, and who needs a nudge.'],inbox:['Inbox','Students asking for a profile key. Send each one their code on WhatsApp.'],live:['Live check-in','Show this on the projector. The code changes every few seconds so only people in the room can check in.'],
+const TABS_ALL=[['corner','Overview'],['users','Users'],['home','Today'],['live','Live QR'],['register','Register'],['students','Students'],['reports','Reports'],['excuses','Excuses'],['days','Class days'],['inbox','Inbox'],['team','Team'],['settings','Settings'],['log','Activity log'],['ops','Operations']];
+const TAB_NAME=Object.fromEntries(TABS_ALL);
+// who is using the page decides the menu: each role sees only what it can do
+// admin: main password, everything · coord: every class to look at, accounts · lead / fac: one class · single: older one-class server
+function roleNow(){const c=DATA&&DATA.corner;if(!c)return DATA&&DATA.me&&!DATA.owner?'fac':'single';if(c.coordinator)return 'coord';if(c.admin)return 'admin';return DATA.owner?'lead':'fac'}
+function tabsFor(r){const G=[],cn=DATA&&DATA.corner?DATA.corner.className:'This class';
+  if(r==='admin'||r==='coord')G.push(['American Corner',['corner','users']]);
+  G.push([cn,r==='coord'?['home','register','students','reports','excuses','days','team']:['home','live','register','students','reports','excuses','days','inbox','team']]);
+  if(r==='admin'||r==='lead'||r==='single')G.push(['Class tools',['settings','log','ops']]);
+  return G.flatMap(([g,ks])=>ks.map(k=>[k,TAB_NAME[k],g]))}
+let TABS=tabsFor('fac');
+const setTabs=()=>{TABS=tabsFor(roleNow())};
+const PAGES={corner:['American Corner','Every class today. Add, archive and delete classes.'],users:['Users','Everyone at the American Corner in one place: coordinators, facilitators and students. Make accounts, change classes and roles, reset or delete.'],home:['Today','Today at a glance, and who needs a nudge.'],inbox:['Inbox','Students asking for a profile key. Send each one their code on WhatsApp.'],live:['Live check-in','Show this on the projector. The code changes every few seconds so only people in the room can check in.'],
   register:['Register','The class sheet. Tap a cell to mark present, tap again for absent.'],reports:['Reports','Pass marks, per-student and per-day records, and exports.'],
   students:['Students','Everyone on the class list, with their IDs and mobile numbers.'],excuses:['Excused absences','Approved absences count toward the pass mark when you choose.'],
   days:['Class days','Add a class nobody checked in to, or cancel a day so it does not count.'],ops:['Operations','Every change you save, its status, and retries when the server is slow.'],log:['Activity log','Every check-in try and admin change, newest first.'],settings:['Settings','Check-in window, security checks and the student ID format.'],
-  team:['Facilitators','Everyone who runs this class. Each signs in with their own number and password.'],account:['My account','Your name, number, photo and password.']};
-const BNAV0=['home','live','register','reports'];let BNAV=BNAV0;
-function navHTML(){let g='';return TABS.map(([k,l,grp])=>{const h=grp!==g?'<h6>'+grp+'</h6>':'';g=grp;return h+`<button class="nav-i${k===TAB?' on':''}" data-k="${k}"${k===TAB?' aria-current="page"':''}>${ICON[k]}<span>${l}</span></button>`}).join('')}
+  team:['Team','Who runs this class. Accounts are made on the Users page.'],account:['My account','Your name, number, photo and password.']};
+let BNAV=[];
+function navHTML(){let g='';return TABS.map(([k,l,grp])=>{const h=grp!==g?'<h6>'+esc(grp)+'</h6>':'';g=grp;return h+`<button class="nav-i${k===TAB?' on':''}" data-k="${k}"${k===TAB?' aria-current="page"':''}>${ICON[k]}<span>${l}</span></button>`}).join('')}
 function paintNav(){
-  BNAV=BNAV0.filter(k=>TABS.some(t=>t[0]===k));
+  const r=roleNow();BNAV=(r==='coord'?['corner','users','home','reports']:r==='admin'?['corner','home','live','register']:['home','live','register','students']).filter(k=>TABS.some(t=>t[0]===k));
   $('#tabs').innerHTML=navHTML();
-  $('#bnav').innerHTML=BNAV.map(k=>`<button data-k="${k}" class="${k===TAB?'on':''}">${ICON[k]}<span>${TABS.find(t=>t[0]===k)[1].replace('Dashboard','Home')}</span></button>`).join('')+`<button data-k="more" class="${BNAV.includes(TAB)?'':'on'}">${ICON.more}<span>More</span></button>`;
+  $('#bnav').innerHTML=BNAV.map(k=>`<button data-k="${k}" class="${k===TAB?'on':''}">${ICON[k]}<span>${TAB_NAME[k]}</span></button>`).join('')+`<button data-k="more" class="${BNAV.includes(TAB)?'':'on'}">${ICON.more}<span>More</span></button>`;
   $('#moreNav').innerHTML=navHTML()+`<h6>Account</h6><button class="nav-i${TAB==='account'?' on':''}" data-k="account">${ICON.account}<span>My account</span></button><button class="nav-i" data-k="logout">${ICON.logout}<span>Log out</span></button>`;
   opsPaint();
 }
@@ -1259,7 +1296,7 @@ async function loadData(show,quiet){
   if(quiet&&sig(r)===sig(DATA)){STATUS=r.status;OFFSET=r.now-Date.now();paintPill();return true}
   if(r.qrKey){QRKEY=r.qrKey;sess.set('att-qrkey',QRKEY)}
   try{sess.set('att-data'+(ADMK?':'+ADMK:''),JSON.stringify(Object.assign({},r,{log:[]})))}catch(e){}
-  const tabsWas=TABS.map(t=>t[0]).join();DATA=r;STATUS=r.status;OFFSET=r.now-Date.now();paintPill();paintWho();setTabs();if(TABS.map(t=>t[0]).join()!==tabsWas)paintNav();
+  const tabsWas=TABS.join('|');DATA=r;STATUS=r.status;OFFSET=r.now-Date.now();paintPill();paintWho();setTabs();if(TABS.join('|')!==tabsWas)paintNav();
   if(r.corner){ADMK=r.corner.k;$('#tbSub').textContent='American Corner Matara · '+r.corner.className}if(r.me&&!PHOTOS)loadPhotos().then(paintWho);$('#winText').textContent=windowText(r.status.window);
   if(show)toast('Up to date');
   renderPane();return true;
@@ -1281,8 +1318,8 @@ function showAdmin(){
   if(!TOKEN){$('#firstBox').hidden=true;$('#loginBox').hidden=false;$('#panel').hidden=true;
     if(!SID)$('#loginMsg').innerHTML='<div class="msg">No server connected yet. Open <button class="linkbtn" onclick="location.hash=\'#setup\'">Setup and demo</button> first.</div>';
     else if(isDemo())$('#loginMsg').innerHTML='<div class="msg">Demo password: <b>demo1234</b></div>';
-    const lp=$('#lphone');if(!lp.value)lp.value=store.get('att-lphone')||'';
-    setTimeout(()=>(lp.value?$('#pw'):lp).focus(),50);return}
+    const lp=$('#lphone');loginMode(store.get('att-admin-mode')==='1');if(!lp.value&&!$('#lphoneF').hidden)lp.value=store.get('att-lphone')||'';
+    setTimeout(()=>(lp.value||$('#lphoneF').hidden?$('#pw'):lp).focus(),50);return}
   $('#firstBox').hidden=!SETUP_ME;
   if(SETUP_ME){$('#loginBox').hidden=true;$('#panel').hidden=true;renderFirst();return}
   $('#loginBox').hidden=true;$('#panel').hidden=false;document.body.classList.add('adm');
@@ -1300,7 +1337,7 @@ function clsSwitch(cn){const c=DATA&&DATA.corner;if(!cn)return '';
   if(!c||c.classes.length<2)return `<div class="clsk">${esc(cn)}</div>`;
   return `<label class="clsw" title="Switch class"><span class="clsn">${esc(cn)}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg><select id="clsSel" aria-label="Class">${c.classes.map(x=>`<option value="${esc(x.id)}"${x.id===c.k?' selected':''}>${esc(x.name)}</option>`).join('')}</select></label>`}
 function paintHead(acts){const [t,d]=PAGES[TAB];document.title=t+' · Class Attendance';
-  const cn=DATA&&DATA.corner&&TAB!=='corner'&&TAB!=='users'?DATA.corner.className:'';
+  const cn=DATA&&DATA.corner&&!['corner','users','account'].includes(TAB)?DATA.corner.className:'';
   $('#phead').innerHTML=`<div class="phtxt">${clsSwitch(cn)}<h1>${esc(t)}</h1><p>${esc(d)}</p></div><div class="acts noprint" id="pacts"><span id="opsChip"></span>${acts||''}<button class="btn ghost" id="refresh">${ICON.refresh}<span>Refresh</span></button></div>`;
   $('#refresh').onclick=()=>loadData(true);const cs=$('#clsSel');if(cs)cs.onchange=()=>switchClass(cs.value);opsPaint()}
 function renderPane(){
@@ -1858,7 +1895,9 @@ function paneTeamCorner(box){
       S.innerHTML=`<h3>${esc(x.name)}</h3><div class="field"><label for="tmRole">Role in ${esc(cn)}</label><select id="tmRole">${ROLE_OPTS(x.role,true)}</select></div><div id="tmMsg"></div><div class="row"><button class="btn" id="tmSave">Save</button><button type="button" class="btn ghost" id="tmBack">Cancel</button></div>`;
       $('#tmBack').onclick=()=>side(null);
       $('#tmSave').onclick=async()=>{const r=await staffCall({action:'staffSave',sid:x.id,role:$('#tmRole').value});if(!r.ok)return msg(esc(r.message));toast('Saved');loadData()};return}
-    // the coordinator: make a starter account for this class, or change one
+    // the admin and coordinators make and change accounts in one place: the Users page
+    if(coord){S.innerHTML=`<h3>${x?esc(x.name):'Accounts'}</h3><p class="hint mb">${x?'Change their number, classes, role or starter password on the Users page.':'Make facilitator accounts, give them classes and roles, reset or delete them on the Users page.'}</p><button class="btn" id="tmUsers">${ICON.users}${x?'Open in Users':'Open Users'}</button>`;
+      $('#tmUsers').onclick=()=>{usFind0=x?x.phone:'';if(x)usFilter='fac';goTab('users')};return}
     S.innerHTML=`<h3>${x?'Edit '+esc(x.name):'Add a facilitator to '+esc(cn)}</h3><form id="tmForm" novalidate>
      ${x?'':'<p class="hint mb">You make a starter account. The facilitator signs in with it once, then adds their own name, photo and password.</p>'}
      <div class="field"><label for="tmPhone">Mobile number</label><input id="tmPhone" type="tel" inputmode="tel" maxlength="16" placeholder="07X XXX XXXX" value="${esc(x?showPhone(x.phone):'')}"><div class="hint">They sign in with it. It can't be a student's number.</div></div>
@@ -1928,7 +1967,7 @@ async function paneCorner(box){
 /* ---------- Users: every coordinator, facilitator and student at the Corner (admin and coordinators) ----------
    The admin makes, resets and deletes coordinators; the admin and coordinators do the same for facilitators and
    set their class and role in each class. Students are listed with their classes; their details change in the class. */
-let usFilter='all';
+let usFilter='all',usFind0='';
 const isStarter=n=>/^New (facilitator|coordinator)$/.test(n||'');
 function welcomeFor(x,pw,cls){const u=new URL('attendance.html',location.href);u.search='';u.hash='admin';
   return `Hi${isStarter(x.name)?'':' '+x.name.split(' ')[0]}! Your American Corner ${x.coord?'coordinator account':'attendance account'+(cls?' for '+cls:'')} is ready.\n\nOpen ${u.toString()}\nNumber: ${x.phone}\nStarter password: ${pw}\n\nSign in, then add your name and photo and choose your own password.`}
@@ -1976,6 +2015,7 @@ async function paneUsers(box){
     $('#usBody').innerHTML=list.length?list.slice(0,300).map(u=>`<button type="button" class="tm usr${u.active?'':' off'}" data-u="${esc(u.key)}"><span class="tmpic">${avatar(u.name,u.id&&PHOTOS&&PHOTOS[u.id],'md')}</span><div class="tmtxt"><b>${esc(u.name)}${DATA.me&&DATA.me.id===u.id?' <span class="hint">(you)</span>':''}</b><span>${esc(showPhone(u.phone))}</span></div><div class="tmside">${kindChip(u)}${clsChips(u)}${u.mustSetup?'<span class="chip a">Not set up yet</span>':''}${u.active?'':'<span class="chip a">Off</span>'}</div></button>`).join('')+(list.length>300?'<p class="hint">Showing the first 300. Search to find someone.</p>':''):emptyHTML('Nobody here',q?'Try another name or number.':'');
     $('#usBody').querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>{side(users.find(u=>u.key===b.dataset.u));if(innerWidth<900)$('#usCard').scrollIntoView({behavior:'smooth',block:'start'})})}
   $('#usSeg').onclick=e=>{const b=e.target.closest('[data-f]');if(!b)return;usFilter=b.dataset.f;$('#usSeg').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));draw()};
+  const pre=usFind0;if(pre){$('#usFind').value=pre;usFind0=''}
   $('#usFind').oninput=draw;draw();
   $('#usAdd').onclick=()=>{side(null);if(innerWidth<900)$('#usCard').scrollIntoView({behavior:'smooth',block:'start'})};
   const C=()=>$('#usCard'),msg=t=>{$('#usMsg').innerHTML=t?'<div class="msg err">'+esc(t)+'</div>':''};
@@ -2043,14 +2083,30 @@ async function paneUsers(box){
       if(pw){const fc=(u.roles||[]).map(o=>cn(o.k));sent(Object.assign({},u,y.staff,{coord:u.kind==='coord'}),pw,fc.length===1?fc[0]:'',true);return}
       toast('Saved');paneUsers(box)};
   }
-  side(null);
+  // came from a class Team page: open that person straight away
+  const one=pre&&users.filter(u=>u.phone===pre);if(one&&one.length===1)side(one[0]);else side(null);
 }
 // the class list changed: the switcher learns it on the next data load
 async function refreshCorner(){await loadData(false,true)}
 function paneAccount(box){
   if(needV12(box))return;
   const me=DATA.me;
-  if(!me&&DATA.corner){box.innerHTML=`<div class="pane"><div class="card" style="max-width:640px"><h3>Signed in as the admin</h3><p class="hint mb">The admin password has no name or photo, and no limits. Change it in Setup › Cloudflare server tools with the server key. Coordinators and facilitators change their own details here after signing in with their number.</p><button class="btn" id="acSetup">Open Setup</button></div></div>`;$('#acSetup').onclick=()=>{location.hash='#setup'};return}
+  if(!me&&DATA.corner){box.innerHTML=`<div class="pane"><div class="card acct"><form id="apForm" novalidate>
+    <div class="pfphoto"><span>${avatar("Admin","","xl")}</span><div class="hint"><span class="chip p">Admin</span></div></div>
+    <p class="hint mb">The admin uses the main password: every class, every setting, and coordinator accounts. It has no name or photo.</p>
+    <h3>Change the main password</h3>
+    <div class="field"><label for="apOld">Current password</label><input id="apOld" type="password" autocomplete="current-password"></div>
+    <div class="field"><label for="apNew">New password</label><input id="apNew" type="password" minlength="8" autocomplete="new-password"><div class="hint">At least 8 characters. Other admin sign-ins end; facilitators and coordinators stay signed in.</div></div>
+    <div class="field"><label for="apNew2">Type it again</label><input id="apNew2" type="password" minlength="8" autocomplete="new-password"></div>
+    <div id="apMsg"></div><button class="btn big wide mt" id="apSave">Change password</button>
+    <p class="hint mt">Forgot it? Set a new one in <button type="button" class="linkbtn" id="apSetup">Setup</button> with the server key.</p></form></div></div>`;
+    const msg=(t,good)=>{$('#apMsg').innerHTML=t?'<div class="msg '+(good?'good':'err')+'">'+esc(t)+'</div>':''};
+    $('#apSetup').onclick=()=>{location.hash='#setup'};
+    $('#apForm').onsubmit=async e=>{e.preventDefault();msg('');const o=$('#apOld').value,n=$('#apNew').value;
+      if(!o)return msg('Type the current password.');if(n.length<8)return msg('The new password needs at least 8 characters.');if(n!==$('#apNew2').value)return msg('The two new passwords are not the same.');if(n===o)return msg('Choose a new password, not the current one.');
+      const b=$('#apSave');b.disabled=true;const r=await staffCall({action:'adminPassword',oldPassword:o,password:n});b.disabled=false;
+      if(!r.ok)return msg(r.reason==='action'?'Deploy the new server code first (version 20).':r.message);
+      $('#apOld').value=$('#apNew').value=$('#apNew2').value='';msg('Main password changed. Use the new one next time.',true)};return}
   if(!me){box.innerHTML=`<div class="pane"><div class="card" style="max-width:640px"><h3>Signed in with the main password</h3><p class="hint mb">The main password has no name or photo. Add yourself as a facilitator, then sign in with your own number and password.</p><button class="btn" id="acTeam">Open Facilitators</button></div></div>`;$('#acTeam').onclick=()=>goTab('team');return}
   box.innerHTML=`<div class="pane"><div class="card acct"><form id="acForm" novalidate>
     <div class="pfphoto"><span id="acPic">${avatar(me.name,PHOTOS&&PHOTOS[me.id],'xl')}</span>

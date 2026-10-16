@@ -79,3 +79,10 @@ One server now runs every class at the American Corner.
 ## Users page
 
 The admin and coordinators have a **Users** page with every coordinator, facilitator and student in one list (filter and search). From it you make accounts with a starter password and a WhatsApp message, change the classes and roles of each facilitator, give a new starter password, turn sign-in off, or delete an account. Only the admin makes or changes coordinators. Students are listed with their classes and IDs; their details change in a class under Students. The American Corner page now holds only the classes.
+
+## Menus by role and admin password (server version 20)
+
+- Each person sees only what they can use: facilitators see their class; leads also see Class tools (Settings, Activity log, Operations); coordinators see American Corner (Overview, Users) and a view-only class; the admin sees all.
+- Accounts are made only on the Users page. A class's Team page lists who runs it and lets the lead change roles.
+- The sign-in card has **Sign in as admin** (main password, no number).
+- The admin changes the main password under **My account** with the current password. Other admin sign-ins end; facilitators and coordinators stay signed in. Setup › Cloudflare server tools still works if the password is forgotten.
