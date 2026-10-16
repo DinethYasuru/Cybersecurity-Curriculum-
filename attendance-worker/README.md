@@ -75,3 +75,7 @@ One server now runs every class at the American Corner.
 - **Admin:** whoever signs in with the main password (mobile number empty). No limits: every class, the Live QR, every change, and coordinator accounts. The main password changes only in Setup › Cloudflare server tools, with SETUP_KEY.
 - **Coordinator:** a real account with a mobile number. Only the admin makes, resets or deletes one (American Corner › Add a coordinator). A coordinator sees every class, adds and deletes classes, and makes and deletes facilitator accounts. Inside a class a coordinator only looks: no changes, no Live QR, and the server never sends them the QR key.
 - A coordinator signs in once with a starter password, then adds their name, optional photo and own password. After that they change their name, number, photo and password under My account.
+
+## Users page
+
+The admin and coordinators have a **Users** page with every coordinator, facilitator and student in one list (filter and search). From it you make accounts with a starter password and a WhatsApp message, change the classes and roles of each facilitator, give a new starter password, turn sign-in off, or delete an account. Only the admin makes or changes coordinators. Students are listed with their classes and IDs; their details change in a class under Students. The American Corner page now holds only the classes.
