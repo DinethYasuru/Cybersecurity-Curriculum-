@@ -196,6 +196,8 @@ export default {
     // facilitators: the Corner checks the sign-in and the role in this class
     const who = await H('who', { token: req.token });
     if (!who.ok) return json({ ok: false, reason: 'auth', message: 'Please log in again.' });
+    // while Cloudflare swaps in new code, the Corner can still answer the older way (no coord/hub): the main password stays the admin
+    who.coord = !!who.coord; who.hub = !!(who.hub || who.admin || who.coord);
     // a starter account first chooses its own password
     if (who.me && who.me.mustSetup && a !== 'myAccount') return json({ ok: false, reason: 'setup', message: 'Set up your account first.', me: who.me });
     if (HUB_ADMIN[a]) {
