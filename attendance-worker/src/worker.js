@@ -56,9 +56,9 @@ const json = (o, status) => new Response(JSON.stringify(o), { status: status || 
    object for what classes share: the class list, people, facilitator accounts and their roles.
    The Cyber Security class keeps its original database (named 'class'). */
 const STUDENT = { status: 1, lookup: 1, register: 1, checkin: 1, me: 1, profile: 1, keyRequest: 1, keySignIn: 1, profileSave: 1 };
-const HUB_ADMIN = { corner: 1, classSave: 1, classDelete: 1, people: 1, staffSave: 1, myAccount: 1 };
+const HUB_ADMIN = { corner: 1, classSave: 1, classDelete: 1, people: 1, staffSave: 1, myAccount: 1, adminPassword: 1 };
 // what a coordinator account may do inside a class: look, never change (and never get the QR key)
-const COORD_READ = { data: 1, today: 1, photos: 1, export: 1 };
+const COORD_READ = { data: 1, today: 1, photos: 1 };
 // one request may call only so many other objects on Cloudflare (50 on the free plan): today's numbers come in pages
 const CORNER_STATS = 20;
 const SYNC_AFTER = { register: 1, profileSave: 1, student: 1, bulk: 1, dayDelete: 1 };
@@ -368,7 +368,7 @@ export class Corner extends DurableObject {
       if (hashPw(String(req.password || ''), this.prop('adminSalt')) !== this.prop('adminHash')) return bad('Wrong password.');
     }
     const token = randHex(20);
-    this.kvPut('tok:' + token, JSON.stringify({ sid: st ? st.id : '', ep: this.epoch(), s8: st ? String(st.salt).slice(0, 8) : '' }), 21600);
+    this.kvPut('tok:' + token, JSON.stringify({ sid: st ? st.id : '', ep: this.epoch(), s8: st ? String(st.salt).slice(0, 8) : '', aep: st ? '' : this.prop('aep') || '1' }), 21600);
     let tr = trust ? req.trust : randHex(16);
     this.kvPut('trust:' + tr, '1', 60 * 86400);
     const coord = !!st && st.admin === 'coord';
@@ -380,6 +380,8 @@ export class Corner extends DurableObject {
     if (!t || t.ep !== this.epoch()) return { ok: false };
     let st = null;
     if (t.sid) { st = this.one('SELECT * FROM staff WHERE id = ?', t.sid); if (!st || st.active === 'no' || String(st.salt).slice(0, 8) !== t.s8) return { ok: false }; }
+    // a new main password ends the other admin sign-ins only
+    else if ((t.aep || '1') !== (this.prop('aep') || '1')) return { ok: false };
     // admin: the main password, no limits. coord: a coordinator account. hub: either one (classes, accounts, people)
     const coord = !!st && st.admin === 'coord';
     return { ok: true, me: this.staffOut(st), admin: !st, coord, hub: !st || coord, classes: this.classesOf(st) };
@@ -537,6 +539,17 @@ export class Corner extends DurableObject {
           this.kvPut('tok:' + req.token, JSON.stringify({ sid: who.me.id, ep: this.epoch(), s8: String(st.salt).slice(0, 8) }), 21600);
         }
         return json(r);
+      }
+      case 'adminPassword': {
+        // the admin changes the main password with the current one; facilitators and coordinators stay signed in
+        if (!who.admin) return json(fail('input', 'Only the admin can change the main password.'));
+        const pw = String(req.password || '');
+        if (hashPw(String(req.oldPassword || ''), this.prop('adminSalt')) !== this.prop('adminHash')) return json(fail('input', 'The current password is not right.'));
+        if (pw.length < 8) return json(fail('input', 'The new password needs at least 8 characters.'));
+        const salt = randHex(20), aep = String(Number(this.prop('aep') || '1') + 1);
+        this.ctx.storage.transactionSync(() => { this.prop('adminSalt', salt); this.prop('adminHash', hashPw(pw, salt)); this.prop('aep', aep); });
+        if (/^[a-f0-9]{16,64}$/.test(String(req.token || ''))) this.kvPut('tok:' + req.token, JSON.stringify({ sid: '', ep: this.epoch(), s8: '', aep }), 21600);
+        return json({ ok: true });
       }
       case 'classSave': return json(this.classSave(req, who));
       case 'classDelete': return json(this.classDelete(req, who));
