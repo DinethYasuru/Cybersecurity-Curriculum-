@@ -1158,12 +1158,12 @@ function oldServerHTML(){return `<div class="msg err mb" id="oldSrv"><b>Update t
 let STARTER='',SETUP_ME=null;
 function renderFirst(){
   const me=SETUP_ME||{};let photo='';
-  $('#firstCard').innerHTML=`<h2>Set up your account</h2><p class="lead">Welcome${me.name&&me.name!=='New facilitator'?', '+esc(me.name.split(' ')[0]):''}. The coordinator made this account for you. Add your name and choose your own password before you start.</p>
-    <form id="fsForm" novalidate><div class="pfphoto"><span id="fsPic">${avatar(me.name&&me.name!=='New facilitator'?me.name:'?','','xl')}</span>
+  $('#firstCard').innerHTML=`<h2>Set up your account</h2><p class="lead">Welcome${me.name&&!/^New (facilitator|coordinator)$/.test(me.name)?', '+esc(me.name.split(' ')[0]):''}. ${me.coord?'The admin':'The coordinator'} made this account for you. Add your name and choose your own password before you start.</p>
+    <form id="fsForm" novalidate><div class="pfphoto"><span id="fsPic">${avatar(me.name&&!/^New (facilitator|coordinator)$/.test(me.name)?me.name:'?','','xl')}</span>
       <div class="row" style="justify-content:center"><label class="btn ghost small" for="fsFile" tabindex="0">Add a photo</label><button type="button" class="btn ghost small" id="fsDrop" hidden>Remove photo</button></div>
-      <input id="fsFile" type="file" accept="image/*" hidden><div class="hint">Optional. Students see who runs the class.</div></div>
-     <div class="field"><label for="fsName">Your name</label><input id="fsName" maxlength="60" autocomplete="name" value="${esc(me.name==='New facilitator'?'':me.name||'')}"></div>
-     <div class="field"${STARTER?' hidden':''}><label for="fsOld">Starter password</label><input id="fsOld" type="password" autocomplete="current-password"><div class="hint">The one the coordinator gave you.</div></div>
+      <input id="fsFile" type="file" accept="image/*" hidden><div class="hint">Optional. ${me.coord?'Facilitators see who you are.':'Students see who runs the class.'}</div></div>
+     <div class="field"><label for="fsName">Your name</label><input id="fsName" maxlength="60" autocomplete="name" value="${esc(/^New (facilitator|coordinator)$/.test(me.name||'')?'':me.name||'')}"></div>
+     <div class="field"${STARTER?' hidden':''}><label for="fsOld">Starter password</label><input id="fsOld" type="password" autocomplete="current-password"><div class="hint">The one ${me.coord?'the admin':'the coordinator'} gave you.</div></div>
      <div class="field"><label for="fsNew">Your new password</label><input id="fsNew" type="password" minlength="8" autocomplete="new-password"><div class="hint">At least 8 characters. Only you know it.</div></div>
      <div class="field"><label for="fsNew2">Type it again</label><input id="fsNew2" type="password" minlength="8" autocomplete="new-password"></div>
      <div id="fsMsg"></div><button class="btn big wide">Save and start</button>
@@ -1176,8 +1176,8 @@ function renderFirst(){
   $('#fsOut').onclick=()=>$('#logout').click();
   $('#fsForm').onsubmit=async e=>{e.preventDefault();msg('');
     const name=$('#fsName').value.trim().replace(/\s+/g,' '),old=STARTER||$('#fsOld').value,nw=$('#fsNew').value;
-    if(!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name)||name==='New facilitator')return msg('Type your name with letters only.');
-    if(!old)return msg('Type the starter password the coordinator gave you.');
+    if(!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name)||/^New (facilitator|coordinator)$/.test(name))return msg('Type your name with letters only.');
+    if(!old)return msg('Type the starter password you were given.');
     if(nw.length<8)return msg('Your new password needs at least 8 characters.');
     if(nw!==$('#fsNew2').value)return msg('The two new passwords are not the same.');
     if(nw===old)return msg('Choose a new password, not the starter one.');
@@ -1216,15 +1216,16 @@ $('#toAdmin').onclick=()=>{location.hash='#admin'};
 const TABS_ALL=[['corner','American Corner','Overview'],['home','Dashboard','Overview'],['inbox','Inbox','Overview'],['live','Live QR','Class'],['register','Register','Class'],['reports','Reports','Records'],['students','Students','Records'],['excuses','Excuses','Records'],['days','Class days','Records'],['team','Facilitators','System'],['ops','Operations','System'],['log','Activity log','System'],['settings','Settings','System']];
 // the American Corner page is for the Corner admin
 let TABS=TABS_ALL.filter(t=>t[0]!=='corner');
-const setTabs=()=>{TABS=TABS_ALL.filter(t=>t[0]!=='corner'||(DATA&&DATA.corner&&DATA.corner.admin))};
-const PAGES={corner:['American Corner','Every class today. Add and delete classes, make facilitator accounts, and see everyone who attends.'],home:['Dashboard','Today at a glance, and who needs a nudge.'],inbox:['Inbox','Students asking for a profile key. Send each one their code on WhatsApp.'],live:['Live check-in','Show this on the projector. The code changes every few seconds so only people in the room can check in.'],
+const setTabs=()=>{TABS=TABS_ALL.filter(t=>t[0]==='corner'?isHub():t[0]==='live'?!isCoord():true)};
+const PAGES={corner:['American Corner','Every class today. Add and delete classes, make coordinator and facilitator accounts, and see everyone who attends.'],home:['Dashboard','Today at a glance, and who needs a nudge.'],inbox:['Inbox','Students asking for a profile key. Send each one their code on WhatsApp.'],live:['Live check-in','Show this on the projector. The code changes every few seconds so only people in the room can check in.'],
   register:['Register','The class sheet. Tap a cell to mark present, tap again for absent.'],reports:['Reports','Pass marks, per-student and per-day records, and exports.'],
   students:['Students','Everyone on the class list, with their IDs and mobile numbers.'],excuses:['Excused absences','Approved absences count toward the pass mark when you choose.'],
   days:['Class days','Add a class nobody checked in to, or cancel a day so it does not count.'],ops:['Operations','Every change you save, its status, and retries when the server is slow.'],log:['Activity log','Every check-in try and admin change, newest first.'],settings:['Settings','Check-in window, security checks and the student ID format.'],
   team:['Facilitators','Everyone who runs this class. Each signs in with their own number and password.'],account:['My account','Your name, number, photo and password.']};
-const BNAV=['home','live','register','reports'];
+const BNAV0=['home','live','register','reports'];let BNAV=BNAV0;
 function navHTML(){let g='';return TABS.map(([k,l,grp])=>{const h=grp!==g?'<h6>'+grp+'</h6>':'';g=grp;return h+`<button class="nav-i${k===TAB?' on':''}" data-k="${k}"${k===TAB?' aria-current="page"':''}>${ICON[k]}<span>${l}</span></button>`}).join('')}
 function paintNav(){
+  BNAV=BNAV0.filter(k=>TABS.some(t=>t[0]===k));
   $('#tabs').innerHTML=navHTML();
   $('#bnav').innerHTML=BNAV.map(k=>`<button data-k="${k}" class="${k===TAB?'on':''}">${ICON[k]}<span>${TABS.find(t=>t[0]===k)[1].replace('Dashboard','Home')}</span></button>`).join('')+`<button data-k="more" class="${BNAV.includes(TAB)?'':'on'}">${ICON.more}<span>More</span></button>`;
   $('#moreNav').innerHTML=navHTML()+`<h6>Account</h6><button class="nav-i${TAB==='account'?' on':''}" data-k="account">${ICON.account}<span>My account</span></button><button class="nav-i" data-k="logout">${ICON.logout}<span>Log out</span></button>`;
@@ -1247,7 +1248,7 @@ async function loadData(show,quiet){
   if(quiet&&sig(r)===sig(DATA)){STATUS=r.status;OFFSET=r.now-Date.now();paintPill();return true}
   if(r.qrKey){QRKEY=r.qrKey;sess.set('att-qrkey',QRKEY)}
   try{sess.set('att-data'+(ADMK?':'+ADMK:''),JSON.stringify(Object.assign({},r,{log:[]})))}catch(e){}
-  const tabsWas=TABS.length;DATA=r;STATUS=r.status;OFFSET=r.now-Date.now();paintPill();paintWho();setTabs();if(TABS.length!==tabsWas)paintNav();
+  const tabsWas=TABS.map(t=>t[0]).join();DATA=r;STATUS=r.status;OFFSET=r.now-Date.now();paintPill();paintWho();setTabs();if(TABS.map(t=>t[0]).join()!==tabsWas)paintNav();
   if(r.corner){ADMK=r.corner.k;$('#tbSub').textContent='American Corner Matara · '+r.corner.className}if(r.me&&!PHOTOS)loadPhotos().then(paintWho);$('#winText').textContent=windowText(r.status.window);
   if(show)toast('Up to date');
   renderPane();return true;
@@ -1255,10 +1256,10 @@ async function loadData(show,quiet){
 // who is signed in: a facilitator account, or the main password
 function paintWho(){
   const me=DATA&&DATA.me;
-  $('#whoName').textContent=me?me.name:DATA&&DATA.corner?'Coordinator':'Facilitator';
+  $('#whoName').textContent=me?me.name:DATA&&DATA.corner?'Admin':'Facilitator';
   const cn=DATA&&DATA.corner?' · '+DATA.corner.className:'';
-  $('#who').textContent=me?(me.role==='owner'?'Lead facilitator':'Facilitator')+cn:isDemo()?'Demo server on this device':DATA&&DATA.corner?'Coordinator · every class':'Main password';
-  $('#whoPic').innerHTML=me?avatar(me.name,PHOTOS&&PHOTOS[me.id]):'<span class="av">I</span>';
+  $('#who').textContent=me?(me.coord?'Coordinator · every class':(me.role==='owner'?'Lead facilitator':'Facilitator')+cn):isDemo()?'Demo server on this device':DATA&&DATA.corner?'Admin · every class':'Main password';
+  $('#whoPic').innerHTML=me?avatar(me.name,PHOTOS&&PHOTOS[me.id]):'<span class="av">'+(DATA&&DATA.corner?'A':'I')+'</span>';
 }
 $('#whoBtn').onclick=()=>goTab('account');
 function showAdmin(){
@@ -1294,11 +1295,10 @@ function paintHead(acts){const [t,d]=PAGES[TAB];document.title=t+' · Class Atte
 function renderPane(){
   stopLive();if(!DATA)return;paintHead();
   const box=$('#paneBox');
-  if(TAB==='corner'&&!(DATA.corner&&DATA.corner.admin)){TAB='home';paintNav();paintHead()}
-  if(TAB==='account'&&isCoord()){TAB='corner';paintNav();paintHead()}
+  if(!TABS.some(t=>t[0]===TAB)&&TAB!=='account'){TAB='home';paintNav();paintHead()}
   ({corner:paneCorner,home:paneHome,inbox:paneInbox,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,ops:paneOps,log:paneLog,settings:paneSettings,team:paneTeam,account:paneAccount})[TAB](box);
   if(oldServer()){box.insertAdjacentHTML('afterbegin',oldServerHTML());$('#oldSrvCopy').onclick=copyServerCode}
-  if(isCoord()&&TAB!=='corner'&&TAB!=='team')box.insertAdjacentHTML('afterbegin','<div class="msg mb vo"><b>View only.</b> '+esc(COORD_MSG)+'</div>');
+  if(isCoord()&&TAB!=='corner'&&TAB!=='team'&&TAB!=='account')box.insertAdjacentHTML('afterbegin','<div class="msg mb vo"><b>View only.</b> '+esc(COORD_MSG)+'</div>');
   inboxBadge();
   const n=inboxN();if(n&&TAB==='home'){box.insertAdjacentHTML('afterbegin',`<div class="msg mb" id="inbNote"><b>${n} student${n===1?'':'s'}</b> asked for a profile key. <button class="btn small" id="inbGo">Open Inbox</button></div>`);$('#inbGo').onclick=()=>goTab('inbox')}
 }
@@ -1373,7 +1373,7 @@ function paneHome(box){
        </div>
      </div>
      <div class="stack">
-       <div class="card"><div class="card-h"><div><h3>${todayAtt.length?'Checked in today':'Latest check-ins'}</h3><p class="hint">${recentDay?esc(niceDate(recentDay)):'Nothing yet'}</p></div><button class="btn small" data-go="live">${ICON.live}Live QR</button></div>
+       <div class="card"><div class="card-h"><div><h3>${todayAtt.length?'Checked in today':'Latest check-ins'}</h3><p class="hint">${recentDay?esc(niceDate(recentDay)):'Nothing yet'}</p></div>${isCoord()?'':`<button class="btn small" data-go="live">${ICON.live}Live QR</button>`}</div>
          ${recent.length?`<div class="list">${recent.slice(0,8).map(r=>`<div class="li"><div class="l">${avatar(r.name,PHOTOS&&PHOTOS[r.id])}<div class="nm"><b>${esc(r.name)}</b><span>${esc(r.id)}${r.method==='admin'?' · marked by you':''}</span></div></div><span class="hint">${esc(r.time)}</span></div>`).join('')}</div>${recent.length>8?`<p class="hint mt">and ${recent.length-8} more</p>`:''}`:emptyHTML('No check-ins yet','Names show here as students scan the QR.')}
        </div>
        <div class="card"><div class="card-h"><h3>Upcoming excused absences</h3><button class="btn ghost small" data-go="excuses">Manage</button></div>
@@ -1774,7 +1774,7 @@ function paneStudents(box){
 
 /* Facilitators: each has their own number (never a student's), photo and password */
 const needV12=box=>{if(isDemo()||(DATA.status.version||0)>=12)return false;box.innerHTML='<div class="pane"><div class="msg err">Facilitator accounts need server version 12. Update the server code (Setup has <b>Copy server code</b>), then Deploy › Manage deployments › the <b>Web app</b> › pencil › New version.</div></div>';return true};
-const roleChip=r=>r.mustSetup?'<span class="chip a">Not set up yet</span>':r.role==='owner'?'<span class="chip p">'+(DATA&&DATA.corner?'Lead facilitator':'Owner')+'</span>':'<span class="chip g">Facilitator</span>';
+const roleChip=r=>r.coord&&!r.mustSetup?'<span class="chip p">Coordinator</span>':r.mustSetup?'<span class="chip a">Not set up yet</span>':r.role==='owner'?'<span class="chip p">'+(DATA&&DATA.corner?'Lead facilitator':'Owner')+'</span>':'<span class="chip g">Facilitator</span>';
 async function staffCall(body){try{return await adminCall(body)}catch(e){return {ok:false,message:e.message}}}
 function paneTeam(box){
   if(needV12(box))return;
@@ -1828,7 +1828,8 @@ const starterPw=()=>{const a=new Uint32Array(1);crypto.getRandomValues(a);return
 function welcomeText(x,pw){const u=new URL('attendance.html',location.href);u.search='';u.hash='admin';
   return `Hi${x.name==='New facilitator'?'':' '+x.name.split(' ')[0]}! Your American Corner attendance account is ready for ${DATA.corner.className}.\n\nOpen ${u.toString()}\nNumber: ${x.phone}\nStarter password: ${pw}\n\nSign in, then add your name and photo and choose your own password.`}
 function paneTeamCorner(box){
-  const coord=isCoord(),lead=!coord&&DATA.owner,me=DATA.me,cn=DATA.corner.className;
+  // coord here: may make accounts (the admin or a coordinator)
+  const coord=isHub(),lead=!coord&&DATA.owner,me=DATA.me,cn=DATA.corner.className;
   const list=(DATA.staff||[]).slice().sort((a,b)=>(a.role===b.role?0:a.role==='owner'?-1:1)||a.name.localeCompare(b.name));
   loadPhotos().then(()=>{if(TAB==='team'&&$('#tmBody'))draw()});
   box.innerHTML=`<div class="pane split wideleft">
@@ -1881,16 +1882,18 @@ async function paneCorner(box){
   box.innerHTML=skeleton();
   const r=await staffCall({action:'corner'});if(TAB!=='corner')return;
   if(!r.ok){box.innerHTML='<div class="msg err">'+esc(r.message)+'</div>';return}
-  const cls=r.classes,cn=id=>(cls.find(c=>c.id===id)||{}).name||id;
+  const cls=r.classes,cn=id=>(cls.find(c=>c.id===id)||{}).name||id,adm=isAdmin();
+  const coords=r.staff.filter(x=>x.coord);r.staff=r.staff.filter(x=>!x.coord);
   box.innerHTML=`<div class="kpis">${cls.filter(c=>c.active).map(c=>`<button class="kpi ccls" data-go="${esc(c.id)}" style="--cc:${esc(c.color||'#002868')}"><span class="ccn">${esc(c.name)}${c.room?'<small>'+esc(c.room)+'</small>':''}</span><b>${c.present}</b><span>${c.status&&c.status.open?'<span class="chip p">Open now</span>':'<span class="chip g">Closed</span>'}${c.alerts?' <span class="chip a">'+c.alerts+' to check</span>':''}</span></button>`).join('')}</div>
    <div class="pane split wideleft">
     <div class="stack">
      <div class="card"><div class="card-h"><h3>Classes</h3><span class="chip g">${cls.length}</span></div><div class="team">${cls.map(c=>`<div class="tm${c.active?'':' off'}"><span class="cdot" style="background:${esc(c.color||'#002868')}"></span><div class="tmtxt"><b>${esc(c.name)}</b><span>${esc(c.room||'')}${c.active?'':' · archived'}</span></div><div class="tmside"><button class="btn small ghost" data-ce="${esc(c.id)}">Edit</button>${c.active?`<button class="btn small" data-go="${esc(c.id)}">Open</button>`:''}</div></div>`).join('')}</div></div>
+     <div class="card"><div class="card-h"><h3>Coordinators</h3><span class="chip g">${coords.length}</span></div><div class="team">${coords.map(x=>`<div class="tm${x.active?'':' off'}"><span class="tmpic">${avatar(x.name,PHOTOS&&PHOTOS[x.id],'md')}</span><div class="tmtxt"><b>${esc(x.name)}${DATA.me&&DATA.me.id===x.id?' <span class="hint">(you)</span>':''}</b><span>${esc(showPhone(x.phone))}</span></div><div class="tmside">${x.mustSetup?'<span class="chip a">Not set up yet</span>':'<span class="chip p">Every class</span>'}${x.active?'':'<span class="chip a">Off</span>'}${adm?`<button class="btn small ghost" data-co="${esc(x.id)}">Edit</button>`:''}</div></div>`).join('')||emptyHTML('No coordinators yet',adm?'Make one with the form.':'The admin makes coordinator accounts.')}</div></div>
      <div class="card"><div class="card-h"><h3>Facilitators</h3><span class="chip g">${r.staff.length}</span></div><div class="team">${r.staff.map(x=>`<div class="tm${x.active?'':' off'}"><span class="tmpic">${avatar(x.name,PHOTOS&&PHOTOS[x.id],'md')}</span><div class="tmtxt"><b>${esc(x.name)}</b><span>${esc(showPhone(x.phone))}</span></div><div class="tmside">${x.mustSetup?'<span class="chip a">Not set up yet</span>':''}${x.roles.map(o=>`<span class="chip ${o.role==='owner'?'p':'g'}">${esc(cn(o.k))}${o.role==='owner'?' · lead':''}</span>`).join('')}${!x.roles.length?'<span class="chip a">No class</span>':''}<button class="btn small ghost" data-se="${esc(x.id)}">Classes</button></div></div>`).join('')||emptyHTML('No facilitators yet','Add them under Facilitators in a class.')}</div></div>
      <div class="card"><div class="card-h"><h3>People</h3><span class="chip g">${r.people.length}</span></div><div class="toolbar"><div class="search">${ICON.search}<input id="pfind" placeholder="Search name or number" aria-label="Search people"></div><span class="count" id="pN"></span></div>
       <div class="tblwrap"><table><thead><tr><th>Name</th><th>Mobile</th><th>Classes</th></tr></thead><tbody id="pBody"></tbody></table></div></div>
     </div>
-    <div class="stack"><div class="card" id="cfCard"></div><div class="card" id="rlCard" hidden></div></div></div>`;
+    <div class="stack"><div class="card" id="cfCard"></div><div class="card" id="rlCard" hidden></div>${adm?'<div class="card" id="coCard"></div>':''}</div></div>`;
   const drawP=()=>{const q=$('#pfind').value.trim().toLowerCase(),list=r.people.filter(p=>!q||p.name.toLowerCase().includes(q)||p.phone.includes(q.replace(/\D/g,'')||'#'));
     $('#pN').textContent=list.length+' of '+r.people.length;
     $('#pBody').innerHTML=list.slice(0,300).map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(showPhone(p.phone))}</td><td>${p.classes.map(c=>`<span class="chip g">${esc(cn(c.k))} ${esc(c.sid)}</span>`).join(' ')}</td></tr>`).join('')};
@@ -1911,6 +1914,35 @@ async function paneCorner(box){
       toast(c?'Saved':x.class.name+' added');await refreshCorner();paneCorner(box)}};
   form(null);
   box.querySelectorAll('[data-ce]').forEach(b=>b.onclick=()=>form(cls.find(c=>c.id===b.dataset.ce)));
+  // the admin makes coordinator accounts: every class to see, classes and facilitator accounts to make, nothing to change inside a class
+  const coForm=x=>{const C=$('#coCard');if(!C)return;const msg=t=>{$('#coMsg').innerHTML=t?'<div class="msg err">'+esc(t)+'</div>':''};
+    C.innerHTML=`<h3>${x?'Edit '+esc(x.name):'Add a coordinator'}</h3><form id="coForm" novalidate>
+     ${x?'':'<p class="hint mb">A coordinator sees every class, adds classes and makes facilitator accounts, but changes nothing inside a class and never runs the Live QR. They sign in once with a starter password, then add their own name, photo and password.</p>'}
+     <div class="field"><label for="coPhone">Mobile number</label><input id="coPhone" type="tel" inputmode="tel" maxlength="16" placeholder="07X XXX XXXX" value="${esc(x?showPhone(x.phone):'')}"></div>
+     <div class="field"><label for="coName">Name${x?'':' (optional)'}</label><input id="coName" maxlength="60" value="${esc(x&&x.name!=='New coordinator'?x.name:'')}"></div>
+     <div class="field"><label for="coPw">${x?'New starter password (optional)':'Starter password'}</label><div class="row"><input id="coPw" class="grow" autocomplete="off" spellcheck="false" value="${x?'':starterPw()}"><button type="button" class="btn ghost small" id="coGen">New one</button></div><div class="hint">6 or more characters. They replace it with their own.</div></div>
+     ${x?`<label class="check"><input type="checkbox" id="coAct"${x.active?' checked':''}>Can sign in</label>`:''}
+     <div id="coMsg"></div><div class="row"><button class="btn">${x?'Save':'Make account'}</button>${x?'<button type="button" class="btn ghost" id="coNew">New coordinator</button><button type="button" class="btn red" id="coDel">Delete account</button>':''}</div></form>`;
+    $('#coGen').onclick=()=>{$('#coPw').value=starterPw()};
+    if(x){$('#coNew').onclick=()=>coForm(null);
+      $('#coDel').onclick=async()=>{if(!await ask({title:'Delete '+x.name+"'s account?",text:'They can no longer sign in. Their past changes stay in the Activity log.',ok:'Delete',danger:true}))return;
+        const y=await staffCall({action:'staffSave',sid:x.id,remove:true});if(!y.ok)return msg(y.message);toast('Account deleted');paneCorner(box)}}
+    $('#coForm').onsubmit=async e=>{e.preventDefault();msg('');
+      const phone=cleanPhone($('#coPhone').value),name=$('#coName').value.trim().replace(/\s+/g,' '),pw=$('#coPw').value.trim();
+      if(!phone)return msg('Type a mobile number like 0771234567.');
+      if(name&&!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name))return msg('Type a name with letters only, or leave it empty.');
+      if((!x&&pw.length<6)||(pw&&pw.length<6))return msg('The starter password needs at least 6 characters.');
+      const body={action:'staffSave',sid:x?x.id:'',kind:'coord',phone};if(name)body.name=name;if(pw)body.password=pw;if(x)body.active=$('#coAct').checked;
+      const y=await staffCall(body);if(!y.ok)return msg(y.message);
+      if(!pw){toast('Saved');paneCorner(box);return}
+      const u=new URL('attendance.html',location.href);u.search='';u.hash='admin';
+      const t=`Hi${y.staff.name==='New coordinator'?'':' '+y.staff.name.split(' ')[0]}! Your American Corner coordinator account is ready.\n\nOpen ${u.toString()}\nNumber: ${y.staff.phone}\nStarter password: ${pw}\n\nSign in, then add your name and photo and choose your own password.`;
+      C.innerHTML=`<h3>${x?'New starter password':'Coordinator account made'}</h3><p class="hint mb">Send this to ${esc(y.staff.name==='New coordinator'?showPhone(y.staff.phone):y.staff.name)}. The starter password works until they choose their own.</p><pre class="welcome">${esc(t)}</pre>
+        <div class="row"><a class="btn" target="_blank" rel="noopener" href="https://wa.me/94${esc(y.staff.phone.slice(1))}?text=${encodeURIComponent(t)}">Send on WhatsApp</a><button class="btn ghost" id="coCopy">Copy</button><button class="btn ghost" id="coDone">Done</button></div>`;
+      $('#coCopy').onclick=async()=>{try{await navigator.clipboard.writeText(t);toast('Copied')}catch(z){toast('Copy failed. Select the text and copy it.',true)}};
+      $('#coDone').onclick=()=>paneCorner(box)}};
+  coForm(null);
+  box.querySelectorAll('[data-co]').forEach(b=>b.onclick=()=>{coForm(coords.find(c=>c.id===b.dataset.co));$('#coCard').scrollIntoView({behavior:'smooth',block:'nearest'})});
   // which classes a facilitator teaches, and their role in each
   box.querySelectorAll('[data-se]').forEach(b=>b.onclick=()=>{const x=r.staff.find(s=>s.id===b.dataset.se),rc=$('#rlCard'),role=k=>(x.roles.find(o=>o.k===k)||{}).role||'';rc.hidden=false;
     rc.innerHTML=`<h3>${esc(x.name)}'s classes</h3>${cls.filter(c=>c.active).map(c=>`<div class="field"><label for="rl-${esc(c.id)}">${esc(c.name)}</label><select id="rl-${esc(c.id)}" data-rk="${esc(c.id)}"><option value="">Not in this class</option><option value="instructor"${role(c.id)==='instructor'?' selected':''}>Facilitator</option><option value="owner"${role(c.id)==='owner'?' selected':''}>Lead facilitator</option></select></div>`).join('')}<div id="rlMsg"></div><p class="hint mt"><button type="button" class="linkbtn danger" id="rlDel">Delete ${esc(x.name)}'s account</button></p>`;
@@ -1925,6 +1957,7 @@ async function refreshCorner(){await loadData(false,true)}
 function paneAccount(box){
   if(needV12(box))return;
   const me=DATA.me;
+  if(!me&&DATA.corner){box.innerHTML=`<div class="pane"><div class="card" style="max-width:640px"><h3>Signed in as the admin</h3><p class="hint mb">The admin password has no name or photo, and no limits. Change it in Setup › Cloudflare server tools with the server key. Coordinators and facilitators change their own details here after signing in with their number.</p><button class="btn" id="acSetup">Open Setup</button></div></div>`;$('#acSetup').onclick=()=>{location.hash='#setup'};return}
   if(!me){box.innerHTML=`<div class="pane"><div class="card" style="max-width:640px"><h3>Signed in with the main password</h3><p class="hint mb">The main password has no name or photo. Add yourself as a facilitator, then sign in with your own number and password.</p><button class="btn" id="acTeam">Open Facilitators</button></div></div>`;$('#acTeam').onclick=()=>goTab('team');return}
   box.innerHTML=`<div class="pane"><div class="card acct"><form id="acForm" novalidate>
     <div class="pfphoto"><span id="acPic">${avatar(me.name,PHOTOS&&PHOTOS[me.id],'xl')}</span>
@@ -2059,8 +2092,11 @@ function supersede(o){const keys=new Set(cellsOf(o.body).map(m=>m.id+'|'+m.date)
     if(!x.body.list.length){opHist(x,'superseded','A newer change to the same cells replaced this one.');settle(x,{ok:true,superseded:true})}
     else{x.label=describeOp(x.body)[1];opHist(x,x.state,(before-x.body.list.length)+' of its cells were replaced by a newer change.')}})}
 // queue a change; resolves with the server answer, or {ok:false,message} when it is kept for a retry
+// a coordinator account sees every class but changes none; the admin (main password) has no limits
 const isCoord=()=>!!(DATA&&DATA.corner&&DATA.corner.coordinator);
-const COORD_MSG='You are signed in as the coordinator: you can see every class, but only its facilitators change it.';
+const isHub=()=>!!(DATA&&DATA.corner&&(DATA.corner.hub||DATA.corner.admin));
+const isAdmin=()=>!!(DATA&&DATA.corner&&DATA.corner.admin&&!DATA.corner.coordinator);
+const COORD_MSG='You are signed in as a coordinator: you can see every class, but only its facilitators change it.';
 function saveOp(body){
   if(isCoord()){toast(COORD_MSG,true);return Promise.resolve({ok:false,reason:'readonly',message:COORD_MSG})}
   // a change belongs to the class it was made in, even if it is sent after switching class
