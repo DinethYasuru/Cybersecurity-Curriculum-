@@ -1795,7 +1795,9 @@ function goTab(k){if(k==='more'){$('#moreSheet').showModal();return}if(k==='logo
   // the new page slides in softly
   const box=$('#paneBox');box.classList.remove('swap');void box.offsetWidth;box.classList.add('swap');renderPane();
   document.body.classList.remove('tb-hide');window.scrollTo({top:0});
-  if(was==='danger'&&DZ.dirty){DZ.dirty=false;loadData(false,true)}}
+  if(was==='danger'&&DZ.dirty){DZ.dirty=false;loadData(false,true)}
+  // students change their own name or number in the app, and the admin moves records: the list is fetched fresh each time it opens
+  else if(k==='students'&&was!=='students'&&!isDemo())loadData(false,true)}
 ['#tabs','#bnav','#moreNav'].forEach(id=>$(id).addEventListener('click',e=>{const b=e.target.closest('button[data-k]');if(b)goTab(b.dataset.k)}));
 $('#moreSheet').addEventListener('click',e=>{if(e.target===$('#moreSheet'))$('#moreSheet').close()});
 // a sheet follows the finger: drag it down to close it
@@ -1995,7 +1997,7 @@ function paneStuReq(box){
     if(!await ask({title:'Move '+showPhone(from)+'’s records to '+showPhone(to)+'?',html:both+(differ?'<span class="srnote warn">The names are different. Check it is the same person before you move.</span>':'')+'<span class="srnote">Every class gets the new number. The old number stops working for sign-in.</span>',ok:'Move records',danger:!!differ}))return;
     const r=await adminCall({action:'stuMove',k:'',from,to,rid});
     if(!r.ok)return toast(r.message,true);
-    toast('Moved: '+r.moved.join(', ')+(r.failed.length?'. Not moved: '+r.failed.join(', '):''),!!r.failed.length);await loadStuReq();redraw()};
+    toast('Moved: '+r.moved.join(', ')+(r.failed.length?'. Not moved: '+r.failed.join(', '):''),!!r.failed.length);await loadStuReq();await loadData(false,true);redraw()};
   box.querySelectorAll('[data-smove]').forEach(b=>b.onclick=()=>{const x=find(b.dataset.smove);move(x.was.phone,x.phone,x.rid)});
   const on=$('#srOn');if(on)on.onchange=async()=>{const want=on.checked;
     if(!want&&!await ask({title:'Let students check in without the app?',text:'They check in with their number again, with no password.',ok:'Turn off',danger:true})){on.checked=true;return}
