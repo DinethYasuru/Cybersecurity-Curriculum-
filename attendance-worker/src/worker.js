@@ -166,9 +166,21 @@ export default {
       }
       // which class: the QR link says (k); otherwise the only class open now, or the open class whose code was typed
       let opened = null;
+      // the Corner knows each class's hours: only the classes that may be open now are asked (one request may call only so many)
+      const g = k ? null : await H('openGuess', { now: Date.now() });
       if (!k) {
-        // the Corner knows each class's hours: only the classes that may be open now are asked (one request may call only so many)
-        const g = await H('openGuess', { now: Date.now() });
+        // a student who typed their number: only their own classes that may be open now (works with hundreds of classes)
+        if (req.phone && (a === 'lookup' || a === 'register' || a === 'checkin')) {
+          const en = ((await H('enrolOf', { phone: req.phone })).enrol || []).map(e => e.k).filter(id => known(id) && g.maybe.includes(id));
+          const st = await Promise.all([...new Set(en)].slice(0, 15).map(async id => ((await C(id, { action: 'status' })).open ? id : '')));
+          const mine = st.filter(Boolean);
+          // with a code, the class whose code it is (a code from none of theirs is a new class, found the usual way below)
+          if (req.code) { for (const id of mine) if ((await C(id, { action: 'codeCheck', code: req.code })).match) { k = id; break; } }
+          else if (mine.length === 1) k = mine[0];
+          else if (mine.length > 1) return json({ ok: false, reason: 'pick', mine: true, message: 'You are in more than one class open now. Tap yours.', classes: pub.filter(c => mine.includes(c.id)).map(c => ({ id: c.id, name: c.name })) });
+        }
+      }
+      if (!k) {
         const ask = pub.filter(c => g.maybe.includes(c.id)).slice(0, 15);
         const st = await Promise.all(ask.map(async c => ({ c, s: await C(c.id, { action: 'status' }) })));
         // a class the Corner had no hours for yet: keep them now
@@ -180,7 +192,9 @@ export default {
           for (const id of opened) if ((await C(id, { action: 'codeCheck', code: req.code })).match) { k = id; break; }
         }
         if (a === 'status') {
-          const r = await C(k || (pub[0] ? pub[0].id : 'cyber'), { action: 'status' });
+          const r = await C(k || opened[0] || (pub[0] ? pub[0].id : 'cyber'), { action: 'status' });
+          // several open: a code is asked for only if one of them wants it
+          if (!k && opened.length > 1) r.requireCode = st.some(x => x.s.open && x.s.requireCode);
           return json(Object.assign(r, { multi: true, branch, k: k || '', className: k ? nameOf(k) : '', classes: pub.map(c => ({ id: c.id, name: c.name, open: opened.includes(c.id) })), pick: !k && opened.length > 1 }));
         }
         if (!k && a !== 'me') {

@@ -31,6 +31,15 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  r=await call({action:'status'});ok('only that class open, picked',r.k===ids[7]&&r.classes.filter(c=>c.open).length===1,{k:r.k,open:r.classes.filter(c=>c.open)});
  r=await call({action:'extra',token:A,k:ids[12],minutes:30});
  r=await call({action:'status'});ok('two open: pick',r.pick===true&&r.classes.filter(c=>c.open).length===2,{pick:r.pick});
+ // the student's number finds their class: no list
+ const free=Object.assign({},closed,{requireCode:false,selfRegister:true});
+ for(const k of [ids[7],ids[12]])await call({action:'settings',token:A,k,settings:free});
+ r=await call({action:'register',k:ids[12],phone:'0751112222',name:'Nimal Perera',device:'devnimal01'});ok('student joins one class',r.ok,r);
+ r=await call({action:'lookup',phone:'0751112222',device:'devnimal01'});ok('number finds the class',r.ok&&r.k===ids[12]&&r.found,{k:r.k,reason:r.reason});
+ r=await call({action:'register',k:ids[7],phone:'0751112222',name:'Nimal Perera',device:'devnimal01'});ok('joins a second class',r.ok,r);
+ r=await call({action:'lookup',phone:'0751112222',device:'devnimal01'});ok('two of theirs open: short list',r.reason==='pick'&&r.mine&&r.classes.length===2,r);
+ r=await call({action:'lookup',phone:'0759998888',device:'devother02'});ok('new number: full list',r.reason==='pick'&&!r.mine,r);
+ for(const k of [ids[7],ids[12]])await call({action:'settings',token:A,k,settings:closed});
  r=await call({action:'extra',token:A,k:ids[12],minutes:0});r=await call({action:'extra',token:A,k:ids[7],minutes:0});
  r=await call({action:'status'});ok('closed again',r.classes.every(c=>!c.open)&&!r.pick,r.classes.filter(c=>c.open));
  // a window that includes now (any day)

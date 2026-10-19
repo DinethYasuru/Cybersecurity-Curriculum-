@@ -107,3 +107,10 @@ A class is backed up before its first change (at most once every 10 minutes, and
 - **Coordinators** can download a class's whole record (.json) from Reports › Export, but still change nothing.
 - **Danger zone:** a wrong password makes the next try wait 2, 4, 8 … up to 60 seconds, instead of a 15-minute lock.
 - **Checks.** `.github/workflows/attendance-tests.yml` runs on every pull request: the page and server must parse, and `test/server.test.cjs` runs against a local Worker. Run it yourself with `npm test` while `wrangler dev` is running.
+
+## Students find their class (server version 23)
+
+- The live QR already names its class, so scanning it with the phone camera goes straight to that class.
+- Opened without a QR link while many classes are open, the page asks for the mobile number first. The server checks only that student's own classes that may be open now, so it stays fast with hundreds of classes. A typed code picks the right one of them.
+- The class list shows only when the number can't decide: two of their own classes open at once (just those two), or a new student with no QR. The list has a search box when it is long.
+- The in-app scanner keeps the class the QR names.
