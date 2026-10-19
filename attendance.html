@@ -624,6 +624,56 @@ body.present{background:#fff}
 @media print{.topbar,.side,.bnav,.demo,.toast,.noprint,footer{display:none!important}.console{display:block}.work,.page{padding:0}.card,.kpi{box-shadow:none}.tblwrap{overflow:visible;max-height:none;box-shadow:none}th{position:static}body{background:#fff}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.result path{stroke-dashoffset:0}}
 
+/* ===== Polish: smooth motion, touch feel, phone layout ===== */
+html{-webkit-tap-highlight-color:transparent}
+button,a,.btn,input,select,label{touch-action:manipulation}
+.btn,.nav-i,.bnav button,.seg button,.dz-tabs button,.thm,.tb-link{transition:transform .16s var(--ease),background .2s,box-shadow .2s,color .2s}
+.btn:active,.bnav button:active,.seg button:active,.dz-tabs button:active,.thm:active,.nav-i:active{transform:scale(.96)}
+/* a new page slides in softly */
+@keyframes paneIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#paneBox.swap .pane{animation:none}
+#paneBox.swap .pane>*,#paneBox.swap .pane>.split>*,#paneBox.swap .pane>.kpis>*{animation:paneIn .42s var(--ease) both}
+#paneBox.swap .pane>:nth-child(2),#paneBox.swap .pane>.split>:nth-child(2),#paneBox.swap .pane>.kpis>:nth-child(2){animation-delay:.05s}
+#paneBox.swap .pane>:nth-child(3),#paneBox.swap .pane>.split>:nth-child(3),#paneBox.swap .pane>.kpis>:nth-child(3){animation-delay:.1s}
+#paneBox.swap .pane>:nth-child(n+4),#paneBox.swap .pane>.kpis>:nth-child(n+4){animation-delay:.15s}
+/* the active bottom-bar icon gives a small hop */
+@keyframes hop{0%{transform:translateY(0)}40%{transform:translateY(-3px)}100%{transform:none}}
+.bnav button.on svg{animation:hop .35s var(--ease)}
+/* sheets and dialogs slide up from the bottom */
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+dialog.sheet[open]{animation:sheetUp .34s var(--ease) both}
+dialog.sheet[open]::backdrop,dialog.dlg[open]::backdrop{animation:fadeIn .25s ease both}
+dialog.sheet{max-height:88vh;overflow:auto;overscroll-behavior:contain;background:var(--card)}
+dialog.sheet .snav::before{content:"";display:block;width:44px;height:5px;border-radius:3px;background:var(--line-2);margin:-4px auto 12px}
+/* More: every page as a tile, so the whole menu fits on one screen */
+#moreNav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#moreNav::before,#moreNav h6{grid-column:1/-1}
+#moreNav h6{margin:10px 4px 2px}
+#moreNav .nav-i{flex-direction:column;justify-content:center;gap:6px;min-height:70px;padding:10px 6px;text-align:center;font-size:.82rem;line-height:1.2;border:1px solid var(--line);border-radius:16px;background:var(--card)}
+#moreNav .nav-i svg{width:22px;height:22px;color:var(--navy)}
+#moreNav .nav-i.on{background:var(--navy-50);border-color:var(--navy-100);color:var(--navy)}
+#moreNav .nav-i.on::before{display:none}
+#moreNav .nav-i[data-k=logout] svg,#moreNav .nav-i[data-k=danger] svg{color:var(--red)}
+@media (max-width:700px){
+  /* iPhone zooms into fields under 16px: keep them at 16px */
+  input,select,textarea{font-size:16px}
+  dialog.dlg{margin:auto 0 0;width:100%;max-width:100%;border-radius:24px 24px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+  dialog.dlg[open]{animation:sheetUp .34s var(--ease) both}
+  dialog.dlg form{padding:20px 20px 16px}
+  dialog.dlg .row{flex-direction:column-reverse;align-items:stretch}
+  dialog.dlg .row .btn{width:100%;min-height:48px}
+  /* the header tucks away while you scroll down, and comes back when you scroll up */
+  .topbar{transition:transform .3s var(--ease)}
+  body.tb-hide .topbar{transform:translateY(-110%)}
+  .legend{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;margin-right:calc(-1 * var(--gut));padding-right:var(--gut)}
+  .legend::-webkit-scrollbar{display:none}
+  .legend span{white-space:nowrap}
+  .toolbar .search{flex-basis:100%;max-width:none}
+  .card{border-radius:18px}
+}
+@media (prefers-reduced-motion:reduce){#paneBox *,dialog{animation:none!important}.topbar{transition:none}}
+
 /* ===== Dark theme: deep navy night, lit from above. Layered surfaces, soft glows and the flag stripe; never flat black ===== */
 html[data-theme=dark]{color-scheme:dark;
   --brand:#002868;--brand-2:#0a3a86;
@@ -1450,10 +1500,24 @@ function paintNav(){
   opsPaint();
 }
 function goTab(k){if(k==='more'){$('#moreSheet').showModal();return}if(k==='logout'){$('#moreSheet').close();$('#logout').click();return}
-  const was=TAB;TAB=k;sess.set('att-tab',TAB);if($('#moreSheet').open)$('#moreSheet').close();paintNav();renderPane();window.scrollTo({top:0});
+  const was=TAB;TAB=k;sess.set('att-tab',TAB);if($('#moreSheet').open)$('#moreSheet').close();paintNav();
+  // the new page slides in softly
+  const box=$('#paneBox');box.classList.remove('swap');void box.offsetWidth;box.classList.add('swap');renderPane();
+  document.body.classList.remove('tb-hide');window.scrollTo({top:0});
   if(was==='danger'&&DZ.dirty){DZ.dirty=false;loadData(false,true)}}
 ['#tabs','#bnav','#moreNav'].forEach(id=>$(id).addEventListener('click',e=>{const b=e.target.closest('button[data-k]');if(b)goTab(b.dataset.k)}));
 $('#moreSheet').addEventListener('click',e=>{if(e.target===$('#moreSheet'))$('#moreSheet').close()});
+// a sheet follows the finger: drag it down to close it
+function swipeClose(d){let y0=null,dy=0;
+  d.addEventListener('touchstart',e=>{if(d.scrollTop>0||e.touches.length>1){y0=null;return}y0=e.touches[0].clientY;dy=0;d.style.transition='none'},{passive:true});
+  d.addEventListener('touchmove',e=>{if(y0==null)return;dy=Math.max(0,e.touches[0].clientY-y0);if(dy>0)d.style.transform='translateY('+dy+'px)'},{passive:true});
+  d.addEventListener('touchend',()=>{if(y0==null)return;d.style.transition='transform .25s var(--ease)';
+    if(dy>90){d.style.transform='translateY(100%)';setTimeout(()=>{d.close();d.style.transform='';d.style.transition=''},220)}else d.style.transform='';y0=null})}
+swipeClose($('#moreSheet'));
+// phones: the header tucks away while scrolling down and returns on the way up
+(()=>{let last=scrollY,tick=false;addEventListener('scroll',()=>{if(tick)return;tick=true;requestAnimationFrame(()=>{const y=scrollY,d=y-last;
+  if(innerWidth<=700&&!document.body.classList.contains('present')){if(y<80||d<-6)document.body.classList.remove('tb-hide');else if(d>6)document.body.classList.add('tb-hide')}
+  else document.body.classList.remove('tb-hide');last=y;tick=false})},{passive:true})})();
 const sig=d=>d?JSON.stringify([d.requests,d.students,d.attendance,d.excuses,d.days,d.settings,d.status&&d.status.open,d.status&&d.status.todayDone,d.status&&d.status.openDay]):'';
 async function loadData(show,quiet){
   let r;try{r=await timedCall({action:'data'})}catch(e){if(!quiet)toast(e.message+' Your changes are kept under Operations.',true);
