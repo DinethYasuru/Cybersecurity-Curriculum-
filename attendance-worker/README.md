@@ -100,7 +100,7 @@ A class is backed up before its first change (at most once every 10 minutes, and
 
 ## Branches, speed and checks (server version 22)
 
-- **Branches.** Every American Corner branch runs this same code with its own Worker (deploy a copy under a new name, set its SETUP_KEY and main password). The admin sets the branch's name and logo under American Corner › Branch. Students and staff see them at the top left, on printed day sheets and in downloads. Other copies of the page pick up a change within a minute.
+- **Branches.** Every American Corner branch runs this same code with its own Worker (deploy a copy under a new name, set its SETUP_KEY and main password). Each Worker has its own Durable Objects, so a class with the same name (even the same short id, like `cyber`) in two branches is two separate databases: students, accounts, attendance, staff and passwords never mix. A phone used with two branches keeps each branch's sign-in, logo and class choice apart too. The admin sets the branch's name and logo under American Corner › Branch. Students and staff see them at the top left, on printed day sheets and in downloads. Other copies of the page pick up a change within a minute.
 - **Students' first screen.** The Corner keeps each class's hours, extra windows and cancelled days. A student who opens the page without a class QR asks only the classes that may be open now, so many classes no longer hit Cloudflare's per-request limit.
 - **Sign out everywhere** (Setup) ends every sign-in in one call. New check-in codes for a class are in the Danger zone.
 - **Faster.** Each copy of the Worker keeps the class list for a minute. The page's built-in logos are smaller (the page downloads 38% less) and it opens the line to the server while it loads.
