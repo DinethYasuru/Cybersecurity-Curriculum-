@@ -56,6 +56,11 @@ const json = (o, status) => new Response(JSON.stringify(o), { status: status || 
    object for what classes share: the class list, people, facilitator accounts and their roles.
    The Cyber Security class keeps its original database (named 'class'). */
 const STUDENT = { status: 1, lookup: 1, register: 1, checkin: 1, me: 1, profile: 1, keyRequest: 1, keySignIn: 1, profileSave: 1 };
+// the student app: signing in (no account yet), then everything a signed-in student does
+const APP_OPEN = { accRequest: 1, accActivate: 1, accLogin: 1 };
+const APP = { app: 1, appFind: 1, appCheckin: 1, appExcuse: 1, appExcuseDrop: 1, appSave: 1, appLogout: 1, appHelp: 1 };
+// the admin's (and coordinators') side of it: the requests inbox, keys, moving records to a new number, the on/off switch
+const STU_ADMIN = { stuInbox: 1, stuReq: 1, stuKey: 1, stuMove: 1, stuLoginSet: 1 };
 const HUB_ADMIN = { corner: 1, classSave: 1, classDelete: 1, people: 1, staffSave: 1, myAccount: 1, adminPassword: 1, branchSave: 1 };
 // what a coordinator account may do inside a class: look, never change (and never get the QR key)
 const COORD_READ = { data: 1, today: 1, photos: 1, export: 1 };
@@ -106,12 +111,14 @@ export default {
     };
     const saveSched = async k => { const sc = await I(k, { op: 'sched' }); if (sc.ok) await H('schedSave', { k, sched: sc.sched }); };
     const ip = JSON.parse(net).ip;
-    const loadClasses = async () => { const r = await H('classes'); CLASS_CACHE = { at: Date.now(), list: r.classes, branch: r.branch || BRANCH_DEFAULT }; return CLASS_CACHE; };
+    const loadClasses = async () => { const r = await H('classes'); CLASS_CACHE = { at: Date.now(), list: r.classes, branch: r.branch || BRANCH_DEFAULT, stuLogin: r.stuLogin !== false }; return CLASS_CACHE; };
     let fresh = !(CLASS_CACHE && Date.now() - CLASS_CACHE.at < CLASS_TTL);
     let cc = fresh ? await loadClasses() : CLASS_CACHE;
     let classes = cc.list;
     let pub = classes.filter(c => c.active !== 'no');
     const branch = cc.branch;
+    // students sign in to the app before they check in (the admin can turn this off in Branch)
+    let accounts = cc.stuLogin !== false;
     // something changed the class list (or the branch): the next request in this copy reads it again
     const dropClasses = () => { CLASS_CACHE = null; };
     const known = k => pub.some(c => c.id === k);
@@ -119,7 +126,7 @@ export default {
 
     if (request.method === 'GET') {
       const r = await C(pub[0] ? pub[0].id : 'cyber', { action: 'status' });
-      return json(Object.assign(r, { multi: true, branch, classes: pub.map(c => ({ id: c.id, name: c.name })) }));
+      return json(Object.assign(r, { multi: true, branch, accounts, classes: pub.map(c => ({ id: c.id, name: c.name })) }));
     }
     const body = await request.text();
     if (body.length > MAX_IMPORT) return json({ ok: false, reason: 'input', message: 'Request too big.' });
@@ -135,6 +142,77 @@ export default {
     // a class that was archived or never existed (an old QR, or a change queued before the class was archived):
     // never fall back to another class, or the change would land in the wrong one
     const gone = rawK && !k;
+
+    // a signed-in student (the token is their account's sign-in on this phone)
+    const app = async a => {
+      const dev = String(req.device || '').replace(/[^a-z0-9]/gi, '').slice(0, 40);
+      const w = await H('accWho', { token: req.token });
+      if (!w.ok) return fail('signin', 'Sign in again.');
+      const me = w.me, phone = me.phone;
+      const mine = async () => ((await H('enrolFull', { phone })).enrol || []).filter(e => known(e.k));
+      if (a === 'app') {
+        // every class they attend, with their record in each (at most CORNER_STATS classes per request)
+        const all = await mine(), en = all.slice(0, CORNER_STATS);
+        const classes = await Promise.all(en.map(async e => {
+          const r = await I(e.k, { op: 'record', sid: e.sid });
+          return { k: e.k, className: nameOf(e.k), id: e.sid, records: r.ok ? r.records : [], upcomingExcuses: r.ok ? r.upcomingExcuses : [], error: r.ok ? '' : r.message };
+        }));
+        const x = await H('xreqMine', { phone });
+        return { ok: true, me, classes, more: all.length > en.length, requests: x.requests || [] };
+      }
+      if (a === 'appFind') {
+        // the code says which class: their own classes open now first, then any class open now (a new class they join)
+        const code = String(req.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const en = await mine(), ids = en.map(e => e.k);
+        let list;
+        if (k) list = [k];
+        else { const g = await H('openGuess', { now: Date.now() }); list = ids.filter(id => g.maybe.includes(id)).concat(pub.map(c => c.id).filter(id => g.maybe.includes(id) && !ids.includes(id))).slice(0, 15); }
+        const cks = await Promise.all(list.map(async id => ({ id, c: await C(id, { action: 'codeCheck', code }) })));
+        // a class that asks for no code matches without one: only their own classes count then, or the class the QR link named
+        const hit = (cks.find(x => x.c.match && (ids.includes(x.id) || k || (x.c.need && code.length === 6))) || {}).id;
+        if (!hit) return fail('code', code ? 'That code is not right, or it has changed. Scan the screen again.' : cks.some(x => x.c.open) ? 'Scan the QR on the classroom screen, or type the 6-letter code under it.' : 'No class you can check in to is open right now.');
+        const lk = await C(hit, { action: 'lookup', phone, code, device: dev });
+        if (!lk.ok) return Object.assign(lk, { k: hit, className: nameOf(hit) });
+        if (!lk.found && !lk.canRegister) return Object.assign(fail('unknown', 'You are not on the class list of ' + nameOf(hit) + ' yet. Ask your facilitator to add you.'), { k: hit, className: nameOf(hit) });
+        const e = en.find(x => x.k === hit);
+        return { ok: true, k: hit, className: nameOf(hit), join: !lk.found, already: lk.already || '', date: lk.date, ticket: lk.ticket,
+          student: { id: lk.found ? lk.student.id : '', name: e ? e.name : me.name, phone } };
+      }
+      if (a === 'appCheckin') {
+        if (!k) return fail('noclass', 'That class is not running any more.');
+        // a class they don't attend yet: they join it with their account's name first
+        if (req.join) {
+          const p = await H('person', { phone });
+          const r = await C(k, { action: 'register', phone, name: p.person ? p.person.name : me.name, ticket: req.ticket, device: dev });
+          if (!r.ok) return Object.assign(r, { k, className: nameOf(k) });
+          await sync(k);
+        }
+        const r = await C(k, { action: 'checkin', phone, ticket: req.ticket, device: dev });
+        return Object.assign(r, { k, className: nameOf(k) });
+      }
+      if (a === 'appExcuse') {
+        const e = (await mine()).find(x => x.k === k), date = String(req.date || ''), reason = cleanNm(req.reason);
+        if (!e) return fail('input', 'Pick one of your classes.');
+        const days = (Date.parse(date) - Date.now()) / 86400000;
+        if (!okDate(date) || days < -91 || days > 92) return fail('input', 'Pick a date within three months.');
+        if (reason.length < 3 || reason.length > 160) return fail('input', 'Say why in a few words (up to 160 letters).');
+        return await H('xreqAdd', { k, sid: e.sid, phone, name: e.name, date, reason });
+      }
+      if (a === 'appExcuseDrop') return await H('xreqDrop', { rid: req.rid, phone });
+      if (a === 'appSave') {
+        const r = await H('accSave', { phone, name: req.name, photo: req.photo, password: req.password, oldPassword: req.oldPassword });
+        if (!r.ok || !(r.renamed || r.photo)) return r;
+        // the new name and photo reach every class they attend
+        for (const e of (await mine()).slice(0, CORNER_STATS)) {
+          if (r.renamed && (await I(e.k, { op: 'applyPerson', sid: e.sid, name: r.me.name, phone })).ok) await sync(e.k);
+          if (r.photo) await I(e.k, { op: 'setPhoto', sid: e.sid, photo: r.me.photo });
+        }
+        return r;
+      }
+      if (a === 'appLogout') return await H('accLogout', { token: req.token, all: !!req.all });
+      if (a === 'appHelp') return await H('areqHelp', { phone, other: req.other, note: req.note });
+      return fail('action', 'Unknown step.');
+    };
 
     if (a === 'login') return json(await H('login', { req, ip }));
     if (a === 'logout') return json(await H('logout', { req }));
@@ -153,6 +231,10 @@ export default {
       return json(r);
     }
 
+    // the student app: sign in once, then check in, see every class, send excuses, keep a profile
+    if (APP_OPEN[a]) return json(await H(a, { phone: req.phone, name: req.name, note: req.note, code: req.code, password: req.password, ip }));
+    if (APP[a]) return json(await app(a));
+    if (STUDENT[a] && accounts && a !== 'status') return json(fail('signin', 'Sign in to the attendance app first. This page shows how.'));
     if (STUDENT[a]) {
       if (gone) return json(fail('noclass', 'This class is not running any more. Ask your facilitator for the new QR.'));
       // a profile key goes to the class the student attends (any of them: the profile is the same person everywhere)
@@ -195,14 +277,14 @@ export default {
           const r = await C(k || opened[0] || (pub[0] ? pub[0].id : 'cyber'), { action: 'status' });
           // several open: a code is asked for only if one of them wants it
           if (!k && opened.length > 1) r.requireCode = st.some(x => x.s.open && x.s.requireCode);
-          return json(Object.assign(r, { multi: true, branch, k: k || '', className: k ? nameOf(k) : '', classes: pub.map(c => ({ id: c.id, name: c.name, open: opened.includes(c.id) })), pick: !k && opened.length > 1 }));
+          return json(Object.assign(r, { multi: true, branch, accounts, k: k || '', className: k ? nameOf(k) : '', classes: pub.map(c => ({ id: c.id, name: c.name, open: opened.includes(c.id) })), pick: !k && opened.length > 1 }));
         }
         if (!k && a !== 'me') {
           if (opened.length > 1) return json({ ok: false, reason: 'pick', message: 'Pick your class first.', classes: pub.filter(c => opened.includes(c.id)).map(c => ({ id: c.id, name: c.name })) });
           k = pub[0] ? pub[0].id : 'cyber';
         }
       }
-      if (a === 'status') { const r = await C(k, req); return json(Object.assign(r, { multi: true, branch, k, className: nameOf(k), classes: pub.map(c => ({ id: c.id, name: c.name })) })); }
+      if (a === 'status') { const r = await C(k, req); return json(Object.assign(r, { multi: true, branch, accounts, k, className: nameOf(k), classes: pub.map(c => ({ id: c.id, name: c.name })) })); }
       // My attendance across every class the person attends
       if (a === 'me' && req.all) {
         const en = (await H('enrolOf', { phone: req.phone })).enrol || [];
@@ -299,6 +381,32 @@ export default {
     // a starter account first chooses its own password
     if (who.me && who.me.mustSetup && a !== 'myAccount') return json({ ok: false, reason: 'setup', message: 'Set up your account first.', me: who.me });
     if (a === 'danger') return json(await danger());
+    if (STU_ADMIN[a]) {
+      if (!who.hub) return json(fail('input', 'Only the admin and coordinators can see student requests.'));
+      const by = who.me ? who.me.name : 'Admin';
+      if (a === 'stuInbox') return json(await H('areqList'));
+      if (a === 'stuReq') return json(await H('areqSet', { rid: req.rid, status: req.status, by }));
+      if (a === 'stuKey') return json(await H('areqIssue', { phone: req.phone, name: req.name, by }));
+      if (!who.admin) return json(fail('input', 'Only the admin can do this.'));
+      if (a === 'stuLoginSet') { const r = await H('stuLoginSet', { on: !!req.on }); dropClasses(); return json(r); }
+      // a student's records move to their new number: in each class the old number's student gets the new number,
+      // and where the new number already had its own student (they registered again) the two become one
+      const from = cleanPh(req.from), to = cleanPh(req.to);
+      if (!from || !to) return json(fail('input', 'Type both numbers, like 0771234567.'));
+      if (from === to) return json(fail('input', 'The two numbers are the same.'));
+      const plan = await H('movePlan', { from, to });
+      if (plan.staff) return json(fail('input', 'One of these numbers belongs to a facilitator.'));
+      if (!plan.from.length) return json(fail('input', 'Nobody is on a class list with ' + from + '.'));
+      const moved = [], failed = [];
+      for (const e of plan.from.slice(0, CORNER_STATS)) {
+        if (!classes.some(c => c.id === e.k)) continue;
+        const t = plan.to.find(x => x.k === e.k);
+        const r = t ? await I(e.k, { op: 'mergeStudent', from: t.sid, into: e.sid, phone: to }) : await I(e.k, { op: 'applyPerson', sid: e.sid, name: e.name, phone: to });
+        if (r.ok) { await sync(e.k); moved.push(nameOf(e.k) + (t ? ' (' + t.sid + ' joined into ' + e.sid + ')' : '')); } else failed.push(nameOf(e.k));
+      }
+      if (moved.length) await H('moveDone', { from, to, rid: req.rid, by, what: moved.join(', ') });
+      return json({ ok: moved.length > 0, moved, failed, message: moved.length ? '' : 'Nothing could be moved. ' + (failed.length ? 'Check ' + failed.join(', ') + ' in the Danger zone.' : '') });
+    }
     if (HUB_ADMIN[a]) {
       if (a === 'corner') {
         // the class list, people and accounts come from the Corner alone; today's numbers need one call per class,
@@ -340,6 +448,14 @@ export default {
     }
     let skipped = [];
     if (a === 'bulk' && Array.isArray(req.list)) req.list = req.list.filter(x => staffPhones.includes(cleanPh(x.phone)) ? (skipped.push(String(x.phone || '') + ', ' + String(x.name || '') + ' (a facilitator number)'), false) : true);
+    // an excuse a student sent from the app: accepted, it goes into the class's excuses
+    if (a === 'excuseReq') {
+      const x = (await H('xreqGet', { rid: req.rid })).request;
+      if (!x || x.k !== k) return json(fail('input', 'That excuse request is gone.'));
+      if (x.status !== 'new') return json({ ok: true, request: x });
+      if (req.accept) { const e = await C(k, { action: 'excuse', id: x.sid, date: x.date, excused: true, reason: x.reason }, staff); if (!e.ok) return json(e); }
+      return json(await H('xreqSet', { rid: x.rid, status: req.accept ? 'accepted' : 'declined', by: staff.name }));
+    }
     const r = await C(k, req, staff);
     if (skipped.length && r.ok) r.bad = (r.bad || []).concat(skipped);
     if (r.ok && a === 'data') {
@@ -352,7 +468,11 @@ export default {
       if (k !== 'cyber' && r.settings && r.settings.idPrefix === 'ACM-') await I(k, { op: 'newClass', prefix: prefixFor(nameOf(k)) });
     }
     if (r.ok && a === 'photos') Object.assign(r.photos, (await H('staffPhotos')).photos || {});
-    if (r.ok && a === 'data') r.corner.branch = branch;
+    if (r.ok && a === 'data') {
+      r.corner.branch = branch; r.corner.accounts = accounts;
+      if (who.hub) r.corner.stuReq = (await H('areqCount')).n;
+      if (!who.coord) r.xreq = (await H('xreqFor', { k })).requests || [];
+    }
     if (r.ok && SYNC_AFTER[a]) await sync(k);
     if (r.ok && SCHED_AFTER[a]) await saveSched(k);
     return json(r);
@@ -375,8 +495,18 @@ const HUB_SQL = [
   'CREATE TABLE IF NOT EXISTS staff (id TEXT PRIMARY KEY, name TEXT, phone TEXT, salt TEXT, hash TEXT, active TEXT, admin TEXT, added TEXT, photo TEXT, setup TEXT)',
   'CREATE TABLE IF NOT EXISTS roles (sid TEXT, k TEXT, role TEXT, PRIMARY KEY (sid, k))',
   // what the admin changed in the Danger zone, newest kept
-  'CREATE TABLE IF NOT EXISTS audit (at INTEGER, db TEXT, what TEXT)'
+  'CREATE TABLE IF NOT EXISTS audit (at INTEGER, db TEXT, what TEXT)',
+  // the student app: one account per mobile number, across every class (pv: a new password ends the other sign-ins)
+  'CREATE TABLE IF NOT EXISTS accounts (phone TEXT PRIMARY KEY, name TEXT, salt TEXT, hash TEXT, pv INTEGER, photo TEXT, created INTEGER, last INTEGER)',
+  // students asking the admin: a sign-in key (kind signin), or "I can't see my old records" (kind help, other = the old number)
+  'CREATE TABLE IF NOT EXISTS areq (rid TEXT PRIMARY KEY, kind TEXT, phone TEXT, name TEXT, other TEXT, note TEXT, at INTEGER, code TEXT, status TEXT, updated INTEGER, by TEXT)',
+  // excuses a student sent from the app, waiting for the class's facilitators
+  'CREATE TABLE IF NOT EXISTS xreq (rid TEXT PRIMARY KEY, k TEXT, sid TEXT, phone TEXT, name TEXT, date TEXT, reason TEXT, at INTEGER, status TEXT, updated INTEGER, by TEXT)'
 ];
+// student app sign-in: a key from the admin works once within KEY_DAYS; a phone stays signed in for STU_DAYS after its last use
+const KEY_DAYS = 7, STU_DAYS = 180, KEY_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const newKey = () => { const a = new Uint8Array(8); crypto.getRandomValues(a); return Array.from(a, x => KEY_ABC[x & 31]).join(''); };
+const okDate = d => /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) && !isNaN(Date.parse(d));
 const cleanPh = v => { let d = String(v || '').replace(/\D/g, ''); if (d.length === 11 && d.startsWith('94')) d = '0' + d.slice(2); if (d.length === 9 && d[0] !== '0') d = '0' + d; return /^0\d{9}$/.test(d) ? d : ''; };
 const cleanNm = v => String(v || '').trim().replace(/\s+/g, ' ');
 const okName = n => n.length >= 2 && n.length <= 60 && /^[\p{L}\p{M} .'-]+$/u.test(n);
@@ -652,6 +782,152 @@ export class Corner extends DurableObject {
     return { ok: true, created: !cur, class: this.one('SELECT * FROM classes WHERE id = ?', id) };
   }
 
+  /* ----- the student app: accounts, the admin's requests inbox, excuses sent from the app ----- */
+  // counts tries in kv; true once over max within the window
+  over(key, max, sec) { const n = Number(this.kvGet(key) || 0) + 1; if (n <= max + 1) this.kvPut(key, n, sec); return n > max; }
+  stuLogin() { return this.prop('stuLogin') !== '0'; }
+  accOut(a) { return a ? { phone: a.phone, name: a.name, photo: a.photo || '' } : null; }
+  stuTok(phone, pv) { const t = randHex(20); this.kvPut('stu:' + t, JSON.stringify({ phone, pv, at: Date.now() }), STU_DAYS * 86400); return t; }
+  accWho(token) {
+    if (!/^[a-f0-9]{40}$/.test(String(token || ''))) return { ok: false };
+    let t = null; try { t = JSON.parse(this.kvGet('stu:' + token) || 'null'); } catch (e) {}
+    const a = t ? this.one('SELECT * FROM accounts WHERE phone = ?', t.phone) : null;
+    if (!a || Number(a.pv) !== Number(t.pv)) return { ok: false };
+    // used again: the phone stays signed in for another STU_DAYS (written at most once a day)
+    if (Date.now() - Number(t.at || 0) > 86400000) {
+      this.kvPut('stu:' + token, JSON.stringify({ phone: a.phone, pv: a.pv, at: Date.now() }), STU_DAYS * 86400);
+      this.sql.exec('UPDATE accounts SET last = ? WHERE phone = ?', Date.now(), a.phone);
+    }
+    return { ok: true, me: this.accOut(a) };
+  }
+  // step 1: a student asks for a sign-in key. The answer is the same for any number, so it tells nobody who studies here.
+  accRequest(q) {
+    const phone = cleanPh(q.phone), name = cleanNm(q.name), now = Date.now();
+    if (!phone) return fail('phone', 'Type your mobile number, like 0771234567.');
+    if (!okName(name)) return fail('name', 'Type your name with letters only.');
+    if (this.over('arp:' + phone, 3, 3600) || this.over('ari:' + String(q.ip || ''), 20, 3600)) return fail('slow', 'Too many requests. Try again in an hour.');
+    if (this.one('SELECT id FROM staff WHERE phone = ?', phone)) return fail('staff', 'That number belongs to a facilitator. Use Staff sign in at the bottom of the page.');
+    const SENT = { ok: true, message: 'Request sent. The admin checks it and sends your key on WhatsApp. Then come back and tap I have a key.' };
+    const open = this.one("SELECT rid FROM areq WHERE kind = 'signin' AND phone = ? AND status IN ('new', 'sent') AND at > ?", phone, now - KEY_DAYS * 86400000);
+    if (open) { this.sql.exec('UPDATE areq SET name = ?, updated = ? WHERE rid = ?', name, now, open.rid); return SENT; }
+    this.sql.exec("INSERT INTO areq VALUES (?, 'signin', ?, ?, '', ?, ?, ?, 'new', ?, '')", randHex(6), phone, name, String(q.note || '').slice(0, 200), now, newKey(), now);
+    return SENT;
+  }
+  // step 2: the key from the admin, once, and the student's own password; the phone is signed in straight away
+  accActivate(q) {
+    const phone = cleanPh(q.phone), code = String(q.code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''), pw = String(q.password || ''), now = Date.now();
+    if (!phone) return fail('phone', 'Type your mobile number, like 0771234567.');
+    if (this.over('aak:' + phone, 8, 900) || this.over('aai:' + String(q.ip || ''), 40, 900)) return fail('slow', 'Too many tries. Wait 15 minutes.');
+    const r = code.length === 8 ? this.one("SELECT * FROM areq WHERE kind = 'signin' AND phone = ? AND code = ? AND status IN ('new', 'sent') AND at > ?", phone, code, now - KEY_DAYS * 86400000) : null;
+    if (!r) return fail('key', 'That key is not right for this number, or it has expired. Ask for a new one.');
+    if (pw.length < 6) return fail('password', 'Choose a password with at least 6 characters.');
+    const cur = this.one('SELECT * FROM accounts WHERE phone = ?', phone), person = this.one('SELECT name FROM people WHERE phone = ?', phone);
+    const salt = randHex(16), pv = cur ? Number(cur.pv) + 1 : 1;
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec('INSERT OR REPLACE INTO accounts VALUES (?, ?, ?, ?, ?, ?, ?, ?)', phone, person ? person.name : cur ? cur.name : r.name, salt, hashPw(pw, salt), pv, cur ? cur.photo : '', cur ? cur.created : now, now);
+      this.sql.exec("UPDATE areq SET status = 'used', updated = ? WHERE rid = ?", now, r.rid);
+    });
+    return { ok: true, token: this.stuTok(phone, pv), me: this.accOut(this.one('SELECT * FROM accounts WHERE phone = ?', phone)) };
+  }
+  accLogin(q) {
+    const phone = cleanPh(q.phone), fk = 'sfail:' + (phone || 'x'), ik = 'sfail:ip:' + String(q.ip || '');
+    const f = Number(this.kvGet(fk) || 0), fi = Number(this.kvGet(ik) || 0);
+    if (f >= 10 || fi >= 60) return fail('locked', 'Too many wrong passwords. Wait 15 minutes, or ask for a new key.');
+    const a = phone ? this.one('SELECT * FROM accounts WHERE phone = ?', phone) : null;
+    if (!a || hashPw(String(q.password || ''), a.salt) !== a.hash) {
+      this.kvPut(fk, f + 1, 900); this.kvPut(ik, fi + 1, 900);
+      return fail('password', a || !phone ? 'Wrong number or password.' : 'This number has no account yet. Tap First time? to ask for a key.');
+    }
+    this.sql.exec('DELETE FROM kv WHERE k = ?', fk);
+    this.sql.exec('UPDATE accounts SET last = ? WHERE phone = ?', Date.now(), phone);
+    return { ok: true, token: this.stuTok(phone, a.pv), me: this.accOut(a) };
+  }
+  accSave(q, phone) {
+    const a = this.one('SELECT * FROM accounts WHERE phone = ?', phone);
+    if (!a) return fail('signin', 'Sign in again.');
+    const out = { ok: true };
+    if (q.name != null) { const n = cleanNm(q.name); if (!okName(n)) return fail('input', 'Type your name with letters only.'); out.renamed = n !== a.name; a.name = n; }
+    if (q.photo != null) { if (q.photo !== '' && !okPhoto(q.photo)) return fail('input', 'That photo could not be used. Try another one.'); a.photo = q.photo; out.photo = true; }
+    if (q.password != null) {
+      if (hashPw(String(q.oldPassword || ''), a.salt) !== a.hash) return fail('input', 'Your current password is not right.');
+      if (String(q.password).length < 6) return fail('input', 'The new password needs at least 6 characters.');
+      a.salt = randHex(16); a.hash = hashPw(String(q.password), a.salt); a.pv = Number(a.pv) + 1;
+      // a new password signs out every other phone; this one gets a new sign-in
+      out.token = this.stuTok(phone, a.pv);
+    }
+    this.sql.exec('UPDATE accounts SET name = ?, photo = ?, salt = ?, hash = ?, pv = ? WHERE phone = ?', a.name, a.photo || '', a.salt, a.hash, a.pv, phone);
+    if (out.renamed) this.sql.exec('UPDATE people SET name = ?, updated = ? WHERE phone = ?', a.name, Date.now(), phone);
+    out.me = this.accOut(a);
+    return out;
+  }
+  // the inbox: open requests and the last 30 days, with who each number is at the Corner
+  areqList() {
+    const now = Date.now(), cls = {}; this.all('SELECT id, name FROM classes').forEach(c => { cls[c.id] = c.name; });
+    const info = ph => {
+      if (!ph) return null;
+      const p = this.one('SELECT name FROM people WHERE phone = ?', ph);
+      return { phone: ph, name: p ? p.name : '', account: !!this.one('SELECT phone FROM accounts WHERE phone = ?', ph),
+        classes: this.all('SELECT k, sid FROM enrol WHERE phone = ?', ph).map(e => ({ k: e.k, sid: e.sid, name: cls[e.k] || e.k })) };
+    };
+    return this.all("SELECT * FROM areq WHERE status IN ('new', 'sent') OR updated > ? ORDER BY at DESC LIMIT 300", now - 30 * 86400000)
+      .map(r => Object.assign(r, { live: (r.status === 'new' || r.status === 'sent') && (r.kind !== 'signin' || r.at > now - KEY_DAYS * 86400000), who: info(r.phone), was: r.kind === 'help' ? info(cleanPh(r.other)) : null }));
+  }
+  areqCount() { return this.one("SELECT COUNT(*) AS n FROM areq WHERE status = 'new' AND (kind != 'signin' OR at > ?)", Date.now() - KEY_DAYS * 86400000).n; }
+  areqSet(q, by) {
+    const r = this.one('SELECT * FROM areq WHERE rid = ?', String(q.rid || ''));
+    if (!r) return fail('input', 'That request is gone.');
+    const now = Date.now();
+    // a fresh key: the old one stops working and the 7 days start again
+    if (q.status === 'rekey') { if (r.kind !== 'signin') return fail('input', 'Only sign-in requests have keys.'); this.sql.exec("UPDATE areq SET code = ?, at = ?, status = 'new', updated = ?, by = ? WHERE rid = ?", newKey(), now, now, by, r.rid); }
+    else if (['new', 'sent', 'dismissed', 'done'].includes(q.status)) { if (r.status === 'used') return { ok: true, request: r }; this.sql.exec('UPDATE areq SET status = ?, updated = ?, by = ? WHERE rid = ?', q.status, now, by, r.rid); }
+    else return fail('input', 'Pick a step.');
+    return { ok: true, request: this.one('SELECT * FROM areq WHERE rid = ?', r.rid) };
+  }
+  // the admin gives a key without a request (a new student, or someone who lost their password)
+  areqIssue(q, by) {
+    const phone = cleanPh(q.phone), p = phone ? this.one('SELECT name FROM people WHERE phone = ?', phone) : null, name = cleanNm(q.name) || (p ? p.name : '');
+    if (!phone) return fail('input', 'Type a mobile number like 0771234567.');
+    if (!okName(name)) return fail('input', 'Type the student’s name.');
+    if (this.one('SELECT id FROM staff WHERE phone = ?', phone)) return fail('input', 'That number belongs to a facilitator.');
+    const now = Date.now(), rid = randHex(6);
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec("UPDATE areq SET status = 'dismissed', updated = ? WHERE kind = 'signin' AND phone = ? AND status IN ('new', 'sent')", now, phone);
+      this.sql.exec("INSERT INTO areq VALUES (?, 'signin', ?, ?, '', '', ?, ?, 'new', ?, ?)", rid, phone, name, now, newKey(), now, by);
+    });
+    return { ok: true, request: this.one('SELECT * FROM areq WHERE rid = ?', rid) };
+  }
+  // "I can't see my old records": the student (signed in with the new number) names the old one
+  areqHelp(q, phone) {
+    const a = this.one('SELECT name FROM accounts WHERE phone = ?', phone), other = String(q.other || '').trim().slice(0, 40), note = String(q.note || '').trim().slice(0, 300);
+    if (!other && !note) return fail('input', 'Type your old number, or tell the admin what is missing.');
+    if (cleanPh(other) === phone) return fail('input', 'That is the number you are signed in with. Type the old one.');
+    if (this.over('arh:' + phone, 3, 86400)) return fail('slow', 'You already sent a few messages today. The admin will look at them.');
+    const now = Date.now();
+    this.sql.exec("DELETE FROM areq WHERE kind = 'help' AND phone = ? AND status = 'new'", phone);
+    this.sql.exec("INSERT INTO areq VALUES (?, 'help', ?, ?, ?, ?, ?, '', 'new', ?, '')", randHex(6), phone, a ? a.name : '', cleanPh(other) || other, note, now, now);
+    return { ok: true, message: 'Sent. The admin will check and move your records to this number.' };
+  }
+  // the admin moved the records: the new number keeps its account, the old number's account goes
+  moveDone(q, by) {
+    const from = cleanPh(q.from), to = cleanPh(q.to), now = Date.now();
+    this.ctx.storage.transactionSync(() => {
+      const old = this.one('SELECT * FROM accounts WHERE phone = ?', from);
+      if (old && !this.one('SELECT phone FROM accounts WHERE phone = ?', to)) this.sql.exec('UPDATE accounts SET phone = ?, pv = pv + 1 WHERE phone = ?', to, from);
+      else this.sql.exec('DELETE FROM accounts WHERE phone = ?', from);
+      if (q.rid) this.sql.exec("UPDATE areq SET status = 'done', updated = ?, by = ? WHERE rid = ?", now, by, String(q.rid));
+      this.sql.exec('INSERT INTO audit VALUES (?, ?, ?)', now, 'American Corner', ('Moved records from ' + from + ' to ' + to + ': ' + String(q.what || '')).slice(0, 300));
+    });
+    return { ok: true };
+  }
+  xreqAdd(q) {
+    const now = Date.now();
+    if (this.over('xr:' + q.phone, 10, 86400)) return fail('slow', 'You sent many excuses today. Talk to your facilitator.');
+    if (this.one("SELECT rid FROM xreq WHERE k = ? AND sid = ? AND date = ? AND status = 'new'", q.k, q.sid, q.date)) return fail('input', 'You already sent an excuse for that day. Your facilitator will look at it.');
+    const rid = randHex(6);
+    this.sql.exec("INSERT INTO xreq VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, '')", rid, q.k, q.sid, q.phone, q.name, q.date, q.reason, now, now);
+    return { ok: true, request: this.one('SELECT * FROM xreq WHERE rid = ?', rid) };
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
     if (url.pathname === '/cron') { this.sql.exec('DELETE FROM kv WHERE exp < ?', Date.now()); return json({ ok: true }); }
@@ -659,7 +935,7 @@ export class Corner extends DurableObject {
     switch (q.op) {
       case 'inited': return json({ inited: !!this.prop('inited') });
       case 'init': return json(this.init(q.seed));
-      case 'classes': return json({ classes: this.all('SELECT * FROM classes ORDER BY ord, name'), branch: this.branch() });
+      case 'classes': return json({ classes: this.all('SELECT * FROM classes ORDER BY ord, name'), branch: this.branch(), stuLogin: this.stuLogin() });
       // each class's hours, kept here so a student's first screen asks only the classes that may be open now
       case 'schedSave': if (q.sched && typeof q.sched === 'object') this.prop('sched:' + q.k, JSON.stringify(q.sched)); return json({ ok: true });
       case 'openGuess': {
@@ -711,6 +987,39 @@ export class Corner extends DurableObject {
         return json({ person: p ? { name: p.name, masked: mask(p.name) } : null, staff: !!(ph && this.one('SELECT id FROM staff WHERE phone = ?', ph)) });
       }
       case 'enrolOf': return json({ enrol: this.all("SELECT k, sid FROM enrol WHERE phone = ? AND active != 'no'", cleanPh(q.phone)) });
+      // the student app
+      case 'stuLogin': return json({ on: this.stuLogin() });
+      case 'stuLoginSet': this.prop('stuLogin', q.on ? '1' : '0'); return json({ ok: true, on: this.stuLogin() });
+      case 'accRequest': return json(this.accRequest(q));
+      case 'accActivate': return json(this.accActivate(q));
+      case 'accLogin': return json(this.accLogin(q));
+      case 'accWho': return json(this.accWho(q.token));
+      case 'accSave': return json(this.accSave(q, q.phone));
+      case 'accLogout': {
+        let t = null; try { t = JSON.parse(this.kvGet('stu:' + String(q.token || '')) || 'null'); } catch (e) {}
+        this.sql.exec('DELETE FROM kv WHERE k = ?', 'stu:' + String(q.token || ''));
+        // sign out everywhere: every phone's sign-in for this account stops working
+        if (t && q.all) this.sql.exec('UPDATE accounts SET pv = pv + 1 WHERE phone = ?', t.phone);
+        return json({ ok: true });
+      }
+      case 'enrolFull': return json({ enrol: this.all("SELECT k, sid, name FROM enrol WHERE phone = ? AND active != 'no'", cleanPh(q.phone)) });
+      case 'areqList': return json({ ok: true, requests: this.areqList(), on: this.stuLogin() });
+      case 'areqCount': return json({ n: this.areqCount() });
+      case 'areqSet': return json(this.areqSet(q, q.by || ''));
+      case 'areqIssue': return json(this.areqIssue(q, q.by || ''));
+      case 'areqHelp': return json(this.areqHelp(q, q.phone));
+      case 'movePlan': {
+        const from = cleanPh(q.from), to = cleanPh(q.to), p = this.one('SELECT name FROM people WHERE phone = ?', from);
+        return json({ from: this.all('SELECT k, sid, name FROM enrol WHERE phone = ?', from), to: this.all('SELECT k, sid, name FROM enrol WHERE phone = ?', to), name: p ? p.name : '',
+          staff: !!this.one('SELECT id FROM staff WHERE phone IN (?, ?)', from, to) });
+      }
+      case 'moveDone': return json(this.moveDone(q, q.by || ''));
+      case 'xreqAdd': return json(this.xreqAdd(q));
+      case 'xreqMine': return json({ requests: this.all('SELECT rid, k, sid, date, reason, at, status, updated FROM xreq WHERE phone = ? AND (status = ? OR updated > ?) ORDER BY date DESC', q.phone, 'new', Date.now() - 60 * 86400000) });
+      case 'xreqFor': return json({ requests: this.all('SELECT * FROM xreq WHERE k = ? AND (status = ? OR updated > ?) ORDER BY at DESC LIMIT 200', q.k, 'new', Date.now() - 30 * 86400000) });
+      case 'xreqGet': return json({ request: this.one('SELECT * FROM xreq WHERE rid = ?', String(q.rid || '')) });
+      case 'xreqSet': this.sql.exec('UPDATE xreq SET status = ?, updated = ?, by = ? WHERE rid = ?', q.status, Date.now(), q.by || '', String(q.rid || '')); return json({ ok: true, request: this.one('SELECT * FROM xreq WHERE rid = ?', String(q.rid || '')) });
+      case 'xreqDrop': return json({ ok: true, n: this.sql.exec("DELETE FROM xreq WHERE rid = ? AND phone = ? AND status = 'new'", String(q.rid || ''), q.phone).rowsWritten });
       case 'login': return json(this.login(req, q.ip));
       case 'logout': this.sql.exec('DELETE FROM kv WHERE k = ?', 'tok:' + String(req.token || '')); return json({ ok: true });
       case 'who': return json(this.who(q.token));
@@ -819,8 +1128,8 @@ export class ClassRoom extends DurableObject {
 
   // one request, all or nothing: its writes commit together, or (on an unexpected error) none of them do.
   // Where the request came from and who sent it are set in the same synchronous step, so two requests never mix them up.
-  run(req, net, staff) {
-    this.cur = { net, staff };
+  run(req, net, staff, trusted) {
+    this.cur = { net, staff, trusted: !!trusted };
     let out;
     try {
       this.ctx.storage.transactionSync(() => {
@@ -851,6 +1160,7 @@ export class ClassRoom extends DurableObject {
       now: () => Date.now(),
       net: () => self.cur.net,
       routedStaff: () => self.cur.staff,
+      trustedStudent: () => !!self.cur.trusted,
       read: t => (t === 'log' ? sql.exec(`SELECT * FROM t_log ORDER BY rowid`).toArray().map(r => { const o = {}; TABLES.log.forEach(c => { o[c] = r[c] == null ? '' : String(r[c]); }); return o; }) : readAll(t).map(plain)),
       readTail: (t, max) => sql.exec(`SELECT * FROM t_${t} ORDER BY rowid DESC LIMIT ?`, max).toArray().reverse().map(r => { const o = {}; TABLES[t].forEach(c => { o[c] = r[c] == null ? '' : String(r[c]); }); return o; }),
       append: (t, o) => {
@@ -1018,6 +1328,35 @@ export class ClassRoom extends DurableObject {
       const today = st.today;
       return { ok: true, sched: { days: st.window.days, start: st.window.start, end: st.window.end, tzOffset: st.window.tzOffset, extraUntil: st.extraUntil || 0,
         closedDay: E.getProp('closedDay') || '', cancelled: E.read('days').filter(r => r.status === 'cancelled' && r.date >= today).map(r => r.date).slice(0, 60) } };
+    }
+    // the student app: this person's record here (they signed in to their account at the Corner)
+    if (q.op === 'record') return this.run({ action: 'me', id: q.sid, device: 'app' }, null, null, true);
+    // the student's photo from the app, so facilitators see it in this class too
+    if (q.op === 'setPhoto') {
+      if (q.photo && !okPhoto(q.photo)) return { ok: false };
+      const ps = E.read('profiles').filter(r => r.id !== q.sid);
+      if (q.photo) ps.push({ id: q.sid, photo: q.photo, updated: String(Date.now()) });
+      try { this.ctx.storage.transactionSync(() => E.write('profiles', ps)); } catch (e) { this.tabs = {}; return { ok: false }; }
+      return { ok: true };
+    }
+    // the admin moved a student's records to their new number, and this class had them twice (old and new number):
+    // the older ID keeps everything, the newer one's check-ins and excuses join it, and the new number goes on it
+    if (q.op === 'mergeStudent') {
+      const rows = E.read('students'), into = rows.find(r => r.id === q.into), from = rows.find(r => r.id === q.from);
+      if (!into || !from || into.id === from.id) return { ok: false };
+      try {
+        this.ctx.storage.transactionSync(() => {
+          const att = E.read('attendance'), had = new Set(att.filter(r => r.id === into.id).map(r => r.date));
+          E.write('attendance', att.filter(r => r.id !== from.id || !had.has(r.date)).map(r => (r.id === from.id ? Object.assign(r, { id: into.id, name: into.name }) : r)));
+          const exc = E.read('excuses'), hadE = new Set(exc.filter(r => r.id === into.id).map(r => r.date));
+          E.write('excuses', exc.filter(r => r.id !== from.id || !hadE.has(r.date)).map(r => (r.id === from.id ? Object.assign(r, { id: into.id }) : r)));
+          const ps = E.read('profiles'), mine = ps.some(r => r.id === into.id);
+          E.write('profiles', ps.filter(r => r.id !== from.id || !mine).map(r => (r.id === from.id ? Object.assign(r, { id: into.id }) : r)));
+          into.phone = q.phone;
+          E.write('students', rows.filter(r => r.id !== from.id));
+        });
+      } catch (e) { this.tabs = {}; return { ok: false }; }
+      return { ok: true, kept: into.id, removed: from.id };
     }
     if (q.op === 'newClass') { if (!E.getProp('settings')) E.setProp('settings', JSON.stringify({ idPrefix: q.prefix })); return { ok: true }; }
     if (q.op === 'applyPerson') {
