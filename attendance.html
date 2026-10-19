@@ -898,8 +898,12 @@ function usFlag(){
 }
 // the branch (American Corner Matara, or another branch running the same server code): its name and logo, set by the admin
 const BR_DEFAULT={name:'American Corner Matara',logo:''};
-let BRANCH=(()=>{try{return Object.assign({},BR_DEFAULT,JSON.parse(store.get('att-branch')||'null')||{})}catch(e){return Object.assign({},BR_DEFAULT)}})();
-function applyBranch(b){if(b&&typeof b==='object'&&b.name){BRANCH={name:String(b.name),logo:String(b.logo||'')};try{store.set('att-branch',JSON.stringify(BRANCH))}catch(e){}}
+// each branch has its own server: what this device remembers for one (branch, sign-ins, class) is kept apart from another's.
+// The built-in server keeps the plain names, so nothing saved before is lost.
+const SK=k=>{let id='';try{id=SID&&SID!==BUILT_IN?SID:''}catch(e){}return id?k+':'+id:k};
+const loadBranch=()=>{try{return Object.assign({},BR_DEFAULT,JSON.parse(store.get(SK('att-branch'))||'null')||{})}catch(e){return Object.assign({},BR_DEFAULT)}};
+let BRANCH=loadBranch();
+function applyBranch(b){if(b&&typeof b==='object'&&b.name){BRANCH={name:String(b.name),logo:String(b.logo||'')};try{store.set(SK('att-branch'),JSON.stringify(BRANCH))}catch(e){}}
   $('#acLogo').src=BRANCH.logo||ACM_IMG;$('#acLogo').alt=BRANCH.name+' logo';
   const sub=$('#tbSub'),parts=sub.textContent.split(' · ');sub.textContent=BRANCH.name+(parts.length>1?' · '+parts.slice(1).join(' · '):'')}
 applyBranch();
@@ -1012,7 +1016,9 @@ if(params.get('s')&&SID&&SID!=='demo')store.set('att-server',SID);
 const isDemo=()=>SID==='demo';
 // many classes (Cloudflare): the QR link says which class (?k=); facilitators pick theirs after signing in
 const okK=v=>/^[a-z0-9][a-z0-9-]{1,19}$/.test(v||'')?v:'';
-let STUK=okK(params.get('k')),ADMK=okK(store.get('att-k'));
+let STUK=okK(params.get('k')),ADMK=okK(store.get(SK('att-k')));
+// the server is known now: show the branch this device remembers for it
+BRANCH=loadBranch();applyBranch();
 let demoCore=null;
 async function loadDemo(){
   if(demoCore)return demoCore;
@@ -1421,7 +1427,7 @@ async function startStudent(){
    A student asks the admin for a key, sets their own password with it, and this phone stays signed in.
    The code on the classroom screen says which class it is, so nobody picks a class from a list. */
 const appMode=()=>multi()&&!!(STATUS&&STATUS.accounts);
-const APPK='att-app';
+const APPK=SK('att-app');
 const appMe=()=>{try{return JSON.parse(store.get(APPK)||sess.get(APPK)||'null')}catch(e){return null}};
 // keep: this phone remembers the sign-in (no password next time); otherwise only until the browser closes
 function appSave(v,keep){const was=!!store.get(APPK);store.del(APPK);sess.del(APPK);if(v)((keep==null?was:keep)?store:sess).set(APPK,JSON.stringify(v))}
@@ -1451,7 +1457,7 @@ const errBox=(m,good)=>m?`<div class="msg ${good?'good':'err'}">${esc(m)}</div>`
 function appSignIn(msg,phone){
   $('#stCard').innerHTML=`<div class="card-h"><h2>Sign in</h2><span class="chip g">Students</span></div>
     <p class="lead">Your mobile number and your password.</p>
-    <form id="apIn" novalidate autocomplete="on"><div class="field"><label for="apPhone">Mobile number</label><input id="apPhone" name="username" class="big" type="tel" inputmode="tel" autocomplete="username" maxlength="16" placeholder="07X XXX XXXX" value="${esc(showPhone(phone||store.get('att-app-phone')||''))}"></div>
+    <form id="apIn" novalidate autocomplete="on"><div class="field"><label for="apPhone">Mobile number</label><input id="apPhone" name="username" class="big" type="tel" inputmode="tel" autocomplete="username" maxlength="16" placeholder="07X XXX XXXX" value="${esc(showPhone(phone||store.get(SK('att-app-phone'))||''))}"></div>
     <div class="field"><label for="apPw">Password</label><input id="apPw" class="big" type="password" autocomplete="current-password"></div>
     ${keepBox()}<div id="apMsg">${errBox(msg)}</div><button class="btn wide big">Sign in</button></form>
     <div class="or"><span>new here, or forgot your password?</span></div>
@@ -1463,7 +1469,7 @@ function appSignIn(msg,phone){
     const b=e.submitter||$('#apIn .btn');b.disabled=true;b.textContent='Signing in…';
     const r=await stuApi({action:'accLogin',phone,password:pw},false);
     if(!r.ok)return appSignIn(r.message,phone);
-    store.set('att-app-phone',phone);appSave({token:r.token,phone:r.me.phone,name:r.me.name,photo:r.me.photo},keep);startApp()};
+    store.set(SK('att-app-phone'),phone);appSave({token:r.token,phone:r.me.phone,name:r.me.name,photo:r.me.photo},keep);startApp()};
   if(!('ontouchstart' in window))setTimeout(()=>($('#apPhone').value?$('#apPw'):$('#apPhone')).focus(),60);
 }
 function appAsk(msg,phone,done){
@@ -1482,7 +1488,7 @@ function appAsk(msg,phone,done){
     const b=e.submitter||$('#apAskF .btn');b.disabled=true;b.textContent='Sending…';
     const r=await stuApi({action:'accRequest',phone:p,name},false);
     if(!r.ok){b.disabled=false;b.textContent='Send request';$('#apMsg').innerHTML=errBox(r.message);return}
-    store.set('att-app-phone',p);appAsk(null,p,r.message)};
+    store.set(SK('att-app-phone'),p);appAsk(null,p,r.message)};
 }
 function appKey(phone,code,msg){
   $('#stCard').innerHTML=`<div class="card-h"><h2>Set your password</h2><span class="chip g">With your key</span></div>
@@ -1503,7 +1509,7 @@ function appKey(phone,code,msg){
     const b=e.submitter||$('#apKeyF .btn');b.disabled=true;b.textContent='Saving…';
     const r=await stuApi({action:'accActivate',phone:p,code:c,password:pw},false);
     if(!r.ok){b.disabled=false;b.textContent='Save and sign in';return bad(r.message)}
-    store.set('att-app-phone',p);appSave({token:r.token,phone:r.me.phone,name:r.me.name,photo:r.me.photo},keep);toast('Welcome! You are signed in.');startApp()};
+    store.set(SK('att-app-phone'),p);appSave({token:r.token,phone:r.me.phone,name:r.me.name,photo:r.me.photo},keep);toast('Welcome! You are signed in.');startApp()};
 }
 /* check in: the code finds the class, the student confirms, done */
 const SCAN_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/></svg>';
@@ -1740,8 +1746,8 @@ $('#loginForm').onsubmit=async e=>{
   btn.disabled=false;btn.textContent='Sign in';
 };
 // many classes: keep the class this browser used last, if the facilitator still teaches it
-function pickClass(list){list=list||[];if(!list.some(c=>c.id===ADMK))ADMK=list[0]?list[0].id:'';if(ADMK)store.set('att-k',ADMK)}
-async function switchClass(k){if(k===ADMK)return;ADMK=k;store.set('att-k',k);stopLive();DATA=null;PHOTOS=null;photosAt=0;QRKEY=null;
+function pickClass(list){list=list||[];if(!list.some(c=>c.id===ADMK))ADMK=list[0]?list[0].id:'';if(ADMK)store.set(SK('att-k'),ADMK)}
+async function switchClass(k){if(k===ADMK)return;ADMK=k;store.set(SK('att-k'),k);stopLive();DATA=null;PHOTOS=null;photosAt=0;QRKEY=null;
   if(TAB==='corner')TAB='home';paintNav();paintHead();$('#paneBox').innerHTML=skeleton();await loadData();toast('Now in '+(DATA&&DATA.corner?DATA.corner.className:'the class'))}
 $('#logout').onclick=async()=>{try{await api({action:'logout',token:TOKEN})}catch(e){}logoutLocal()};
 $('#toSetup').onclick=()=>{location.hash='#setup'};
