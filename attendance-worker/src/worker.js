@@ -792,7 +792,13 @@ export class Corner extends DurableObject {
   // counts tries in kv; true once over max within the window
   over(key, max, sec) { const n = Number(this.kvGet(key) || 0) + 1; if (n <= max + 1) this.kvPut(key, n, sec); return n > max; }
   stuLogin() { return this.prop('stuLogin') !== '0'; }
-  accOut(a) { return a ? { phone: a.phone, name: a.name, photo: a.photo || '' } : null; }
+  // the name on the class lists wins over the one typed when asking for a key (the admin may fix it in Students, or a move brings it)
+  accOut(a) {
+    if (!a) return null;
+    const p = this.one('SELECT name FROM people WHERE phone = ?', a.phone);
+    if (p && p.name && p.name !== a.name) { a.name = p.name; this.sql.exec('UPDATE accounts SET name = ? WHERE phone = ?', a.name, a.phone); }
+    return { phone: a.phone, name: a.name, photo: a.photo || '' };
+  }
   stuTok(phone, pv) { const t = randHex(20); this.kvPut('stu:' + t, JSON.stringify({ phone, pv, at: Date.now() }), STU_DAYS * 86400); return t; }
   accWho(token) {
     if (!/^[a-f0-9]{40}$/.test(String(token || ''))) return { ok: false };
