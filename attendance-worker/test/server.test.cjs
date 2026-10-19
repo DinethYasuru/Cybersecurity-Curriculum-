@@ -166,10 +166,13 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  r=await call({action:'appHelp',token:N,other:'0761234567',note:'I changed my SIM'});ok('help sent',r.ok,r);
  r=await call({action:'stuInbox',token:A});const hq=r.requests.find(x=>x.kind==='help'&&x.phone==='0769999999');ok('help in the inbox with the old number',hq&&hq.was&&hq.was.classes.length===2,hq);
  const Cx=(await call({action:'login',phone:'0716666666',password:'coordpass1'})).token;r=await call({action:'stuMove',token:Cx,from:'0761234567',to:'0769999999'});ok('coordinator cannot move',!r.ok,r);
+ r=await call({action:'stuReq',token:A,rid:hq.rid,status:'done'});ok('mark done refused while the old number is on a list',!r.ok&&r.reason==='move',r);
+ r=await call({action:'stuMoveCheck',token:A,from:'0761234567',to:'0769999999'});ok('check shows both records',r.ok&&r.from.classes.length===2&&r.from.name==='Sahan Kumara Silva'&&r.to.classes.length===1&&r.to.account,r);
  r=await call({action:'stuMove',token:A,from:'0761234567',to:'0769999999',rid:hq.rid});ok('moved',r.ok&&r.moved.length===2,r);
  r=await call({action:'data',token:A,k:c1});const s1=r.students.filter(s=>s.phone==='0769999999');ok('class 1: one student, new number, check-in kept',s1.length===1&&!r.students.some(s=>s.phone==='0761234567')&&r.attendance.some(x=>x.id===s1[0].id),r.students);
  r=await call({action:'app',token:N});ok('new number sees both classes and history',r.ok&&r.classes.length===2&&r.classes.every(c=>c.records.some(x=>x.status==='present')),r.classes);
  r=await call({action:'app',token:T3});ok('old number signed out',r.reason==='signin',r);
+ r=await call({action:'stuMoveCheck',token:A,from:'0761234567',to:'0769999999'});ok('old number gone after the move',r.ok&&!r.from.classes.length&&!r.from.account&&r.to.classes.length===2,r);
  r=await call({action:'stuInbox',token:A});ok('help marked done',r.requests.find(x=>x.rid===hq.rid).status==='done',r);
  r=await call({action:'appLogout',token:N});r=await call({action:'app',token:N});ok('sign out',r.reason==='signin',r);
  for(const k of [c1,c2])await call({action:'extra',token:A,k,minutes:0});

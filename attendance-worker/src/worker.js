@@ -60,7 +60,7 @@ const STUDENT = { status: 1, lookup: 1, register: 1, checkin: 1, me: 1, profile:
 const APP_OPEN = { accRequest: 1, accActivate: 1, accLogin: 1 };
 const APP = { app: 1, appFind: 1, appCheckin: 1, appExcuse: 1, appExcuseDrop: 1, appSave: 1, appLogout: 1, appHelp: 1 };
 // the admin's (and coordinators') side of it: the requests inbox, keys, moving records to a new number, the on/off switch
-const STU_ADMIN = { stuInbox: 1, stuReq: 1, stuKey: 1, stuMove: 1, stuLoginSet: 1 };
+const STU_ADMIN = { stuInbox: 1, stuReq: 1, stuKey: 1, stuMove: 1, stuMoveCheck: 1, stuLoginSet: 1 };
 const HUB_ADMIN = { corner: 1, classSave: 1, classDelete: 1, people: 1, staffSave: 1, myAccount: 1, adminPassword: 1, branchSave: 1 };
 // what a coordinator account may do inside a class: look, never change (and never get the QR key)
 const COORD_READ = { data: 1, today: 1, photos: 1, export: 1 };
@@ -387,6 +387,12 @@ export default {
       if (a === 'stuInbox') return json(await H('areqList'));
       if (a === 'stuReq') return json(await H('areqSet', { rid: req.rid, status: req.status, by }));
       if (a === 'stuKey') return json(await H('areqIssue', { phone: req.phone, name: req.name, by }));
+      // before a move the page shows both numbers as they are now (names, classes, accounts)
+      if (a === 'stuMoveCheck') {
+        const from = cleanPh(req.from), to = cleanPh(req.to);
+        if (!from || !to) return json(fail('input', 'Type both numbers, like 0771234567.'));
+        return json(await H('moveCheck', { from, to }));
+      }
       if (!who.admin) return json(fail('input', 'Only the admin can do this.'));
       if (a === 'stuLoginSet') { const r = await H('stuLoginSet', { on: !!req.on }); dropClasses(); return json(r); }
       // a student's records move to their new number: in each class the old number's student gets the new number,
@@ -861,14 +867,17 @@ export class Corner extends DurableObject {
     return out;
   }
   // the inbox: open requests and the last 30 days, with who each number is at the Corner
+  // what the Corner knows about a number right now: the person's name, the app account and every class list it is on
+  phoneInfo(ph, cls) {
+    if (!ph) return null;
+    if (!cls) { cls = {}; this.all('SELECT id, name FROM classes').forEach(c => { cls[c.id] = c.name; }); }
+    const p = this.one('SELECT name FROM people WHERE phone = ?', ph), a = this.one('SELECT name FROM accounts WHERE phone = ?', ph);
+    return { phone: ph, name: p ? p.name : '', account: !!a, accountName: a ? a.name : '',
+      classes: this.all('SELECT k, sid, name FROM enrol WHERE phone = ?', ph).map(e => ({ k: e.k, sid: e.sid, sname: e.name, name: cls[e.k] || e.k })) };
+  }
   areqList() {
     const now = Date.now(), cls = {}; this.all('SELECT id, name FROM classes').forEach(c => { cls[c.id] = c.name; });
-    const info = ph => {
-      if (!ph) return null;
-      const p = this.one('SELECT name FROM people WHERE phone = ?', ph);
-      return { phone: ph, name: p ? p.name : '', account: !!this.one('SELECT phone FROM accounts WHERE phone = ?', ph),
-        classes: this.all('SELECT k, sid FROM enrol WHERE phone = ?', ph).map(e => ({ k: e.k, sid: e.sid, name: cls[e.k] || e.k })) };
-    };
+    const info = ph => this.phoneInfo(ph, cls);
     return this.all("SELECT * FROM areq WHERE status IN ('new', 'sent') OR updated > ? ORDER BY at DESC LIMIT 300", now - 30 * 86400000)
       .map(r => Object.assign(r, { live: (r.status === 'new' || r.status === 'sent') && (r.kind !== 'signin' || r.at > now - KEY_DAYS * 86400000), who: info(r.phone), was: r.kind === 'help' ? info(cleanPh(r.other)) : null }));
   }
@@ -879,7 +888,13 @@ export class Corner extends DurableObject {
     const now = Date.now();
     // a fresh key: the old one stops working and the 7 days start again
     if (q.status === 'rekey') { if (r.kind !== 'signin') return fail('input', 'Only sign-in requests have keys.'); this.sql.exec("UPDATE areq SET code = ?, at = ?, status = 'new', updated = ?, by = ? WHERE rid = ?", newKey(), now, now, by, r.rid); }
-    else if (['new', 'sent', 'dismissed', 'done'].includes(q.status)) { if (r.status === 'used') return { ok: true, request: r }; this.sql.exec('UPDATE areq SET status = ?, updated = ?, by = ? WHERE rid = ?', q.status, now, by, r.rid); }
+    else if (['new', 'sent', 'dismissed', 'done'].includes(q.status)) {
+      if (r.status === 'used') return { ok: true, request: r };
+      // "done" on a missing-records request means the records were moved: while the old number is still on a class list, they were not
+      const old = r.kind === 'help' && q.status === 'done' ? cleanPh(r.other) : '';
+      if (old && this.one('SELECT sid FROM enrol WHERE phone = ?', old)) return fail('move', old + ' is still on a class list. Move the records first, or dismiss the request.');
+      this.sql.exec('UPDATE areq SET status = ?, updated = ?, by = ? WHERE rid = ?', q.status, now, by, r.rid);
+    }
     else return fail('input', 'Pick a step.');
     return { ok: true, request: this.one('SELECT * FROM areq WHERE rid = ?', r.rid) };
   }
@@ -1014,6 +1029,8 @@ export class Corner extends DurableObject {
           staff: !!this.one('SELECT id FROM staff WHERE phone IN (?, ?)', from, to) });
       }
       case 'moveDone': return json(this.moveDone(q, q.by || ''));
+      case 'moveCheck': { const from = cleanPh(q.from), to = cleanPh(q.to);
+        return json({ ok: true, from: this.phoneInfo(from) || { phone: '', classes: [] }, to: this.phoneInfo(to) || { phone: '', classes: [] }, staff: !!this.one('SELECT id FROM staff WHERE phone IN (?, ?)', from, to) }); }
       case 'xreqAdd': return json(this.xreqAdd(q));
       case 'xreqMine': return json({ requests: this.all('SELECT rid, k, sid, date, reason, at, status, updated FROM xreq WHERE phone = ? AND (status = ? OR updated > ?) ORDER BY date DESC', q.phone, 'new', Date.now() - 60 * 86400000) });
       case 'xreqFor': return json({ requests: this.all('SELECT * FROM xreq WHERE k = ? AND (status = ? OR updated > ?) ORDER BY at DESC LIMIT 200', q.k, 'new', Date.now() - 30 * 86400000) });

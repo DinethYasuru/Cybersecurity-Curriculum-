@@ -132,4 +132,6 @@ Once signed in, a student:
 
 **Records missing** requests: **Move records** (admin only) gives the old number's student IDs the new number in every class. Where the student had registered again with the new number, the two IDs become one: the older ID keeps every check-in and excuse. The old number's app account stops working. Also available as **Move records without a request**.
 
+Before anything changes (server version 25), **Move records** and **Mark done** check both numbers again and show them side by side: the name, the app account and every class list each number is on, with a warning when the names differ. **Mark done** on a records request moves the records when the old number is still on a class list; the server refuses a plain "done" in that case. When the old number is on no list, it says so and only marks the request done.
+
 New Corner tables: `accounts`, `areq` (sign-in and help requests), `xreq` (excuses sent from the app).
