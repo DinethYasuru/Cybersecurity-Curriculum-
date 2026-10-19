@@ -158,7 +158,7 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  r=await call({action:'app',token:T2});ok('other phone signed out',r.reason==='signin',r);
  r=await call({action:'app',token:T3});ok('this phone kept',r.ok,r);
  // a new number: records are not there; the student tells the admin, the admin moves them
- r=await call({action:'stuKey',token:A,phone:'0769999999',name:'Sahan Kumara Silva'});ok('admin gives a key',r.ok&&r.request.code,r);
+ r=await call({action:'stuKey',token:A,phone:'0769999999',name:'Sahan New Sim'});ok('admin gives a key',r.ok&&r.request.code,r);
  r=await call({action:'accActivate',phone:'0769999999',code:r.request.code,password:'newnum1'});ok('new number signs in',r.ok,r);const N=r.token;
  // they also registered again in class 1 with the new number (a second student ID)
  r=await call({action:'student',token:A,k:c1,name:'Sahan Kumara Silva',phone:'0769999999'});ok('second ID in class 1',r.ok,r);
@@ -170,7 +170,8 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  r=await call({action:'stuMoveCheck',token:A,from:'0761234567',to:'0769999999'});ok('check shows both records',r.ok&&r.from.classes.length===2&&r.from.name==='Sahan Kumara Silva'&&r.to.classes.length===1&&r.to.account,r);
  r=await call({action:'stuMove',token:A,from:'0761234567',to:'0769999999',rid:hq.rid});ok('moved',r.ok&&r.moved.length===2,r);
  r=await call({action:'data',token:A,k:c1});const s1=r.students.filter(s=>s.phone==='0769999999');ok('class 1: one student, new number, check-in kept',s1.length===1&&!r.students.some(s=>s.phone==='0761234567')&&r.attendance.some(x=>x.id===s1[0].id),r.students);
- r=await call({action:'app',token:N});ok('new number sees both classes and history',r.ok&&r.classes.length===2&&r.classes.every(c=>c.records.some(x=>x.status==='present')),r.classes);
+ r=await call({action:'app',token:N});ok('app shows the class list name, not the key request name',r.me&&r.me.name==='Sahan Kumara Silva',r.me);
+ ok('new number sees both classes and history',r.ok&&r.classes.length===2&&r.classes.every(c=>c.records.some(x=>x.status==='present')),r.classes);
  r=await call({action:'app',token:T3});ok('old number signed out',r.reason==='signin',r);
  r=await call({action:'stuMoveCheck',token:A,from:'0761234567',to:'0769999999'});ok('old number gone after the move',r.ok&&!r.from.classes.length&&!r.from.account&&r.to.classes.length===2,r);
  r=await call({action:'stuInbox',token:A});ok('help marked done',r.requests.find(x=>x.rid===hq.rid).status==='done',r);

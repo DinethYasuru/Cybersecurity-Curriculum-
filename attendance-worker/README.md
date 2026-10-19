@@ -134,4 +134,6 @@ Once signed in, a student:
 
 Before anything changes (server version 25), **Move records** and **Mark done** check both numbers again and show them side by side: the name, the app account and every class list each number is on, with a warning when the names differ. **Mark done** on a records request moves the records when the old number is still on a class list; the server refuses a plain "done" in that case. When the old number is on no list, it says so and only marks the request done.
 
+The app shows the student's name from the class lists (server version 26). The name typed when asking for a key is used only until the number is on a class list, so a name the admin fixes in **Students**, or one a move brings, reaches the app the next time it opens.
+
 New Corner tables: `accounts`, `areq` (sign-in and help requests), `xreq` (excuses sent from the app).
