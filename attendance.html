@@ -1051,11 +1051,17 @@ function paintClass(){
 const myId=me=>!me?'':multi()?((me.ids||{})[STUK]||(STUK==='cyber'&&!me.ids?me.id:'')||''):me.id;
 function rememberMe(st,k){const old=getMe()||{},ids=Object.assign({},old.ids||(old.id&&old.phone===st.phone?{cyber:old.id}:{}));if(old.phone&&old.phone!==st.phone)for(const x in ids)delete ids[x];if(k)ids[k]=st.id;setMe(Object.assign({},st,{ids}))}
 // several classes open and no QR: the student taps theirs
-function renderPick(list,msg){
+let LASTPHONE='';
+function renderPick(list,msg,mine){
   list=list||(STATUS.classes||[]).filter(c=>c.open);
-  $('#stCard').innerHTML=`${stepper(1)}<h2>Which class are you in?</h2><p class="lead">More than one class is open right now. Tap yours, or scan the QR on your classroom screen.</p>
+  const many=list.length>6;
+  $('#stCard').innerHTML=`${stepper(1)}<h2>Which class are you in?</h2><p class="lead">${mine?'You are in more than one class open now.':'More than one class is open right now.'} Tap yours, or scan the QR on your classroom screen.</p>
+    ${many?'<div class="field"><input id="pkFind" type="search" placeholder="Search your class" autocomplete="off" aria-label="Search your class"></div>':''}
     <div class="picks">${list.map(c=>`<button class="btn ghost wide big" data-pk="${esc(c.id)}">${esc(c.name)}</button>`).join('')}</div>${msgBox(msg)}`;
-  $('#stCard').querySelectorAll('[data-pk]').forEach(b=>b.onclick=async()=>{STUK=b.dataset.pk;busy('Opening '+clsName(STUK)+'…',1);await refreshStatus();renderPhone()});
+  if(many)$('#pkFind').oninput=e=>{const q=e.target.value.trim().toLowerCase();$('#stCard').querySelectorAll('[data-pk]').forEach(b=>b.hidden=!!q&&!b.textContent.toLowerCase().includes(q))};
+  $('#stCard').querySelectorAll('[data-pk]').forEach(b=>b.onclick=async()=>{STUK=b.dataset.pk;busy('Opening '+clsName(STUK)+'…',1);await refreshStatus();
+    // the number is already typed: straight on, unless this class still needs its code
+    if(LASTPHONE&&(!needCode()||CODE.length===6))return doLookup(LASTPHONE);renderPhone()});
 }
 function setPill(cls,txt){const p=$('#pill');p.className='pill '+cls;p.querySelector('span').textContent=txt}
 function paintPill(){
@@ -1097,7 +1103,7 @@ function busy(t,n){$('#stCard').innerHTML=stepper(n||2)+'<div class="result" rol
 const CAN_SCAN=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.isSecureContext);
 function codeField(){return needCode()?`<div class="field"${CODE?' hidden':''}><label for="scode">Code on the screen</label>${CAN_SCAN?`<button type="button" class="btn ghost wide big scanbtn" data-scan><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/></svg>Scan the QR</button><div class="or"><span>or type the code</span></div>`:''}<input id="scode" class="code" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="••••••" value="${esc(CODE)}"></div>`:''}
 // camera QR scan inside the page: BarcodeDetector where the phone has it (Android Chrome), else jsQR (iPhone Safari)
-function codeFromQr(t){t=String(t||'').trim();let c='';try{c=new URL(t).searchParams.get('c')||''}catch(e){c=t}
+function codeFromQr(t){t=String(t||'').trim();let c='';try{const u=new URL(t);c=u.searchParams.get('c')||'';const k=okK(u.searchParams.get('k'));if(c&&k&&multi())STUK=k}catch(e){c=t}
   c=c.toUpperCase().replace(/[^A-Z0-9]/g,'');return c.length===6?c:''}
 let jsQRp=null;
 function loadJsQR(){return jsQRp||(jsQRp=new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';sc.onload=()=>window.jsQR?ok(window.jsQR):no();sc.onerror=()=>{jsQRp=null;no()};document.head.appendChild(sc)}))}
@@ -1135,13 +1141,14 @@ function stepper(n){return '<ol class="stepper" aria-label="Check-in steps">'+['
 function renderPhone(msg,typed){
   const me=getMe()||{},c=$('#stCard');
   // this phone checked in before: one tap instead of typing the number again
-  if(multi()&&STATUS.pick&&!STUK)return renderPick();
+  // several classes open and no QR link: the number finds the student's class (the list comes only if it can't)
+  const find=multi()&&STATUS.pick&&!STUK;
   if(!typed&&SID&&me.phone&&myId(me)&&me.name)return renderQuick(Object.assign({},me,{id:myId(me)}),msg);
   c.innerHTML=`${stepper(1)}<h2>${me.name?'Hi '+esc(me.name.split(' ')[0])+'!':'Check in'}</h2>
-    <p class="lead">${CODE?'Code scanned. Type your mobile number.':needCode()?'Scan the QR on the classroom screen, or type the 6-letter code you see under it.':'Type your mobile number.'}</p>
+    <p class="lead">${CODE?'Code scanned. Type your mobile number.':find?'Type your mobile number. We find your class for you.':needCode()?'Scan the QR on the classroom screen, or type the 6-letter code you see under it.':'Type your mobile number.'}</p>
     ${SID?'':'<div class="msg err">Not connected to the attendance server yet, so check-in will not save. Facilitator: <a href="#setup">connect it or try the demo</a>.</div>'}
     <form id="ciForm" novalidate>
-      <div class="field"><label for="sphone">Mobile number</label><input id="sphone" class="big" type="tel" inputmode="tel" autocomplete="tel" maxlength="16" placeholder="07X XXX XXXX" value="${esc(showPhone(me.phone||''))}"><div class="hint">First time? You register with this number and get your student ID.</div></div>
+      <div class="field"><label for="sphone">Mobile number</label><input id="sphone" class="big" type="tel" inputmode="tel" autocomplete="tel" maxlength="16" placeholder="07X XXX XXXX" value="${esc(showPhone(me.phone||LASTPHONE||''))}"><div class="hint">First time? You register with this number and get your student ID.</div></div>
       ${codeField()}
       <button class="btn wide big" id="ciBtn">Continue</button>
     </form>${msgBox(msg)}`;
@@ -1162,7 +1169,7 @@ function renderQuick(me,msg){
   $('#qkOther').onclick=()=>renderPhone(null,true);
 }
 function fail(r,retry){
-  if(r.reason==='pick'){CODE='';return renderPick(r.classes,'That code is not from a class open now. Pick your class, then scan or type the code again.')}
+  if(r.reason==='pick'){const had=!r.mine&&CODE;if(!r.mine)CODE='';return renderPick(r.classes,had?'That code is not from a class open now. Pick your class, then scan or type the code again.':'',r.mine)}
   if(r.reason==='code'){CODE='';TICKET=''}
   $('#stCard').innerHTML=`${stepper(r.reason==='closed'?1:2)}<div class="result">${BAD_SVG}<div class="headline">${r.reason==='closed'?'Check-in is closed':'Not checked in'}</div><p>${esc(r.message||'Something went wrong.')}${r.nextOpen?'<br>Opens '+esc(niceMs(r.nextOpen))+'.':''}</p><button class="btn big mt" id="again">Try again</button></div>`;
   $('#again').onclick=retry||(()=>renderPhone());
@@ -1170,6 +1177,7 @@ function fail(r,retry){
 async function doLookup(raw){
   const phone=cleanPhone(raw);readCode();
   if(!phone)return renderPhone('Type your mobile number, like 0771234567.',true);
+  LASTPHONE=phone;
   if(needCode()&&CODE.length!==6)return renderPhone('Type the 6-letter code from the screen.',true);
   busy('Finding you…',1);
   const r=await stuApi({action:'lookup',phone,code:CODE,device:DEVICE},'Finding you…');
@@ -1178,7 +1186,7 @@ async function doLookup(raw){
   // the server shows only part of the name until the student confirms; this phone may know the full one
   const me=getMe();
   if(r.student){r.student.phone=phone;if(me&&me.phone===phone&&me.id===r.student.id)r.student.name=me.name}
-  if(r.k)STUK=r.k;
+  if(r.k&&r.k!==STUK){STUK=r.k;paintClass()}
   if(!r.found){
     if(!r.canRegister)return fail({message:'This number is not on the class list. Talk to your facilitator.'});
     if(r.known)return renderJoin(phone,r);
