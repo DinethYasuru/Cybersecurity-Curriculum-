@@ -56,12 +56,20 @@ const json = (o, status) => new Response(JSON.stringify(o), { status: status || 
    object for what classes share: the class list, people, facilitator accounts and their roles.
    The Cyber Security class keeps its original database (named 'class'). */
 const STUDENT = { status: 1, lookup: 1, register: 1, checkin: 1, me: 1, profile: 1, keyRequest: 1, keySignIn: 1, profileSave: 1 };
-const HUB_ADMIN = { corner: 1, classSave: 1, classDelete: 1, people: 1, staffSave: 1, myAccount: 1, adminPassword: 1 };
+const HUB_ADMIN = { corner: 1, classSave: 1, classDelete: 1, people: 1, staffSave: 1, myAccount: 1, adminPassword: 1, branchSave: 1 };
 // what a coordinator account may do inside a class: look, never change (and never get the QR key)
-const COORD_READ = { data: 1, today: 1, photos: 1 };
+const COORD_READ = { data: 1, today: 1, photos: 1, export: 1 };
 // one request may call only so many other objects on Cloudflare (50 on the free plan): today's numbers come in pages
 const CORNER_STATS = 20;
 const SYNC_AFTER = { register: 1, profileSave: 1, student: 1, bulk: 1, dayDelete: 1 };
+// steps that can change when a class is open: the Corner keeps a copy of its hours, so a student's first screen asks only the classes that may be open
+const SCHED_AFTER = { settings: 1, extra: 1, day: 1, dayDelete: 1, absentRest: 1 };
+// the class list changes rarely: each copy of the Worker keeps it for a minute (a class it doesn't know yet makes it ask again)
+const CLASS_TTL = 60000;
+let CLASS_CACHE = null;
+// the branch: its name and logo, set by the admin. Every branch runs this same code with its own Worker.
+const BRANCH_DEFAULT = { name: 'American Corner Matara', logo: '' };
+const okLogo = p => p === '' || (typeof p === 'string' && p.length <= 120000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/]+=*$/.test(p));
 const doName = k => (k === 'cyber' ? 'class' : 'class:' + k);
 // student ID prefix for a new class: initials of a long name (Graphic Designing Foundations: GDF-), else its first letters (English: ENG-)
 const prefixFor = name => {
@@ -96,15 +104,22 @@ export default {
       const r = await H('syncClass', { k, ver: s.ver, students: s.students });
       for (const p of (r.pushes || [])) if ((await I(p.k, { op: 'applyPerson', sid: p.sid, name: p.name, phone: p.phone })).ok) await H('enrolApplied', p);
     };
+    const saveSched = async k => { const sc = await I(k, { op: 'sched' }); if (sc.ok) await H('schedSave', { k, sched: sc.sched }); };
     const ip = JSON.parse(net).ip;
-    const classes = (await H('classes')).classes;
-    const pub = classes.filter(c => c.active !== 'no');
+    const loadClasses = async () => { const r = await H('classes'); CLASS_CACHE = { at: Date.now(), list: r.classes, branch: r.branch || BRANCH_DEFAULT }; return CLASS_CACHE; };
+    let fresh = !(CLASS_CACHE && Date.now() - CLASS_CACHE.at < CLASS_TTL);
+    let cc = fresh ? await loadClasses() : CLASS_CACHE;
+    let classes = cc.list;
+    let pub = classes.filter(c => c.active !== 'no');
+    const branch = cc.branch;
+    // something changed the class list (or the branch): the next request in this copy reads it again
+    const dropClasses = () => { CLASS_CACHE = null; };
     const known = k => pub.some(c => c.id === k);
     const nameOf = k => (classes.find(c => c.id === k) || {}).name || '';
 
     if (request.method === 'GET') {
       const r = await C(pub[0] ? pub[0].id : 'cyber', { action: 'status' });
-      return json(Object.assign(r, { multi: true, classes: pub.map(c => ({ id: c.id, name: c.name })) }));
+      return json(Object.assign(r, { multi: true, branch, classes: pub.map(c => ({ id: c.id, name: c.name })) }));
     }
     const body = await request.text();
     if (body.length > MAX_IMPORT) return json({ ok: false, reason: 'input', message: 'Request too big.' });
@@ -114,6 +129,8 @@ export default {
     if (body.length > MAX_BODY && !(req.action === 'maint' && req.op === 'import')) return json({ ok: false, reason: 'input', message: 'Request too big.' });
     const a = String(req.action || '');
     const rawK = String(req.k || '');
+    // a class made in the last minute (by another copy of the Worker): read the list again before saying it's gone
+    if (rawK && !known(rawK) && !fresh) { cc = await loadClasses(); fresh = true; classes = cc.list; pub = classes.filter(c => c.active !== 'no'); }
     let k = known(rawK) ? rawK : '';
     // a class that was archived or never existed (an old QR, or a change queued before the class was archived):
     // never fall back to another class, or the change would land in the wrong one
@@ -130,9 +147,9 @@ export default {
       if (r.reason === 'key') await H('maintFail');
       // the class checked the server key; sign-in lives in the Corner, so these steps happen there too
       if (r.ok && (req.op === 'setPassword' || req.op === 'unlock' || req.op === 'reset')) await H('maint', { req });
-      // sign out everywhere also changes every class's QR secret
-      if (r.ok && req.op === 'reset') for (const c of pub) if (c.id !== k) await C(c.id, req);
-      if (r.ok && req.op === 'import') await sync(k);
+      // sign out everywhere: sign-in lives in the Corner, so one call ends every sign-in at every class
+      // (other classes' QR secrets change in the Danger zone, one class at a time, so this never hits the per-request limit)
+      if (r.ok && req.op === 'import') { await sync(k); await saveSched(k); }
       return json(r);
     }
 
@@ -150,7 +167,13 @@ export default {
       // which class: the QR link says (k); otherwise the only class open now, or the open class whose code was typed
       let opened = null;
       if (!k) {
-        const st = await Promise.all(pub.map(async c => ({ c, s: await C(c.id, { action: 'status' }) })));
+        // the Corner knows each class's hours: only the classes that may be open now are asked (one request may call only so many)
+        const g = await H('openGuess', { now: Date.now() });
+        const ask = pub.filter(c => g.maybe.includes(c.id)).slice(0, 15);
+        const st = await Promise.all(ask.map(async c => ({ c, s: await C(c.id, { action: 'status' }) })));
+        // a class the Corner had no hours for yet: keep them now
+        const learn = pub.filter(c => g.unknown.includes(c.id)).slice(0, 3);
+        for (const c of learn) { const sc = await I(c.id, { op: 'sched' }); if (sc.ok) await H('schedSave', { k: c.id, sched: sc.sched }); }
         opened = st.filter(x => x.s.open).map(x => x.c.id);
         if (opened.length === 1) k = opened[0];
         else if (opened.length > 1 && req.code && (a === 'lookup' || a === 'register' || a === 'checkin')) {
@@ -158,14 +181,14 @@ export default {
         }
         if (a === 'status') {
           const r = await C(k || (pub[0] ? pub[0].id : 'cyber'), { action: 'status' });
-          return json(Object.assign(r, { multi: true, k: k || '', className: k ? nameOf(k) : '', classes: st.map(x => ({ id: x.c.id, name: x.c.name, open: !!x.s.open })), pick: !k && opened.length > 1 }));
+          return json(Object.assign(r, { multi: true, branch, k: k || '', className: k ? nameOf(k) : '', classes: pub.map(c => ({ id: c.id, name: c.name, open: opened.includes(c.id) })), pick: !k && opened.length > 1 }));
         }
         if (!k && a !== 'me') {
           if (opened.length > 1) return json({ ok: false, reason: 'pick', message: 'Pick your class first.', classes: pub.filter(c => opened.includes(c.id)).map(c => ({ id: c.id, name: c.name })) });
           k = pub[0] ? pub[0].id : 'cyber';
         }
       }
-      if (a === 'status') { const r = await C(k, req); return json(Object.assign(r, { multi: true, k, className: nameOf(k), classes: pub.map(c => ({ id: c.id, name: c.name })) })); }
+      if (a === 'status') { const r = await C(k, req); return json(Object.assign(r, { multi: true, branch, k, className: nameOf(k), classes: pub.map(c => ({ id: c.id, name: c.name })) })); }
       // My attendance across every class the person attends
       if (a === 'me' && req.all) {
         const en = (await H('enrolOf', { phone: req.phone })).enrol || [];
@@ -222,7 +245,7 @@ export default {
           await note(d.op === 'sql' ? 'SQL: ' + String(d.sql).trim().slice(0, 240) + ' (' + r.written + ' rows written)'
             : d.op === 'cell' ? 'Edited ' + d.table + ' row ' + d.rowid + ', ' + d.col
             : d.op === 'del' ? 'Deleted ' + d.table + ' row ' + d.rowid : 'Added a row to ' + d.table);
-          if (db !== 'corner') await sync(db);
+          if (db !== 'corner') { await sync(db); await saveSched(db); } else dropClasses();
         }
         return r;
       }
@@ -237,6 +260,7 @@ export default {
         if (op === 'clearAttendance' && cleanNm(req.confirm).toLowerCase() !== cleanNm(cls.name).toLowerCase()) return fail('input', 'Type the class name exactly to clear it.');
         const r = await I(db, { op: 'danger:' + op });
         if (r.ok) await note(op === 'rotateQr' ? 'New check-in codes (QR secret changed)' : 'Cleared attendance, excuses, class days and log');
+        if (r.ok && op === 'clearAttendance') await saveSched(db);
         return r;
       }
       if (op === 'signOutAll') {
@@ -253,7 +277,7 @@ export default {
           const r = await H('classDelete', { req: { id: c.id, confirm: c.name }, who });
           if (r.ok) { await I(c.id, { op: 'wipe' }); gone.push(c.name); }
         }
-        if (gone.length) await note('Deleted archived classes: ' + gone.join(', '));
+        if (gone.length) { await note('Deleted archived classes: ' + gone.join(', ')); dropClasses(); }
         return { ok: true, deleted: gone };
       }
       return fail('action', 'Unknown step.');
@@ -278,8 +302,9 @@ export default {
       }
       const r = await H(a, { req, who });
       // a new class starts with its own student ID prefix, like ENG-0001
-      if (a === 'classSave' && r.ok && r.created) await I(r.class.id, { op: 'newClass', prefix: prefixFor(r.class.name) });
+      if (a === 'classSave' && r.ok && r.created) { await I(r.class.id, { op: 'newClass', prefix: prefixFor(r.class.name) }); await saveSched(r.class.id); }
       if (a === 'classDelete' && r.ok) await I(r.id, { op: 'wipe' });
+      if (r.ok && (a === 'classSave' || a === 'classDelete' || a === 'branchSave')) dropClasses();
       return json(r);
     }
     if (gone) return json({ ok: false, reason: 'noclass', message: 'That class is not running any more.', corner: who });
@@ -290,7 +315,8 @@ export default {
     if (who.coord && !COORD_READ[a]) return json(fail('readonly', 'A coordinator can see every class but not change it. Facilitators make the changes.'));
     // a coordinator never runs the Live QR, so it must not teach the class a room network either
     if (who.coord && a === 'today') delete req.live;
-    const staff = { id: who.me ? who.me.id : '', name: who.me ? who.me.name : 'Admin', phone: who.me ? who.me.phone : '', role };
+    // a coordinator may download a class's record (the class asks for a lead's role for that one step)
+    const staff = { id: who.me ? who.me.id : '', name: who.me ? who.me.name : 'Admin', phone: who.me ? who.me.phone : '', role: who.coord && a === 'export' ? 'owner' : role };
     // facilitator numbers live in the Corner now, so the class can't see them; keep them out of student lists
     const staffPhones = (await H('staffPhones')).phones || [];
     if (a === 'student' && !req.remove && staffPhones.includes(cleanPh(req.phone))) return json(fail('input', 'That number belongs to a facilitator.'));
@@ -312,7 +338,9 @@ export default {
       if (k !== 'cyber' && r.settings && r.settings.idPrefix === 'ACM-') await I(k, { op: 'newClass', prefix: prefixFor(nameOf(k)) });
     }
     if (r.ok && a === 'photos') Object.assign(r.photos, (await H('staffPhotos')).photos || {});
+    if (r.ok && a === 'data') r.corner.branch = branch;
     if (r.ok && SYNC_AFTER[a]) await sync(k);
+    if (r.ok && SCHED_AFTER[a]) await saveSched(k);
     return json(r);
   },
   async scheduled(event, env) {
@@ -414,6 +442,7 @@ export class Corner extends DurableObject {
   kvGet(k) { const r = this.one('SELECT v, exp FROM kv WHERE k = ?', k); return r && r.exp > Date.now() ? r.v : null; }
   kvPut(k, v, s) { this.sql.exec('INSERT INTO kv (k, v, exp) VALUES (?, ?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v, exp = excluded.exp', k, String(v), Date.now() + s * 1000); }
   epoch() { return this.prop('epoch') || '1'; }
+  branch() { try { return Object.assign({}, BRANCH_DEFAULT, JSON.parse(this.prop('branch') || '{}')); } catch (e) { return Object.assign({}, BRANCH_DEFAULT); } }
   staffOut(r) { return r ? { id: r.id, name: r.name, phone: r.phone, active: r.active !== 'no', added: r.added, mustSetup: r.setup === 'no', coord: r.admin === 'coord' } : null; }
   classesOf(st) {
     const cls = this.all("SELECT id, name, color FROM classes WHERE active != 'no' ORDER BY ord, name");
@@ -616,7 +645,33 @@ export class Corner extends DurableObject {
     switch (q.op) {
       case 'inited': return json({ inited: !!this.prop('inited') });
       case 'init': return json(this.init(q.seed));
-      case 'classes': return json({ classes: this.all('SELECT * FROM classes ORDER BY ord, name') });
+      case 'classes': return json({ classes: this.all('SELECT * FROM classes ORDER BY ord, name'), branch: this.branch() });
+      // each class's hours, kept here so a student's first screen asks only the classes that may be open now
+      case 'schedSave': if (q.sched && typeof q.sched === 'object') this.prop('sched:' + q.k, JSON.stringify(q.sched)); return json({ ok: true });
+      case 'openGuess': {
+        const now = Number(q.now) || Date.now(), maybe = [], unknown = [];
+        const sc = {}; this.all("SELECT k, v FROM props WHERE k LIKE 'sched:%'").forEach(r => { try { sc[r.k.slice(6)] = JSON.parse(r.v); } catch (e) {} });
+        for (const c of this.all("SELECT id FROM classes WHERE active != 'no' ORDER BY ord, name")) {
+          const x = sc[c.id];
+          if (!x) { unknown.push(c.id); maybe.push(c.id); continue; }
+          if (Number(x.extraUntil) > now) { maybe.push(c.id); continue; }
+          const d = new Date(now + Number(x.tzOffset || 330) * 60000), date = d.toISOString().slice(0, 10);
+          // a few minutes either side: the class's own clock decides
+          const t2 = m => new Date(now + (Number(x.tzOffset || 330) + m) * 60000).toISOString().slice(11, 16);
+          if (x.closedDay === date || (x.cancelled || []).includes(date)) continue;
+          if ((x.days || []).includes(d.getUTCDay()) && t2(2) >= x.start && t2(-2) < x.end) maybe.push(c.id);
+        }
+        return json({ maybe, unknown });
+      }
+      case 'branchSave': {
+        if (!who.admin) return json(fail('input', 'Only the admin can change the branch.'));
+        const name = cleanNm(req.name);
+        if (name.length < 3 || name.length > 60) return json(fail('input', 'Type the branch name (3 to 60 letters), like American Corner Matara.'));
+        const logo = req.logo == null ? this.branch().logo : String(req.logo);
+        if (!okLogo(logo)) return json(fail('input', 'That logo could not be used. Try a PNG or JPG under 80 KB.'));
+        this.prop('branch', JSON.stringify({ name, logo }));
+        return json({ ok: true, branch: this.branch() });
+      }
       case 'syncClass': { let r; this.ctx.storage.transactionSync(() => { r = this.syncClass(q.k, q.students, q.ver); }); return json(r); }
       case 'enrolApplied': this.ctx.storage.transactionSync(() => {
         this.sql.exec('UPDATE enrol SET phone = ?, name = ? WHERE k = ? AND sid = ?', cleanPh(q.phone), cleanNm(q.name), q.k, q.sid);
@@ -680,9 +735,11 @@ export class Corner extends DurableObject {
       }
       // the Danger zone: the main password is typed again for every step; 5 wrong tries lock it for 15 minutes
       case 'dangerCheck': {
-        const n = Number(this.kvGet('dangerfail') || 0);
-        if (n >= 5) return json(fail('locked', 'Too many wrong passwords. Wait 15 minutes.'));
-        if (!this.prop('adminHash') || hashPw(String(q.password || ''), this.prop('adminSalt')) !== this.prop('adminHash')) { this.kvPut('dangerfail', n + 1, 900); return json(fail('password', 'The main password is not right.')); }
+        // each wrong password makes the next try wait longer (2, 4, 8 ... up to 60 seconds), never a long lock-out
+        let f = { n: 0, at: 0 }; try { f = JSON.parse(this.kvGet('dangerfail') || 'null') || f; } catch (e) {}
+        const wait = f.n ? Math.min(60, 2 ** f.n) * 1000 - (Date.now() - f.at) : 0;
+        if (wait > 0) return json(fail('wait', 'Wrong password. Try again in ' + Math.ceil(wait / 1000) + ' seconds.'));
+        if (!this.prop('adminHash') || hashPw(String(q.password || ''), this.prop('adminSalt')) !== this.prop('adminHash')) { this.kvPut('dangerfail', JSON.stringify({ n: f.n + 1, at: Date.now() }), 3600); return json(fail('password', 'The main password is not right.')); }
         this.sql.exec("DELETE FROM kv WHERE k = 'dangerfail'");
         return json({ ok: true });
       }
@@ -941,6 +998,13 @@ export class ClassRoom extends DurableObject {
         students: E.read('students').map(r => ({ id: r.id, name: r.name, phone: r.phone, active: r.active })) };
     }
     if (String(q.op || '').startsWith('danger:')) return this.danger(q);
+    if (q.op === 'sched') {
+      const st = this.run({ action: 'status' }, null, null);
+      if (!st || !st.window) return { ok: false };
+      const today = st.today;
+      return { ok: true, sched: { days: st.window.days, start: st.window.start, end: st.window.end, tzOffset: st.window.tzOffset, extraUntil: st.extraUntil || 0,
+        closedDay: E.getProp('closedDay') || '', cancelled: E.read('days').filter(r => r.status === 'cancelled' && r.date >= today).map(r => r.date).slice(0, 60) } };
+    }
     if (q.op === 'newClass') { if (!E.getProp('settings')) E.setProp('settings', JSON.stringify({ idPrefix: q.prefix })); return { ok: true }; }
     if (q.op === 'applyPerson') {
       // the same person changed their name or number in another class (both tables change together, or neither)

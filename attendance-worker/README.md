@@ -97,3 +97,13 @@ Only the admin (main password) sees **Danger zone** under American Corner. It as
 - **SQL:** runs on the database picked. SELECT shows up to 500 rows; anything that writes asks first.
 
 A class is backed up before its first change (at most once every 10 minutes, and always before clearing attendance). Every change is listed under Recent changes. After a change to a class's students, the American Corner's people list follows.
+
+## Branches, speed and checks (server version 22)
+
+- **Branches.** Every American Corner branch runs this same code with its own Worker (deploy a copy under a new name, set its SETUP_KEY and main password). The admin sets the branch's name and logo under American Corner › Branch. Students and staff see them at the top left, on printed day sheets and in downloads. Other copies of the page pick up a change within a minute.
+- **Students' first screen.** The Corner keeps each class's hours, extra windows and cancelled days. A student who opens the page without a class QR asks only the classes that may be open now, so many classes no longer hit Cloudflare's per-request limit.
+- **Sign out everywhere** (Setup) ends every sign-in in one call. New check-in codes for a class are in the Danger zone.
+- **Faster.** Each copy of the Worker keeps the class list for a minute. The page's built-in logos are smaller (the page downloads 38% less) and it opens the line to the server while it loads.
+- **Coordinators** can download a class's whole record (.json) from Reports › Export, but still change nothing.
+- **Danger zone:** a wrong password makes the next try wait 2, 4, 8 … up to 60 seconds, instead of a 15-minute lock.
+- **Checks.** `.github/workflows/attendance-tests.yml` runs on every pull request: the page and server must parse, and `test/server.test.cjs` runs against a local Worker. Run it yourself with `npm test` while `wrangler dev` is running.
