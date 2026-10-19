@@ -678,6 +678,13 @@ dialog.sheet .snav::before{content:"";display:block;width:44px;height:5px;border
 .li .nm span b{display:inline;white-space:normal;color:var(--ink)}
 .srsw{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);flex-wrap:wrap}.srsw .chk{margin:0}
 .srform summary{list-style:none;display:inline-flex}.srform summary::-webkit-details-marker{display:none}
+.srcmp{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:4px 0 10px;text-align:left}
+.srside{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;font-size:.92rem;line-height:1.35}
+.srside .srlab{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--red);font-weight:700}
+.srside>b{font-size:1.05rem;color:var(--navy)}
+.srnote{display:block;margin-top:6px}.srnote.warn{color:var(--red);font-weight:600}
+@media (max-width:520px){.srcmp{grid-template-columns:1fr}}
+.nw{white-space:nowrap}
 .srform form{flex-wrap:wrap;gap:8px}.srform input{flex:1 1 180px;min-width:0}
 /* ===== the student app ===== */
 .or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.85rem;margin:16px 0 10px}.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
@@ -952,7 +959,7 @@ const ICON={
 function emptyHTML(title,text){return `<div class="empty">${ICON.inbox}<b>${esc(title)}</b>${text?'<span>'+esc(text)+'</span>':''}</div>`}
 
 /* ---------- confirm / prompt dialog ---------- */
-function ask(o){return new Promise(res=>{const d=$('#dlg');$('#dlgT').textContent=o.title;$('#dlgP').textContent=o.text||'';$('#dlgP').hidden=!o.text;
+function ask(o){return new Promise(res=>{const d=$('#dlg');$('#dlgT').textContent=o.title;if(o.html)$('#dlgP').innerHTML=o.html;else $('#dlgP').textContent=o.text||'';$('#dlgP').hidden=!o.text&&!o.html;
   $('#dlgF').hidden=o.input==null;if(o.input!=null){$('#dlgL').textContent=o.label||'Reason';$('#dlgI').value=o.input}
   const ok=$('#dlgOk');ok.textContent=o.ok||'OK';ok.className='btn'+(o.danger?' red':'');
   d.returnValue='';d.onclose=()=>res(d.returnValue==='ok'?(o.input!=null?$('#dlgI').value:true):null);
@@ -1969,10 +1976,23 @@ function paneStuReq(box){
   box.querySelectorAll('[data-ssent]').forEach(a=>a.addEventListener('click',()=>{const x=find(a.dataset.ssent);if(x.status==='new')set(x.rid,'sent')}));
   box.querySelectorAll('[data-scopy]').forEach(b=>b.onclick=async()=>{const x=find(b.dataset.scopy);try{await navigator.clipboard.writeText(appKeyMessage(x));toast('Message copied. Paste it in any chat.');if(x.status==='new')set(x.rid,'sent')}catch(e){toast('Copy failed. The key is '+fmtCode(x.code),true)}});
   box.querySelectorAll('[data-sdis]').forEach(b=>b.onclick=async()=>{const x=find(b.dataset.sdis);if(!await ask({title:'Dismiss this request?',text:x.kind==='signin'?'The key stops working. They can ask again.':'Nothing is moved.',ok:'Dismiss',danger:true}))return;set(x.rid,'dismissed')});
-  box.querySelectorAll('[data-sdone]').forEach(b=>b.onclick=()=>set(b.dataset.sdone,'done'));
+  box.querySelectorAll('[data-sdone]').forEach(b=>b.onclick=()=>{const x=find(b.dataset.sdone);const old=cleanPhone(x.other||'');if(!old)return set(x.rid,'done');move(old,x.phone,x.rid)});
   box.querySelectorAll('[data-srekey]').forEach(b=>b.onclick=()=>set(b.dataset.srekey,'rekey'));
+  // the two numbers are checked again on the server and shown side by side before anything changes
   const move=async(from,to,rid)=>{
-    if(!await ask({title:'Move '+showPhone(from)+'’s records to '+showPhone(to)+'?',text:'Every class gets the new number. The old number stops working for sign-in.',ok:'Move records'}))return;
+    const c=await adminCall({action:'stuMoveCheck',k:'',from,to});if(!c.ok)return toast(c.message,true);
+    if(c.staff)return toast('One of these numbers belongs to a facilitator.',true);
+    const side=(t,w)=>`<span class="srside"><span class="srlab">${t}</span><b>${esc(showPhone(w.phone))}</b><span>${w.name?'Name: <b>'+esc(w.name)+'</b>':'No name on file'}</span><span>${w.account?'App account'+(w.accountName&&w.accountName!==w.name?' as '+esc(w.accountName):''):'No app account'}</span>
+      <span>${w.classes.length?w.classes.map(x=>esc(x.name)+' · <span class="nw">'+esc(x.sid)+'</span>'+(x.sname&&x.sname!==w.name?' as '+esc(x.sname):'')).join('<br>'):'Not on any class list'}</span></span>`;
+    const nm=v=>String(v||'').toLowerCase().replace(/[^a-z ]/g,'').trim().split(/\s+/)[0]||'';
+    const differ=c.from.name&&(c.to.name||c.to.accountName)&&nm(c.from.name)!==nm(c.to.name||c.to.accountName);
+    const both=`<span class="srcmp">${side('Old number',c.from)}${side('New number',c.to)}</span>`;
+    if(!c.from.classes.length){
+      if(!rid)return toast(showPhone(from)+' is not on any class list. Nothing to move.',true);
+      if(!await ask({title:'Nothing left on the old number',html:both+'<span class="srnote">'+esc(showPhone(from))+' is not on any class list now, so the records were moved already or the number is wrong. Mark the request done?</span>',ok:'Mark done'}))return;
+      return set(rid,'done')}
+    if(!isAdmin())return toast(showPhone(from)+' is still on '+c.from.classes.length+' class list'+(c.from.classes.length>1?'s':'')+'. Ask the admin to move the records.',true);
+    if(!await ask({title:'Move '+showPhone(from)+'’s records to '+showPhone(to)+'?',html:both+(differ?'<span class="srnote warn">The names are different. Check it is the same person before you move.</span>':'')+'<span class="srnote">Every class gets the new number. The old number stops working for sign-in.</span>',ok:'Move records',danger:!!differ}))return;
     const r=await adminCall({action:'stuMove',k:'',from,to,rid});
     if(!r.ok)return toast(r.message,true);
     toast('Moved: '+r.moved.join(', ')+(r.failed.length?'. Not moved: '+r.failed.join(', '):''),!!r.failed.length);await loadStuReq();redraw()};
