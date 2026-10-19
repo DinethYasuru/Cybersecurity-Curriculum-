@@ -114,3 +114,22 @@ A class is backed up before its first change (at most once every 10 minutes, and
 - Opened without a QR link while many classes are open, the page asks for the mobile number first. The server checks only that student's own classes that may be open now, so it stays fast with hundreds of classes. A typed code picks the right one of them.
 - The class list shows only when the number can't decide: two of their own classes open at once (just those two), or a new student with no QR. The list has a search box when it is long.
 - The in-app scanner keeps the class the QR names.
+
+## Student app accounts (server version 24)
+
+Students now sign in to the app before they check in. This is on by default. The admin can turn it off under **Student requests**.
+
+1. On the check-in page the student taps **Ask for a key** and sends their number and name.
+2. The admin (or a coordinator) sees it under **Student requests › Sign-in keys**, checks who it is, and taps **Send on WhatsApp**. The message has a link that opens the app with the key filled in. A key works once, within 7 days. **Give a key without a request** makes one for any number.
+3. The student chooses their own password. With **Keep me signed in on this phone** ticked, the phone stays signed in (180 days from the last use). A new password signs out their other phones.
+
+Once signed in, a student:
+- marks attendance by scanning the QR or typing its code. The code decides the class: their own open classes first, then any open class (they join it, if that class lets students register).
+- sees every class they attend, with their record in each.
+- sends excuses for a missed day or a coming one. These go to that class's facilitators under **Inbox › Excuses from students**. Accepted ones become excused absences.
+- changes their name and photo (in every class at once) or their password, and signs out.
+- taps **Records missing?** to tell the admin about an old number.
+
+**Records missing** requests: **Move records** (admin only) gives the old number's student IDs the new number in every class. Where the student had registered again with the new number, the two IDs become one: the older ID keeps every check-in and excuse. The old number's app account stops working. Also available as **Move records without a request**.
+
+New Corner tables: `accounts`, `areq` (sign-in and help requests), `xreq` (excuses sent from the app).

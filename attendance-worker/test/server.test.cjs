@@ -31,6 +31,8 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  r=await call({action:'status'});ok('only that class open, picked',r.k===ids[7]&&r.classes.filter(c=>c.open).length===1,{k:r.k,open:r.classes.filter(c=>c.open)});
  r=await call({action:'extra',token:A,k:ids[12],minutes:30});
  r=await call({action:'status'});ok('two open: pick',r.pick===true&&r.classes.filter(c=>c.open).length===2,{pick:r.pick});
+ // anonymous check-in (students sign in to the app is on by default; checked in its own section)
+ await call({action:'stuLoginSet',token:A,on:false});
  // the student's number finds their class: no list
  const free=Object.assign({},closed,{requireCode:false,selfRegister:true});
  for(const k of [ids[7],ids[12]])await call({action:'settings',token:A,k,settings:free});
@@ -101,6 +103,76 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  r=await call({action:'data',token:A,k:'cyber'});ok('admin kept',r.ok,r);
  r=await call({action:'classSave',token:A,name:'Old Class',active:false});ok('archived class',r.ok,r);
  r=await D({op:'deleteArchived',confirm:'DELETE'});ok('delete archived',r.ok&&r.deleted.includes('Old Class'),r);
+ }
+
+ section('Student app');
+{const A=(await call({action:'login',password:'pass12345'})).token;const crypto=require('crypto');
+ const codeOf=(key,ms)=>{const b=crypto.createHmac('sha256',key).update('att:'+Math.floor(ms/30000)).digest();let o='';for(let i=0;i<6;i++)o+='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b[i]&31];return o};
+ let r=await call({action:'stuLoginSet',token:A,on:true});ok('app sign-in on',r.ok&&r.on,r);
+ r=await call({action:'status'});ok('status says accounts',r.accounts===true,r);
+ r=await call({action:'lookup',phone:'0751112222',device:'devnimal01'});ok('anonymous check-in refused',r.reason==='signin',r);
+ // two classes open now with codes: the code decides
+ const mk=async n=>(await call({action:'classSave',token:A,name:n})).class.id;
+ const c1=await mk('App One'),c2=await mk('App Two');
+ const base=(await call({action:'data',token:A,k:c1})).settings;
+ for(const k of [c1,c2]){await call({action:'settings',token:A,k,settings:Object.assign({},base,{requireCode:true,selfRegister:true})});await call({action:'extra',token:A,k,minutes:30})}
+ r=await call({action:'student',token:A,k:c1,name:'Sahan Silva',phone:'0761234567'});ok('on class list',r.ok,r);
+ r=await call({action:'accRequest',phone:'0761234567',name:'Sahan Silva'});ok('key request',r.ok,r);
+ r=await call({action:'accRequest',phone:'0761234567',name:'Sahan Silva'});ok('asking again is fine',r.ok,r);
+ r=await call({action:'accRequest',phone:'0716666666',name:'Coord Person'});ok('staff number refused',!r.ok&&r.reason==='staff',r);
+ r=await call({action:'stuInbox',token:A});const rq=(r.requests||[]).filter(x=>x.phone==='0761234567');
+ ok('one request in the inbox, with who it is',rq.length===1&&rq[0].who.name==='Sahan Silva'&&rq[0].who.classes.length===1&&rq[0].code.length===8,r);
+ r=await call({action:'data',token:A,k:c1});ok('admin sees the count',r.corner.stuReq>=1,r.corner);
+ r=await call({action:'accActivate',phone:'0761234567',code:'AAAAAAAA',password:'secret1'});ok('wrong key',!r.ok&&r.reason==='key',r);
+ r=await call({action:'accActivate',phone:'0761234567',code:rq[0].code,password:'123'});ok('short password',!r.ok,r);
+ r=await call({action:'accActivate',phone:'0761234567',code:rq[0].code,password:'secret1'});ok('activated',r.ok&&r.token&&r.me.name==='Sahan Silva',r);let T=r.token;
+ r=await call({action:'accActivate',phone:'0761234567',code:rq[0].code,password:'secret2'});ok('key works once',!r.ok,r);
+ r=await call({action:'accLogin',phone:'0761234567',password:'nope'});ok('wrong password',!r.ok,r);
+ r=await call({action:'accLogin',phone:'0761234567',password:'secret1'});ok('sign in',r.ok&&r.token,r);const T2=r.token;
+ r=await call({action:'app',token:T});ok('home: one class',r.ok&&r.classes.length===1&&r.classes[0].k===c1,r);
+ r=await call({action:'app',token:'0'.repeat(40)});ok('bad token',r.reason==='signin',r);
+ // check in with the code of class 1: no class picked
+ const k1=(await call({action:'data',token:A,k:c1})).qrKey,k2=(await call({action:'data',token:A,k:c2})).qrKey;
+ r=await call({action:'appFind',token:T,code:codeOf(k1,Date.now()),device:'devsahan001'});ok('code finds class 1',r.ok&&r.k===c1&&!r.join&&r.student.name==='Sahan Silva',r);
+ let f=r;r=await call({action:'appCheckin',token:T,k:f.k,ticket:f.ticket,device:'devsahan001'});ok('checked in',r.ok&&!r.already,r);
+ r=await call({action:'appFind',token:T,code:codeOf(k1,Date.now()),device:'devsahan001'});ok('already',r.ok&&!!r.already,r);
+ r=await call({action:'appFind',token:T,code:'ZZZZZZ',device:'devsahan001'});ok('wrong code',!r.ok&&r.reason==='code',r);
+ r=await call({action:'appFind',token:T,code:'',device:'devsahan001'});ok('no code: asks for it',!r.ok&&r.reason==='code',r);
+ // class 2's code: they join it
+ r=await call({action:'appFind',token:T,code:codeOf(k2,Date.now()),device:'devsahan001'});ok('code finds class 2: join',r.ok&&r.k===c2&&r.join,r);
+ f=r;r=await call({action:'appCheckin',token:T,k:f.k,ticket:f.ticket,join:true,device:'devsahan001'});ok('joined and checked in',r.ok&&r.student&&r.student.name==='Sahan Silva',r);
+ r=await call({action:'app',token:T});ok('home: two classes, present',r.classes.length===2&&r.classes.every(c=>c.records.some(x=>x.status==='present')),r.classes);
+ // excuses: the student sends, the facilitator accepts
+ const day=new Date(Date.now()+7*864e5+330*60000).toISOString().slice(0,10);
+ r=await call({action:'appExcuse',token:T,k:c1,date:day,reason:'Exam at school'});ok('excuse sent',r.ok&&r.request.status==='new',r);
+ r=await call({action:'appExcuse',token:T,k:c1,date:day,reason:'Exam at school'});ok('same day twice refused',!r.ok,r);
+ r=await call({action:'appExcuse',token:T,k:'nope',date:day,reason:'x y z'});ok('not their class',!r.ok,r);
+ r=await call({action:'data',token:A,k:c1});const xr=(r.xreq||[]).find(x=>x.date===day);ok('facilitator sees it',!!xr,r.xreq);
+ r=await call({action:'excuseReq',token:A,k:c1,rid:xr.rid,accept:true});ok('accepted',r.ok&&r.request.status==='accepted',r);
+ r=await call({action:'data',token:A,k:c1});ok('in the class excuses',r.excuses.some(e=>e.date===day),r.excuses);
+ r=await call({action:'app',token:T});ok('student sees accepted',r.requests.some(x=>x.date===day&&x.status==='accepted')&&r.classes.find(c=>c.k===c1).upcomingExcuses.includes(day),r);
+ // profile: name and password
+ r=await call({action:'appSave',token:T,name:'Sahan Kumara Silva'});ok('renamed',r.ok&&r.me.name==='Sahan Kumara Silva',r);
+ r=await call({action:'data',token:A,k:c2});ok('new name in the class',r.students.some(s=>s.name==='Sahan Kumara Silva'),r.students);
+ r=await call({action:'appSave',token:T,password:'secret9',oldPassword:'secret1'});ok('password changed',r.ok&&r.token,r);const T3=r.token;
+ r=await call({action:'app',token:T2});ok('other phone signed out',r.reason==='signin',r);
+ r=await call({action:'app',token:T3});ok('this phone kept',r.ok,r);
+ // a new number: records are not there; the student tells the admin, the admin moves them
+ r=await call({action:'stuKey',token:A,phone:'0769999999',name:'Sahan Kumara Silva'});ok('admin gives a key',r.ok&&r.request.code,r);
+ r=await call({action:'accActivate',phone:'0769999999',code:r.request.code,password:'newnum1'});ok('new number signs in',r.ok,r);const N=r.token;
+ // they also registered again in class 1 with the new number (a second student ID)
+ r=await call({action:'student',token:A,k:c1,name:'Sahan Kumara Silva',phone:'0769999999'});ok('second ID in class 1',r.ok,r);
+ r=await call({action:'app',token:N});ok('new number: only the new ID',r.classes.length===1,r.classes);
+ r=await call({action:'appHelp',token:N,other:'0761234567',note:'I changed my SIM'});ok('help sent',r.ok,r);
+ r=await call({action:'stuInbox',token:A});const hq=r.requests.find(x=>x.kind==='help'&&x.phone==='0769999999');ok('help in the inbox with the old number',hq&&hq.was&&hq.was.classes.length===2,hq);
+ const Cx=(await call({action:'login',phone:'0716666666',password:'coordpass1'})).token;r=await call({action:'stuMove',token:Cx,from:'0761234567',to:'0769999999'});ok('coordinator cannot move',!r.ok,r);
+ r=await call({action:'stuMove',token:A,from:'0761234567',to:'0769999999',rid:hq.rid});ok('moved',r.ok&&r.moved.length===2,r);
+ r=await call({action:'data',token:A,k:c1});const s1=r.students.filter(s=>s.phone==='0769999999');ok('class 1: one student, new number, check-in kept',s1.length===1&&!r.students.some(s=>s.phone==='0761234567')&&r.attendance.some(x=>x.id===s1[0].id),r.students);
+ r=await call({action:'app',token:N});ok('new number sees both classes and history',r.ok&&r.classes.length===2&&r.classes.every(c=>c.records.some(x=>x.status==='present')),r.classes);
+ r=await call({action:'app',token:T3});ok('old number signed out',r.reason==='signin',r);
+ r=await call({action:'stuInbox',token:A});ok('help marked done',r.requests.find(x=>x.rid===hq.rid).status==='done',r);
+ r=await call({action:'appLogout',token:N});r=await call({action:'app',token:N});ok('sign out',r.reason==='signin',r);
+ for(const k of [c1,c2])await call({action:'extra',token:A,k,minutes:0});
  }
 
  section('Main password');

@@ -30,7 +30,7 @@
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 23;
+var SERVER_VERSION = 24;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -376,9 +376,12 @@ function AttendanceCore(rawEnv) {
 
   function me(req, now) {
     var s = settings(), phone = cleanPhone(req.phone), name = cleanName(req.name), device = String(req.device || '').slice(0, 40);
-    if (rateLimited('rl:' + device, 20, 600) || (phone && rateLimited('rm:' + phone, 10, 600))) return fail('slow', 'Too many tries. Wait 10 minutes.');
+    // the student app (Cloudflare): the person already signed in to their account, so no limit and no name check
+    var trusted = !!(env.trustedStudent && env.trustedStudent());
+    if (!trusted && (rateLimited('rl:' + device, 20, 600) || (phone && rateLimited('rm:' + phone, 10, 600)))) return fail('slow', 'Too many tries. Wait 10 minutes.');
     var st = null;
-    if (req.key) { st = env.read('students').filter(function (r) { return r.id === cleanId(req.id); })[0] || null; if (st && !keyOk(st.id, req.key)) st = null; }
+    if (trusted) st = env.read('students').filter(function (r) { return r.id === cleanId(req.id); })[0] || null;
+    else if (req.key) { st = env.read('students').filter(function (r) { return r.id === cleanId(req.id); })[0] || null; if (st && !keyOk(st.id, req.key)) st = null; }
     else if (phone) { st = byPhone(phone); if (st && !sameName(st.name, name)) st = null; }
     if (!st) return fail('notfound', 'No record for this number and name yet.');
     var id = st.id, today = local(now, s).date;
@@ -881,7 +884,7 @@ function AttendanceCore(rawEnv) {
     try {
       if (req.action === 'status') return publicStatus(now);
       // many classes: does this code belong to this class right now? (lets a typed code find its class)
-      if (req.action === 'codeCheck') { var cs = settings(); return { ok: true, open: isOpen(now, cs), match: isOpen(now, cs) && (!cs.requireCode || codeOk(req.code, now, cs)) }; }
+      if (req.action === 'codeCheck') { var cs = settings(); return { ok: true, open: isOpen(now, cs), need: !!cs.requireCode, match: isOpen(now, cs) && (!cs.requireCode || codeOk(req.code, now, cs)) }; }
       if (req.action === 'lookup') return lookup(req, now);
       if (req.action === 'register') return env.lock(function () { return register(req, now); });
       if (req.action === 'checkin') return env.lock(function () { return checkin(req, now); });
