@@ -1,0 +1,41 @@
+# Checks the attendance page and server on every pull request: the page's script must parse,
+# and the server checks run against a local copy of the Worker (no Cloudflare account needed).
+name: Attendance tests
+on:
+  pull_request:
+    paths: ['attendance*', 'attendance-worker/**', '.github/workflows/attendance-tests.yml']
+  push:
+    branches: ['claude/ecstatic-heisenberg-ft5ub0']
+    paths: ['attendance*', 'attendance-worker/**', '.github/workflows/attendance-tests.yml']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: attendance-worker
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Page and server code parse
+        run: |
+          node --check ../attendance-server.js
+          node --check src/worker.js
+          node -e "const s=require('fs').readFileSync('../attendance.html','utf8');const m=[...s.matchAll(/<script>([\s\S]*?)<\/script>/g)];m.forEach(x=>new Function(x[1]));console.log(m.length+' page script(s) parse')"
+      - name: Install wrangler
+        run: npm install --no-audit --no-fund
+      - name: Start a local Worker
+        run: |
+          echo "SETUP_KEY=ci-$(openssl rand -hex 16)" > .dev.vars
+          nohup npx wrangler dev --port 8787 --persist-to ../.wrangler-ci > ../wrangler.log 2>&1 &
+          for i in $(seq 90); do curl -sf http://localhost:8787/ > /dev/null && break; sleep 1; done
+          curl -sf http://localhost:8787/ | head -c 120; echo
+      - name: Server checks
+        run: node test/server.test.cjs
+      - name: Worker log
+        if: failure()
+        run: tail -n 80 ../wrangler.log
