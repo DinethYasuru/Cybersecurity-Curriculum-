@@ -1287,6 +1287,17 @@ input[type=range]{accent-color:var(--c-red);height:2rem;cursor:pointer;min-width
 .nb.lvu.unl{background:var(--surface);color:var(--c-red)}
 .nb.lvu.hint{animation:lvPulse 1.6s infinite}
 @keyframes lvBeat{50%{opacity:.25}}
+/* "Students can try" badge: presenter only, marks slides students can play on their phones */
+#tryB{display:none;align-items:center;gap:.45em;font:600 clamp(.8rem,1.15vw,1.1rem) var(--body);padding:.3em 1em .3em .75em;border-radius:999px;border:1.5px solid var(--c-blue);background:#fff;color:var(--c-blue);cursor:pointer;white-space:nowrap;transition:background .3s,color .3s,border-color .3s}
+#tryB.on{display:inline-flex}
+#tryB svg{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#tryB.wait{background:var(--c-red);border-color:var(--c-red);color:#fff;animation:lvPulse 1.6s infinite}
+#tryB.go{background:var(--c-blue);color:#fff}
+body.stu #tryB{display:none!important}
+html.framed #tryB{font-size:.85rem}
+@media (max-width:1400px){.top:has(#tryB.on) .brand{display:none}}
+#menu button em.tryM{margin-left:auto;align-self:center;font:600 .72em var(--body);font-style:normal;letter-spacing:.04em;color:#fff;background:var(--c-blue);padding:.15em .65em;border-radius:999px}
+#menu button em.tryM.done{background:#fff;color:var(--c-blue);box-shadow:inset 0 0 0 1.5px var(--c-blue)}
 @keyframes lvPulse{0%{box-shadow:0 0 0 0 rgba(191,10,48,.45)}70%{box-shadow:0 0 0 12px rgba(191,10,48,0)}100%{box-shadow:0 0 0 0 rgba(191,10,48,0)}}
 #lvPanel{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:rgba(251,252,254,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:fadein .3s both}
 #lvPanel .lvc{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);gap:clamp(18px,3vw,48px);align-items:center;background:var(--surface);border:1.5px solid var(--line);border-radius:28px;padding:clamp(20px,3vw,44px);box-shadow:0 30px 80px rgba(0,40,104,.16);width:min(92vw,1100px);max-height:92vh;overflow:auto}
@@ -1373,6 +1384,7 @@ html.framed .bar{padding:.4rem max(14px,2vw) calc(.45rem + env(safe-area-inset-b
   <header class="top" id="top">
     <div class="logos" id="logosTop"></div>
     <span class="sec" id="sec"></span>
+    <button type="button" class="try" id="tryB" title="Students can play this slide on their phones (U to unleash)"></button>
     <div class="brand"><b>American Corner Matara</b> &middot; Cyber Security</div>
   </header>
 
@@ -2426,6 +2438,7 @@ function applyBuilds(i){
   $$('[data-at]',s).forEach(el=>el.classList.toggle('on',n>=Number(el.dataset.at)));
   if(typeof PV!=='undefined'&&PV.w)pvUpdate();
   if(LIVE.pres)lvQueue();
+  tryUI();
 }
 const ENTER={
   ipv6:()=>{const e=$('#v4n');if(e)countUp(e,4294967296,2200);},
@@ -2570,7 +2583,7 @@ function renderNotes(){
 function toggleNotes(){notesOn=!notesOn;ls('s2b-notes',notesOn?'1':'0');renderNotes();}
 $('#notesBtn').onclick=toggleNotes;$('#notesX').onclick=toggleNotes;
 function openMenu(){
-  $('#menuList').innerHTML=slides.map((s,k)=>'<li><button type="button" data-k="'+k+'" class="'+(k===cur?'cur ':'')+(s.dataset.sec?'sx':'')+'"><i>'+(k+1)+'</i>'+(s.dataset.title||s.dataset.id)+'</button></li>').join('');
+  $('#menuList').innerHTML=slides.map((s,k)=>'<li><button type="button" data-k="'+k+'" class="'+(k===cur?'cur ':'')+(s.dataset.sec?'sx':'')+'"><i>'+(k+1)+'</i>'+(s.dataset.title||s.dataset.id)+(lvGame(s)?'<em class="tryM'+(LIVE.tried.has(s.dataset.id)?' done':'')+'">'+(LIVE.tried.has(s.dataset.id)?'Tried':'Try')+'</em>':'')+'</button></li>').join('');
   $('#menu').hidden=false;
 }
 $('#menuBtn').onclick=openMenu;
@@ -2794,6 +2807,10 @@ body.frz .tm b{color:var(--c-blue)}
 .vp .red,.vp .hl{background-size:100% .055em}
 .vp .nt,.vp .ctl{display:none!important}
 .vp .cw{opacity:1!important}
+.lbl em.try{font:600 12px var(--body);font-style:normal;letter-spacing:.06em;text-transform:none;margin-left:10px;padding:.2em .8em;border-radius:999px;border:1.5px solid var(--c-blue);color:var(--c-blue);background:#fff}
+.lbl em.try:empty{display:none}
+.lbl em.try.wait{background:var(--c-red);border-color:var(--c-red);color:#fff}
+.lbl em.try.go{background:var(--c-blue);color:#fff}
 .end{display:grid;place-items:center;height:100%;font:300 34px var(--display);color:var(--mute)}
 .notes{min-height:0;overflow:auto;background:#fff;border:1.5px solid var(--line);border-top:6px solid var(--c-blue);border-radius:14px;padding:14px 18px;font-size:var(--nfs,22px);line-height:1.45}
 .notes h4{margin:0 0 .3em;font:500 1.05em var(--display);color:var(--c-blue)}
@@ -2857,6 +2874,7 @@ function pvUpdate(){
   pvFrame(d.getElementById('pvNx'),nx[0],nx[1]);
   d.title='Presenter · '+(cur+1)+'/'+slides.length;
   pvClock();
+  tryUI();
 }
 function openPresenter(){
   if(PV.w&&!PV.w.closed){PV.w.focus();return;}
@@ -2878,8 +2896,8 @@ function openPresenter(){
     '<span class="sp"></span>'+
     '<span class="lbl">Notes size</span><button class="pb" id="pvFm">A&minus;</button><button class="pb" id="pvFp">A+</button>'+
    '</div>'+
-   '<div class="col"><div class="lbl"><span>Now</span><b id="pvCurT"></b></div><div class="frame cur" id="pvCur"></div></div>'+
-   '<div class="col" style="grid-template-rows:auto auto auto minmax(0,1fr);height:100%"><div class="lbl"><span id="pvNxL">Next</span><b id="pvNxT"></b></div><div class="frame" id="pvNx"></div><div class="lbl"><span>Notes</span><span class="pvd" id="pvDots"></span></div><div class="notes" id="pvNotes"></div></div>'+
+   '<div class="col"><div class="lbl"><span>Now<em class="try" id="pvTryC"></em></span><b id="pvCurT"></b></div><div class="frame cur" id="pvCur"></div></div>'+
+   '<div class="col" style="grid-template-rows:auto auto auto minmax(0,1fr);height:100%"><div class="lbl"><span><span id="pvNxL">Next</span><em class="try" id="pvTryN"></em></span><b id="pvNxT"></b></div><div class="frame" id="pvNx"></div><div class="lbl"><span>Notes</span><span class="pvd" id="pvDots"></span></div><div class="notes" id="pvNotes"></div></div>'+
    '<div class="pf"><button class="pb big" id="pvBack">Back</button><button class="pb main big" id="pvNext">Next</button><span class="lbl" id="pvCt"></span><div class="pg"><i id="pvPg"></i></div><button class="pb" id="pvMenu">Slides</button><span class="lbl">Deck window: press F for full screen</span></div>'+
   '</div></body></html>');
   w.document.close();
@@ -3506,7 +3524,7 @@ const LV_MQTT='https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js';
 const LV_QR='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
 const LV_Q=new URLSearchParams(location.search);
 const LV_TEST=(LV_Q.get('lvb')||'').split(',').filter(Boolean);
-const LIVE={roster:new Map(),rt:0,name:'',use:{},uId:'',uT:0,pres:false,stu:false,room:'',key:null,vkey:null,pub:'',seq:0,last:0,u:false,sid:'',cl:[],seen:new Map(),got:false,ended:false,locked:true,me:Math.random().toString(36).slice(2,10),qt:0,hb:0};
+const LIVE={roster:new Map(),rt:0,name:'',use:{},uId:'',uT:0,pres:false,stu:false,room:'',key:null,vkey:null,pub:'',seq:0,last:0,u:false,sid:'',cl:[],seen:new Map(),got:false,ended:false,locked:true,me:Math.random().toString(36).slice(2,10),qt:0,hb:0,tried:new Set()};
 const EC={name:'ECDSA',namedCurve:'P-256'},SIG={name:'ECDSA',hash:'SHA-256'};
 const SUB=typeof crypto!=='undefined'&&crypto.subtle;
 const b64e=buf=>btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -3629,7 +3647,7 @@ async function lvSendNow(only){
 }
 function lvToggleU(){
   if(!LIVE.pres){toast('Press L to start the live class first');return;}
-  LIVE.u=!LIVE.u;LIVE.sid=slides[cur].dataset.id;
+  LIVE.u=!LIVE.u;LIVE.sid=slides[cur].dataset.id;if(LIVE.u)LIVE.tried.add(LIVE.sid);
   lvFlash(LIVE.u?'Your turn!':'Locked',!LIVE.u);
   lvSendNow();lvUI();
 }
@@ -3640,7 +3658,37 @@ function lvEnd(){
   ls('s2b-live-on',null);
   lvPanel(false);toast('Class ended. Saving the class file…');
 }
-function lvGame(s){return !!$('button,input,.qc,.fc,.tok,.sbin,.npc,[draggable]',s);}
+/* a slide students can play: it has controls of its own (not the logos, the Begin
+   button or a break timer). data-try="0|1" on a slide overrides the guess. */
+function lvGame(s){
+  if(s.dataset.try)return s.dataset.try==='1';
+  if(s.dataset.id==='break')return false;
+  return $$('button,input,.qc,.fc,.tok,.sbin,.npc,[draggable]',s).some(e=>!e.hidden&&!e.closest('.logo,.nt')&&e.id!=='startBtn');
+}
+/* badge in the header and presenter window, so a playable slide is never left locked */
+const TRY_IC='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M10.5 18.5h3"/></svg>';
+const TRY_OK='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+function tryState(i){
+  const s=slides[i];if(!s||!lvGame(s))return '';
+  const id=s.dataset.id;
+  if(LIVE.pres&&LIVE.u&&LIVE.sid===id&&i===cur)return 'go';
+  if(LIVE.tried.has(id))return 'done';
+  return LIVE.pres?'wait':'idle';
+}
+const TRY_TXT={idle:'Students can try',wait:'Students can try · press U',go:'Students playing',done:'Students tried'};
+function tryUI(){
+  if(LIVE.stu)return;
+  const b=$('#tryB'),st=tryState(cur);
+  if(b){
+    b.className='try'+(st?' on '+st:'');
+    b.innerHTML=st?(st==='done'?TRY_OK:TRY_IC)+'<span>'+TRY_TXT[st]+'</span>':'';
+  }
+  const d=PV.w&&!PV.w.closed&&PV.w.document;if(!d)return;
+  const c=d.getElementById('pvTryC'),n=d.getElementById('pvTryN');
+  if(c){c.className='try '+st;c.textContent=st?TRY_TXT[st]:'';}
+  const ni=shown[cur]<bs[cur].length?cur:cur+1,ns=ni!==cur?tryState(ni):'';
+  if(n){n.className='try '+(ns==='done'?'done':'');n.textContent=ns?(ns==='done'?'Students tried':'Students can try'):'';}
+}
 function lvUI(){
   const b=$('#lvBtn'),u=$('#lvU');
   if(b){b.classList.toggle('live',LIVE.pres);b.textContent=LIVE.pres?'Live · '+lvCount():'Live';}
@@ -3650,6 +3698,7 @@ function lvUI(){
     u.classList.toggle('unl',LIVE.u);
     u.classList.toggle('hint',LIVE.pres&&!LIVE.u&&lvGame(slides[cur]));
   }
+  tryUI();
   let f=$('#lvFlag');
   if(LIVE.pres&&LIVE.u){if(!f){f=document.createElement('div');f.id='lvFlag';document.body.appendChild(f);}f.textContent='Unleashed · everyone plays';}
   else if(f)f.remove();
@@ -3815,6 +3864,7 @@ function lvFree(){
   const ub=document.createElement('button');ub.className='nb lvu';ub.id='lvU';ub.title='Unleash or lock this slide for students (U)';ub.hidden=true;ub.textContent='Unleash';
   fsb.before(lb);$('#next').after(ub);
   lb.onclick=()=>lvPanel();ub.onclick=lvToggleU;
+  $('#tryB').onclick=()=>LIVE.pres?lvToggleU():lvPanel();
   document.addEventListener('keydown',e=>{
     if(LIVE.stu)return;
     const t=e.target.tagName;if(t==='INPUT'||t==='TEXTAREA')return;
