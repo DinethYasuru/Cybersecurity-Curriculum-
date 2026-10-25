@@ -63,6 +63,8 @@ const APP = { app: 1, appFind: 1, appCheckin: 1, appExcuse: 1, appExcuseDrop: 1,
 const STU_ADMIN = { stuInbox: 1, stuReq: 1, stuKey: 1, stuMove: 1, stuMoveCheck: 1, stuLoginSet: 1, waSave: 1 };
 // the WhatsApp helper on the admin's laptop: its own key, and only these two steps (the next key to send, and "sent")
 const WA_HELPER = { waNext: 1, waDone: 1 };
+// steps after which the Firebase key queue looks at its slot at once
+const FB_NOW = { accRequest: 1, areqIssue: 1, areqSet: 1, waSave: 1 };
 const HUB_ADMIN = { corner: 1, classSave: 1, classDelete: 1, people: 1, staffSave: 1, myAccount: 1, adminPassword: 1, branchSave: 1 };
 // what a coordinator account may do inside a class: look, never change (and never get the QR key)
 const COORD_READ = { data: 1, today: 1, photos: 1, export: 1 };
@@ -245,6 +247,8 @@ async function serve(request, env, T) {
       T.actor.role = 'helper'; T.actor.who = 'WhatsApp helper';
       return json(await H(a, { key: req.helperKey, rid: req.rid, claim: req.claim, sent: req.sent === true, reason: req.reason }));
     }
+    // the Firebase reader: "I set the flag, look now" (anyone may ask; it only makes the Worker read the slot)
+    if (a === 'fbPoke') return json(await H('fbPoke'));
     if (a === 'login') return json(await H('login', { req, ip }));
     if (a === 'logout') return json(await H('logout', { req }));
     if (a === 'maint') {
@@ -1337,19 +1341,22 @@ export class Corner extends DurableObject {
     return this.waTake(ctx, 600);
   }
   // the next key to send, if the limits allow; it stays taken (one at a time) for `hold` seconds or until answered
-  waTake(ctx, hold) {
+  // `free`: the Firebase queue, where the admin's own reader sends: no hours, limits or waiting, only one at a time
+  waTake(ctx, hold, free) {
     const c = this.waCfg(), now = Date.now(), sent = this.waSent();
     const wait = (sec, why) => ({ ok: true, wait: Math.max(30, Math.ceil(sec)), why });
-    // in the day only (Sri Lanka time)
-    const hm = new Date(now + 330 * 60000).toISOString().slice(11, 16);
-    if (hm < c.from || hm >= c.to) return wait(15 * 60, 'Outside the sending hours (' + c.from + ' to ' + c.to + ').');
-    const hour = sent.filter(t => t > now - 3600000), last = sent.length ? sent[sent.length - 1] : 0;
-    if (sent.length >= c.perDay) return wait(sent[sent.length - c.perDay] + 86400000 - now, 'Daily limit reached (' + c.perDay + ').');
-    if (hour.length >= c.perHour) return wait(hour[hour.length - c.perHour] + 3600000 - now, 'Hourly limit reached (' + c.perHour + ').');
-    if (last && now - last < c.gap * 60000) return wait((last + c.gap * 60000 - now) / 1000, 'Waiting between messages.');
+    if (!free) {
+      // in the day only (Sri Lanka time)
+      const hm = new Date(now + 330 * 60000).toISOString().slice(11, 16);
+      if (hm < c.from || hm >= c.to) return wait(15 * 60, 'Outside the sending hours (' + c.from + ' to ' + c.to + ').');
+      const hour = sent.filter(t => t > now - 3600000), last = sent.length ? sent[sent.length - 1] : 0;
+      if (sent.length >= c.perDay) return wait(sent[sent.length - c.perDay] + 86400000 - now, 'Daily limit reached (' + c.perDay + ').');
+      if (hour.length >= c.perHour) return wait(hour[hour.length - c.perHour] + 3600000 - now, 'Hourly limit reached (' + c.perHour + ').');
+      if (last && now - last < c.gap * 60000) return wait((last + c.gap * 60000 - now) / 1000, 'Waiting between messages.');
+    }
     // one at a time: a key taken and not answered for 10 minutes counts as one try
     if (this.kvGet('wa:claim')) return wait(60, 'Waiting for the last message.');
-    const list = this.all("SELECT * FROM areq WHERE kind = 'signin' AND status = 'new' AND at > ? AND at < ? ORDER BY at LIMIT 50", now - KEY_DAYS * 86400000, now - 60000);
+    const list = this.all("SELECT * FROM areq WHERE kind = 'signin' AND status = 'new' AND at > ? AND at < ? ORDER BY at LIMIT 50", now - KEY_DAYS * 86400000, free ? now + 1 : now - 60000);
     const r = list.find(x => Number(this.kvGet('wa:try:' + x.rid) || 0) < 2 && !this.one('SELECT id FROM staff WHERE phone = ?', x.phone)
       && (!c.known || this.one("SELECT sid FROM enrol WHERE phone = ? AND active != 'no'", x.phone)));
     if (!r) return wait(120, 'Nothing to send.');
@@ -1388,12 +1395,23 @@ export class Corner extends DurableObject {
 
   /* ----- the Firebase queue: the same sending, through a Firebase Realtime Database -----
      One slot, /keyQueue/current: { rid, phone, name, text, flag: "pending" }. The admin's own WhatsApp side
-     watches it, sends the message and sets flag to "sent" (or "failed", with a reason). Once a minute the
-     Worker's timer looks: a "sent" slot marks the request sent here, and the next key goes in (within the same
-     limits as the helper). Settings: FIREBASE_URL in wrangler.toml, the secret FIREBASE_SECRET in Cloudflare. */
+     watches it, sends the message and sets flag to "sent" (or "failed", with a reason). The slot is looked at
+     straight away when a student asks for a key (or the admin makes one), when the reader pokes the Worker
+     (action fbPoke) after setting the flag, and once a minute in any case. A "sent" slot marks the request sent
+     here, and the next key goes in at once: no hours or limits here, the reader decides how fast it sends.
+     Settings: FIREBASE_URL in wrangler.toml, the secret FIREBASE_SECRET in Cloudflare. */
   fbSet() { return !!(String(this.env.FIREBASE_URL || '').startsWith('http') && String(this.env.FIREBASE_SECRET || '')); }
+  // one look at a time (two at once could empty a slot the other just filled); a call meanwhile looks again after
   async fbTick() {
     if (!this.fbSet()) return { ok: false, why: 'Firebase is not set up.' };
+    if (this.fbBusy) { this.fbAgain = true; return this.fbBusy; }
+    let r;
+    try {
+      do { this.fbAgain = false; this.fbBusy = this.fbLook(); r = await this.fbBusy; } while (this.fbAgain);
+    } finally { this.fbBusy = null; }
+    return r;
+  }
+  async fbLook() {
     const ctx = { role: 'helper', who: 'Firebase queue', ip: '', action: 'firebase' };
     const base = String(this.env.FIREBASE_URL).replace(/\/+$/, '') + '/keyQueue/', sec = encodeURIComponent(String(this.env.FIREBASE_SECRET));
     const fb = async (method, p, body) => {
@@ -1427,7 +1445,7 @@ export class Corner extends DurableObject {
       }
       if (!c.on) { await say('Sending is turned off in Student requests.'); return { ok: true, why }; }
       // the slot is held for up to 12 hours: the laptop may be off
-      const n = this.waTake(ctx, 12 * 3600);
+      const n = this.waTake(ctx, 12 * 3600, true);
       if (!n.rid) { await say(n.why || 'Nothing to send.'); return { ok: true, why }; }
       try { await fb('PUT', 'current', { rid: n.rid, claim: n.claim, phone: n.to, name: n.name, key: n.key, link: n.link, text: n.text, flag: 'pending', at: Date.now() }); }
       catch (e) { this.sql.exec("DELETE FROM kv WHERE k = 'wa:claim'"); throw e; }
@@ -1452,8 +1470,14 @@ export class Corner extends DurableObject {
     // the first request after the security update keeps a restore point of everything as it was
     if (!this.prop(RP_NOW)) { if (this.prop('inited')) { try { this.backupNow(RP_WHY); } catch (e) {} } this.prop(RP_NOW, '1'); }
     if (q.op === 'chgVerify') return json(await this.chgVerify(q.from));
+    // the Firebase reader set the flag: look at the slot now (at most 60 a minute, from anyone)
+    if (q.op === 'fbPoke') { if (this.over('fbpoke', 60, 60)) return json(fail('slow', 'Too many. The slot is looked at every minute anyway.')); await this.fbTick(); return json({ ok: true }); }
     // whatever the step changed goes into the change log, with who asked for it
-    try { return this.route(q, ctx); } finally { this.chgFlush(ctx); }
+    let res;
+    try { res = this.route(q, ctx); } finally { this.chgFlush(ctx); }
+    // a new key, or a changed switch: the Firebase slot gets it straight away
+    if (FB_NOW[q.op] && this.fbSet()) { try { await this.fbTick(); } catch (e) {} }
+    return res;
   }
   route(q, ctx) {
     const req = q.req || {}, who = q.who;

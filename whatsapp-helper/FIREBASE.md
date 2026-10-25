@@ -30,9 +30,13 @@ Your reader:
 
 Change only `flag` and `reason`. Leave `rid` and `claim` as they are: the server only accepts a slot it put there itself.
 
-Once a minute the server looks at the slot. On `"sent"` it marks the request **Sent** in Student requests, empties the slot, and (when the limits allow) puts in the next key. `/keyQueue/status` says why nothing is coming (outside the hours, a limit reached, waiting between messages, nothing to send, turned off).
+It is realtime, with no hours, limits or waiting:
 
-The limits are the same as for the helper and are kept on the server: set them in **Student requests › Helper settings**. Every key put in and every one sent is in the **Change log** as *Firebase queue*.
+- When a student asks for a key (or you make one in Student requests), it goes into the slot at once, if the slot is empty.
+- When your reader sets the flag, it should also call the Worker once: `POST https://cyber-attendance.dinethyasuru.workers.dev` with body `{"action":"fbPoke"}`. The server then marks the request **Sent** in Student requests, empties the slot, and puts the next key in straight away.
+- If the reader doesn't call, the server still looks once a minute.
+
+`/keyQueue/status` says what is happening (a key is waiting, nothing to send, turned off). The hours and limits in Helper settings are only for the laptop helper. Every key put in and every one sent is in the **Change log** as *Firebase queue*.
 
 ## Set it up (once)
 
@@ -77,7 +81,9 @@ onValue(slot, async snap => {
   } catch (e) {
     await update(slot, { flag: 'failed', reason: String(e.message).slice(0, 80) });
   }
+  // tell the Worker to look now: the next key comes straight away
+  fetch('https://cyber-attendance.dinethyasuru.workers.dev', { method: 'POST', body: JSON.stringify({ action: 'fbPoke' }) });
 });
 ```
 
-WhatsApp can block a number that messages many people who never saved it. The server's limits keep it slow; a spare SIM is still the safest.
+WhatsApp can block a number that messages many people who never saved it. The queue sends as fast as your reader does, so a spare SIM is the safest.
