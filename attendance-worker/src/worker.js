@@ -86,15 +86,34 @@ let INITED = false;
 
 export default {
   async fetch(request, env) {
+    // who is asking (filled in as the request is checked) and the rows the classes changed: both go to the change log
+    const T = { actor: { who: '', role: 'public', ip: request.headers.get('cf-connecting-ip') || '', action: '' }, rows: [] };
+    const res = await serve(request, env, T);
+    if (T.rows.length) {
+      try { await env.CORNER.get(env.CORNER.idFromName('corner')).fetch('https://hub/op', { method: 'POST', body: JSON.stringify({ op: 'chg', rows: T.rows, _ctx: T.actor }) }); } catch (e) {}
+    }
+    return res;
+  },
+  async scheduled(event, env) {
+    const hub = env.CORNER.get(env.CORNER.idFromName('corner'));
+    const list = (await (await hub.fetch('https://hub/op', { method: 'POST', body: JSON.stringify({ op: 'classes' }) })).json()).classes || [{ id: 'cyber' }];
+    for (const c of list) await env.CLASS.get(env.CLASS.idFromName(doName(c.id))).fetch('https://class/cron', { method: 'POST', headers: { 'x-cron': '1' } });
+    await hub.fetch('https://hub/cron', { method: 'POST' });
+  }
+};
+
+async function serve(request, env, T) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     if (request.method !== 'GET' && request.method !== 'POST') return json({ ok: false, reason: 'input', message: 'Bad request.' }, 405);
     // where the request came from (a Durable Object doesn't see it); a client can't set this
     const cf = request.cf || {};
     const net = JSON.stringify({ ip: request.headers.get('cf-connecting-ip') || '', asn: cf.asn || '', org: String(cf.asOrganization || '').slice(0, 60), city: String(cf.city || '').slice(0, 40) });
     const hubStub = env.CORNER.get(env.CORNER.idFromName('corner'));
-    const H = async (op, data) => (await hubStub.fetch('https://hub/op', { method: 'POST', body: JSON.stringify(Object.assign({ op }, data || {})) })).json();
-    const C = async (k, req, staff) => (await env.CLASS.get(env.CLASS.idFromName(doName(k))).fetch('https://class/', { method: 'POST', headers: { 'x-att-net': net, 'x-att-staff': staff ? JSON.stringify(staff) : '' }, body: JSON.stringify(req) })).json();
-    const I = async (k, req) => (await env.CLASS.get(env.CLASS.idFromName(doName(k))).fetch('https://class/int', { method: 'POST', headers: req.op === 'wipe' ? { 'x-wipe': '1' } : {}, body: JSON.stringify(req) })).json();
+    const H = async (op, data) => (await hubStub.fetch('https://hub/op', { method: 'POST', body: JSON.stringify(Object.assign({ op, _ctx: T.actor }, data || {})) })).json();
+    // what a class changed comes back with its answer (_chg); it goes to the change log, never to the page
+    const took = (k, r) => { if (r && Array.isArray(r._chg)) { let place = k; try { place = nameOf(k) || k; } catch (e) {} r._chg.forEach(x => T.rows.push(Object.assign({ place }, x))); delete r._chg; } return r; };
+    const C = async (k, req, staff) => took(k, await (await env.CLASS.get(env.CLASS.idFromName(doName(k))).fetch('https://class/', { method: 'POST', headers: { 'x-att-net': net, 'x-att-staff': staff ? JSON.stringify(staff) : '' }, body: JSON.stringify(req) })).json());
+    const I = async (k, req) => took(k, await (await env.CLASS.get(env.CLASS.idFromName(doName(k))).fetch('https://class/int', { method: 'POST', headers: req.op === 'wipe' ? { 'x-wipe': '1' } : {}, body: JSON.stringify(req) })).json());
     // first request after the update: the Corner learns the Cyber Security class, its facilitators and students
     if (!INITED) {
       const st = await H('inited');
@@ -135,6 +154,8 @@ export default {
     if (!req || typeof req !== 'object' || Array.isArray(req)) return json({ ok: false, reason: 'input', message: 'Bad request.' });
     if (body.length > MAX_BODY && !(req.action === 'maint' && req.op === 'import')) return json({ ok: false, reason: 'input', message: 'Request too big.' });
     const a = String(req.action || '');
+    T.actor.action = a.slice(0, 40);
+    if (req.phone && typeof req.phone === 'string') T.actor.who = cleanPh(req.phone) || req.phone.slice(0, 20);
     const rawK = String(req.k || '');
     // a class made in the last minute (by another copy of the Worker): read the list again before saying it's gone
     if (rawK && !known(rawK) && !fresh) { cc = await loadClasses(); fresh = true; classes = cc.list; pub = classes.filter(c => c.active !== 'no'); }
@@ -149,6 +170,7 @@ export default {
       const w = await H('accWho', { token: req.token });
       if (!w.ok) return fail('signin', 'Sign in again.');
       const me = w.me, phone = me.phone;
+      T.actor.role = 'student'; T.actor.who = me.name + ' · ' + me.phone;
       const mine = async () => ((await H('enrolFull', { phone })).enrol || []).filter(e => known(e.k));
       if (a === 'app') {
         // every class they attend, with their record in each (at most CORNER_STATS classes per request)
@@ -221,8 +243,11 @@ export default {
       k = k || 'cyber';
       // wrong-key tries are counted once for the whole Corner, not once per class
       if ((await H('maintFails')).locked) return json(fail('locked', 'Too many wrong server keys. Wait 15 minutes.'));
+      if (typeof req.key !== 'string') req.key = '';
+      T.actor.role = 'setup'; T.actor.who = 'SETUP_KEY';
       const r = await C(k, req);
-      if (r.reason === 'key') await H('maintFail');
+      if (r.reason === 'key') { T.actor.role = 'public'; T.actor.who = ''; await H('maintFail'); }
+      if (r.ok && req.op !== 'check') await H('maintOk', { step: String(req.op || '') });
       // the class checked the server key; sign-in lives in the Corner, so these steps happen there too
       if (r.ok && (req.op === 'setPassword' || req.op === 'unlock' || req.op === 'reset')) await H('maint', { req });
       // sign out everywhere: sign-in lives in the Corner, so one call ends every sign-in at every class
@@ -232,7 +257,7 @@ export default {
     }
 
     // the student app: sign in once, then check in, see every class, send excuses, keep a profile
-    if (APP_OPEN[a]) return json(await H(a, { phone: req.phone, name: req.name, note: req.note, code: req.code, password: req.password, ip }));
+    if (APP_OPEN[a]) return json(await H(a, { phone: req.phone, name: req.name, note: req.note, code: req.code, password: req.password, trust: req.trust, ip }));
     if (APP[a]) return json(await app(a));
     if (STUDENT[a] && accounts && a !== 'status') return json(fail('signin', 'Sign in to the attendance app first. This page shows how.'));
     if (STUDENT[a]) {
@@ -317,6 +342,8 @@ export default {
     // facilitators: the Corner checks the sign-in and the role in this class
     const who = await H('who', { token: req.token });
     if (!who.ok) return json({ ok: false, reason: 'auth', message: 'Please log in again.' });
+    T.actor.role = who.admin ? 'admin' : who.coord ? 'coordinator' : 'facilitator';
+    T.actor.who = who.me ? who.me.name + ' · ' + who.me.phone : 'Admin';
     // while Cloudflare swaps in new code, the Corner can still answer the older way (no coord/hub): the main password stays the admin
     who.coord = !!who.coord; who.hub = !!(who.hub || who.admin || who.coord);
     // the admin's Danger zone: prune, critical steps and the data editor. Only the main password, typed again each time.
@@ -376,11 +403,33 @@ export default {
         if (gone.length) { await note('Deleted archived classes: ' + gone.join(', ')); dropClasses(); }
         return { ok: true, deleted: gone };
       }
+      // restore points: the Corner's and each class's own, newest first (the page goes through the databases one by one)
+      if (op === 'points') return db === 'corner' ? await H('bkList') : await I(db, { op: 'danger:backups' });
+      if (op === 'point') {
+        const why = cleanNm(req.why).slice(0, 80) || 'Made by the admin';
+        const r = db === 'corner' ? await H('bkMake', { why }) : await I(db, { op: 'danger:backup', why });
+        if (r.ok) await note('Made a restore point: ' + why);
+        return r;
+      }
+      if (op === 'restore') {
+        if (String(req.confirm || '').trim().toUpperCase() !== 'RESTORE') return fail('input', 'Type RESTORE to confirm.');
+        const r = db === 'corner' ? await H('bkRestore', { id: req.id }) : await I(db, { op: 'danger:restore', id: req.id });
+        if (r.ok) {
+          await note('Went back to the restore point of ' + new Date(Number(r.from) + 330 * 60000).toISOString().slice(0, 16).replace('T', ' ') + ' (a restore point of just before was made first)');
+          if (db === 'corner') dropClasses(); else { await sync(db); await saveSched(db); }
+        }
+        return r;
+      }
       return fail('action', 'Unknown step.');
     };
     // a starter account first chooses its own password
     if (who.me && who.me.mustSetup && a !== 'myAccount') return json({ ok: false, reason: 'setup', message: 'Set up your account first.', me: who.me });
     if (a === 'danger') return json(await danger());
+    // the change log: the admin only (it shows who did what, and from which internet address)
+    if (a === 'changes' || a === 'changesCheck') {
+      if (!who.admin) return json(fail('input', 'Only the admin can see the change log.'));
+      return json(a === 'changes' ? await H('chgList', { before: req.before, kind: req.kind, role: req.role, find: req.find, limit: req.limit }) : await H('chgVerify', { from: req.from }));
+    }
     if (STU_ADMIN[a]) {
       if (!who.hub) return json(fail('input', 'Only the admin and coordinators can see student requests.'));
       const by = who.me ? who.me.name : 'Admin';
@@ -439,6 +488,7 @@ export default {
     if (!k) k = who.classes[0] ? who.classes[0].id : '';
     // the admin (main password) has no limits; a coordinator account sees every class but changes none
     const role = who.admin ? 'owner' : who.coord ? 'coordinator' : (who.classes.find(c => c.id === k) || {}).role;
+    if (!who.admin && !who.coord) T.actor.role = role === 'owner' ? 'lead' : 'facilitator';
     if (!k || !role) return json({ ok: false, reason: 'noclass', message: 'You are not a facilitator in this class.', corner: who });
     if (who.coord && !COORD_READ[a]) return json(fail('readonly', 'A coordinator can see every class but not change it. Facilitators make the changes.'));
     // a coordinator never runs the Live QR, so it must not teach the class a room network either
@@ -482,14 +532,7 @@ export default {
     if (r.ok && SYNC_AFTER[a]) await sync(k);
     if (r.ok && SCHED_AFTER[a]) await saveSched(k);
     return json(r);
-  },
-  async scheduled(event, env) {
-    const hub = env.CORNER.get(env.CORNER.idFromName('corner'));
-    const list = (await (await hub.fetch('https://hub/op', { method: 'POST', body: JSON.stringify({ op: 'classes' }) })).json()).classes || [{ id: 'cyber' }];
-    for (const c of list) await env.CLASS.get(env.CLASS.idFromName(doName(c.id))).fetch('https://class/cron', { method: 'POST', headers: { 'x-cron': '1' } });
-    await hub.fetch('https://hub/cron', { method: 'POST' });
-  }
-};
+}
 
 /* ---------- the Corner: classes, people, facilitators and roles ---------- */
 const HUB_SQL = [
@@ -507,8 +550,39 @@ const HUB_SQL = [
   // students asking the admin: a sign-in key (kind signin), or "I can't see my old records" (kind help, other = the old number)
   'CREATE TABLE IF NOT EXISTS areq (rid TEXT PRIMARY KEY, kind TEXT, phone TEXT, name TEXT, other TEXT, note TEXT, at INTEGER, code TEXT, status TEXT, updated INTEGER, by TEXT)',
   // excuses a student sent from the app, waiting for the class's facilitators
-  'CREATE TABLE IF NOT EXISTS xreq (rid TEXT PRIMARY KEY, k TEXT, sid TEXT, phone TEXT, name TEXT, date TEXT, reason TEXT, at INTEGER, status TEXT, updated INTEGER, by TEXT)'
+  'CREATE TABLE IF NOT EXISTS xreq (rid TEXT PRIMARY KEY, k TEXT, sid TEXT, phone TEXT, name TEXT, date TEXT, reason TEXT, at INTEGER, status TEXT, updated INTEGER, by TEXT)',
+  // the change log of every database (see chgSetup): rows are only added, each sealed to the one before
+  'CREATE TABLE IF NOT EXISTS changes (seq INTEGER PRIMARY KEY, at INTEGER, kind TEXT, who TEXT, role TEXT, ip TEXT, action TEXT, place TEXT, target TEXT, op TEXT, before TEXT, after TEXT, kid TEXT, seal TEXT)',
+  // restore points of the Corner itself (classes, people, accounts, roles), like each class's backups
+  'CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, why TEXT, data TEXT)',
+  'CREATE TABLE IF NOT EXISTS backup_parts (bid INTEGER, n INTEGER, data TEXT, PRIMARY KEY (bid, n))'
 ];
+const HUB_TABLES = ['props', 'classes', 'people', 'enrol', 'staff', 'roles', 'accounts', 'areq', 'xreq'];
+// a restore keeps today's sign-ins and the log's key: only the data goes back
+const RESTORE_KEEP_PROPS = { epoch: 1, aep: 1, inited: 1, chgKey: 1, backup: 1, dangerBak: 1, bkAt: 1 };
+// a restore point is stored in pieces: one SQLite value holds at most 2 MB
+function bkSave(sql, tx, why, text, kept) {
+  const at = Date.now(), PART = 500000;
+  let bid = 0;
+  tx(() => {
+    bid = sql.exec("INSERT INTO backups (at, why, data) VALUES (?, ?, '') RETURNING id", at, why || '').one().id;
+    for (let i = 0, n = 0; i < text.length; i += PART, n++) sql.exec('INSERT INTO backup_parts (bid, n, data) VALUES (?, ?, ?)', bid, n, text.slice(i, i + PART));
+    sql.exec('DELETE FROM backups WHERE id NOT IN (SELECT id FROM backups ORDER BY id DESC LIMIT ?)', kept);
+    sql.exec('DELETE FROM backup_parts WHERE bid NOT IN (SELECT id FROM backups)');
+  });
+  return { id: bid, at };
+}
+function bkList(sql) {
+  return sql.exec('SELECT b.id, b.at, b.why, LENGTH(b.data) + COALESCE((SELECT SUM(LENGTH(p.data)) FROM backup_parts p WHERE p.bid = b.id), 0) AS size FROM backups b ORDER BY b.id DESC').toArray();
+}
+function bkRead(sql, id) {
+  const b = sql.exec('SELECT id, at, why, data FROM backups WHERE id = ?', Number(id)).toArray()[0];
+  if (!b) return null;
+  const text = b.data || sql.exec('SELECT data FROM backup_parts WHERE bid = ? ORDER BY n', b.id).toArray().map(r => r.data).join('');
+  try { return { id: b.id, at: b.at, why: b.why, snap: JSON.parse(text) }; } catch (e) { return null; }
+}
+const RP_NOW = 'rp:27';
+const RP_WHY = 'Restore point before the security update (server 27)';
 // student app sign-in: a key from the admin works once within KEY_DAYS; a phone stays signed in for STU_DAYS after its last use
 const KEY_DAYS = 7, STU_DAYS = 180, KEY_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const newKey = () => { const a = new Uint8Array(8); crypto.getRandomValues(a); return Array.from(a, x => KEY_ABC[x & 31]).join(''); };
@@ -519,9 +593,22 @@ const okName = n => n.length >= 2 && n.length <= 60 && /^[\p{L}\p{M} .'-]+$/u.te
 const mask = n => cleanNm(n).split(' ').map(w => w.slice(0, 2) + (w.length > 2 ? '*'.repeat(w.length - 2) : '')).join(' ');
 const hashPw = (pw, salt) => { let h = salt + ':' + pw; for (let i = 0; i < 300; i++) h = SHA.hex(salt + h); return h; };
 const fail = (reason, message) => ({ ok: false, reason, message });
+// a password a classmate could guess in a few tries is refused: too short, only digits, the mobile number, or a common one
+const WEAK_PW = /^(password|passw0rd|qwerty|qwertyuiop|asdfghjk|abcdefgh|abcd1234|iloveyou|letmein|welcome|sunshine|princess|football|admin123|student|computer|internet|cyber|hacker|lanka|srilanka|matara|american)\d*$/i;
+const pwProblem = (pw, phone) => {
+  pw = String(pw || '');
+  if (pw.length < 8) return 'Choose a password with at least 8 characters.';
+  if (/^\d+$/.test(pw)) return 'Use letters too, not only numbers.';
+  if (/^(.)\1+$/.test(pw) || WEAK_PW.test(pw)) return 'That password is too easy to guess. Choose another one.';
+  if (phone && pw.replace(/\D/g, '').includes(String(phone).slice(1))) return 'Don’t use your mobile number in your password.';
+  return '';
+};
 // the admin's Danger zone: look at any table, change a cell, delete or add a row, or run SQL.
 // Long values (photos, backups) are cut for the screen and can't be edited from there.
-const DB_SKIP = /^(_cf_|sqlite_|__)/;  // Cloudflare's own tables (and the local test server's)
+// Cloudflare's own tables (and the local test server's), and the change log with its helpers, which nobody edits
+const DB_SKIP = /^(_cf_|sqlite_|__|changes$|chg_|backups$|backup_parts$)/;
+// SQL that names the change log, its triggers or the schema is refused, so the log can't be switched off or rewritten
+const SQL_GUARD = /\b(changes|chg_buf|chg_mute|chg_meta|backups|backup_parts|trigger|sqlite_master|sqlite_schema|sqlite_temp_master|writable_schema)\b|\bchg_\w+/i;
 const SHOW_MAX = 300;
 const dbCell = v => (v instanceof ArrayBuffer ? '[' + v.byteLength + ' bytes]' : typeof v === 'string' && v.length > SHOW_MAX ? v.slice(0, SHOW_MAX) : v);
 const dbRow = r => { const o = {}, cut = []; for (const c in r) { o[c] = dbCell(r[c]); if (typeof r[c] === 'string' && r[c].length > SHOW_MAX) cut.push(c); } if (cut.length) o._cut = cut; return o; };
@@ -536,6 +623,7 @@ function dbTool(sql, tx, q) {
       const text = String(q.sql || '').trim();
       if (!text) return fail('input', 'Type a query.');
       if (text.length > 20000) return fail('input', 'That query is too long.');
+      if (SQL_GUARD.test(text)) return fail('input', 'The change log, the restore points and the database schema can’t be read or changed with SQL. See American Corner › Change log, and Restore points above.');
       const out = { ok: true, cols: [], rows: [], more: false, read: 0, written: 0 };
       tx(() => {
         const cur = sql.exec(text);
@@ -578,6 +666,129 @@ function dbTool(sql, tx, q) {
 }
 const okPhoto = p => typeof p === 'string' && p.length <= 40000 && /^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+\/]+=*$/.test(p);
 
+/* ---------- the change log ----------
+   Every database has triggers that copy each changed row (before and after) into chg_buf, inside the same
+   transaction as the change, so nothing that writes can skip them: the page, a student, the Danger zone's
+   editor and SQL, an import or a restore. At the end of each request the rows go to the Corner's `changes`
+   table with who did it, their role and where from. There, rows are only ever added: triggers refuse to edit
+   or delete them, the Danger zone can't name the table, and each row carries a seal (an HMAC of the row and
+   the seal before it, keyed by the SETUP_KEY secret, which is not in any database). A row changed or removed
+   any other way breaks the chain, and the admin's Change log page says where. */
+const CHG_VER = 1;
+// tables that change all the time and mean nothing (caches, backups, the log's own rows)
+const CHG_SKIP = /^(kv|chg_buf|chg_mute|chg_meta|changes|backups|backup_parts|audit|_cf_.*|sqlite_.*|__.*)$/;
+// props that are bookkeeping, not settings
+const CHG_PROP_SKIP = "k NOT IN ('roomNet','backup','dangerBak','sver','idNext','inited','chgKey','bkAt') AND k NOT LIKE 'ver:%' AND k NOT LIKE 'sched:%' AND k NOT LIKE 'rp:%'";
+// what is never written into the log as it is: password hashes, keys, codes and pictures
+const CHG_SECRET_COLS = { salt: 1, hash: 1, code: 1 };
+const CHG_SECRET_PROPS = { adminHash: 1, adminSalt: 1, qrKey: 1, stuSecret: 1, trusted: 1 };
+const CHG_PIC_COLS = { photo: 1, logo: 1 };
+// how a row is named in the log
+const CHG_ID = {
+  t_students: o => o.id, t_attendance: o => o.id + ' ' + o.date, t_excuses: o => o.id + ' ' + o.date, t_days: o => o.date, t_profiles: o => o.id,
+  t_requests: o => o.rid, t_staff: o => o.id, t_log: o => o.ts + ' ' + o.action, props: o => o.k, classes: o => o.id, people: o => o.phone,
+  enrol: o => o.k + ' ' + o.sid, staff: o => o.id, roles: o => o.sid + ' ' + o.k, accounts: o => o.phone, areq: o => o.rid, xreq: o => o.rid
+};
+const CHG_ROWS = 200;  // rows kept in detail per request; a bigger change (an SQL update of every row) is summed up after that
+// never lets a database fail to start: without triggers the log still has every step, sign-in and failed try, just not each row
+function chgSetupSafe(sql) { try { chgSetup(sql); return ''; } catch (e) { return String(e && e.message || e); } }
+function chgSetup(sql) {
+  if (sql.exec("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'changes'").toArray().length) {
+    sql.exec("CREATE TRIGGER IF NOT EXISTS changes_keep_u BEFORE UPDATE ON changes BEGIN SELECT RAISE(ABORT, 'The change log can only grow.'); END");
+    sql.exec("CREATE TRIGGER IF NOT EXISTS changes_keep_d BEFORE DELETE ON changes BEGIN SELECT RAISE(ABORT, 'The change log can only grow.'); END");
+  }
+  sql.exec('CREATE TABLE IF NOT EXISTS chg_buf (n INTEGER PRIMARY KEY AUTOINCREMENT, tbl TEXT, op TEXT, old TEXT, new TEXT)');
+  sql.exec('CREATE TABLE IF NOT EXISTS chg_mute (x INTEGER)');
+  sql.exec('CREATE TABLE IF NOT EXISTS chg_meta (k TEXT PRIMARY KEY, v TEXT)');
+  const tables = sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").toArray().map(r => r.name).filter(n => !CHG_SKIP.test(n));
+  const cols = {}; for (const t of tables) cols[t] = sql.exec(`PRAGMA table_info("${t}")`).toArray().map(c => c.name);
+  // the triggers follow the tables: made again only when a table or column is new
+  const sig = JSON.stringify([CHG_VER, cols]), have = sql.exec("SELECT v FROM chg_meta WHERE k = 'sig'").toArray()[0];
+  if (have && have.v === sig) return;
+  const old = sql.exec("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'chg\\_%' ESCAPE '\\'").toArray().map(r => r.name);
+  for (const n of old) sql.exec(`DROP TRIGGER IF EXISTS "${n}"`);
+  const quiet = 'NOT EXISTS (SELECT 1 FROM chg_mute)';
+  for (const t of tables) {
+    const c = cols[t], obj = p => 'json_object(' + c.map(x => `'${x}', ${p}."${x}"`).join(', ') + ')';
+    const keep = p => (t === 'props' ? ' AND ' + CHG_PROP_SKIP.replace(/\bk\b/g, p + '.k') : '');
+    // an upsert that changes nothing is not a change; the time of a student's last visit isn't either
+    const diff = c.filter(x => !(t === 'accounts' && x === 'last')).map(x => `OLD."${x}" IS NOT NEW."${x}"`).join(' OR ');
+    // new activity log lines are the activity log itself; only edits and deletes of them are changes
+    if (t !== 't_log') sql.exec(`CREATE TRIGGER "chg_${t}_i" AFTER INSERT ON "${t}" WHEN ${quiet}${keep('NEW')} BEGIN INSERT INTO chg_buf (tbl, op, old, new) VALUES ('${t}', 'add', NULL, ${obj('NEW')}); END`);
+    sql.exec(`CREATE TRIGGER "chg_${t}_u" AFTER UPDATE ON "${t}" WHEN ${quiet}${keep('NEW')} AND (${diff}) BEGIN INSERT INTO chg_buf (tbl, op, old, new) VALUES ('${t}', 'edit', ${obj('OLD')}, ${obj('NEW')}); END`);
+    sql.exec(`CREATE TRIGGER "chg_${t}_d" AFTER DELETE ON "${t}" WHEN ${quiet}${keep('OLD')} BEGIN INSERT INTO chg_buf (tbl, op, old, new) VALUES ('${t}', 'del', ${obj('OLD')}, NULL); END`);
+  }
+  sql.exec("INSERT INTO chg_meta (k, v) VALUES ('sig', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v", sig);
+}
+// a big step (restore, clear a term, prune) writes one summary line instead of every row
+function chgQuiet(sql, fn, note) {
+  let on = true; try { sql.exec('INSERT INTO chg_mute VALUES (1)'); } catch (e) { on = false; }
+  try { return fn(); } finally {
+    if (on) { try { sql.exec('DELETE FROM chg_mute'); if (note) sql.exec("INSERT INTO chg_buf (tbl, op, old, new) VALUES ('', 'note', NULL, ?)", JSON.stringify(note)); } catch (e) {} }
+  }
+}
+const chgFp = v => '[hidden ' + SHA.hex('fp:' + v).slice(0, 6) + ']';
+function chgClean(t, o) {
+  if (!o) return o;
+  const x = {};
+  for (const k in o) {
+    const v = o[k];
+    if (v == null || v === '') { x[k] = v; continue; }
+    if (CHG_SECRET_COLS[k]) x[k] = chgFp(v);
+    else if (CHG_PIC_COLS[k]) x[k] = '[picture, ' + Math.round(String(v).length * 3 / 4096) + ' KB]';
+    else x[k] = String(v).length > 600 ? String(v).slice(0, 600) + '…' : v;
+  }
+  if (t === 'props' && x.k) {
+    if (CHG_SECRET_PROPS[x.k]) x.v = chgFp(o.v);
+    else if (x.k === 'branch') { try { const b = JSON.parse(o.v); if (b.logo) b.logo = '[picture]'; x.v = JSON.stringify(b); } catch (e) {} }
+  }
+  return x;
+}
+// the triggers' rows, ready for the log: secrets hidden, a delete and an add of the same row joined into one edit
+// (the class database rewrites a changed row that way), and only the columns that changed
+function chgDrain(sql) {
+  const raw = sql.exec('SELECT tbl, op, old, new FROM chg_buf ORDER BY n').toArray();
+  if (!raw.length) return [];
+  sql.exec('DELETE FROM chg_buf');
+  const out = [], dels = {}, more = {};
+  const P = v => { try { return v == null ? null : JSON.parse(v); } catch (e) { return null; } };
+  for (const r of raw) {
+    if (r.op === 'note') { out.push({ target: '', before: null, after: P(r.new) }); continue; }
+    const before = P(r.old), after = P(r.new), name = CHG_ID[r.tbl] ? CHG_ID[r.tbl](before || after || {}) : '';
+    const item = { table: r.tbl, row: String(name == null ? '' : name), op: r.op, before, after };
+    if (r.op === 'del') { const key = r.tbl + '|' + item.row; (dels[key] = dels[key] || []).push(out.length); }
+    if (r.op === 'add') {
+      const key = r.tbl + '|' + item.row, hit = dels[key] && dels[key].length ? dels[key].shift() : -1;
+      if (hit >= 0 && out[hit]) { out[hit].op = 'edit'; out[hit].after = after; continue; }
+    }
+    out.push(item);
+  }
+  const done = [];
+  for (const it of out) {
+    if (it.target === '') { done.push(it); continue; }
+    let b = chgClean(it.table, it.before), a = chgClean(it.table, it.after);
+    if (it.op === 'edit' && b && a) {
+      const keepB = {}, keepA = {};
+      for (const k in a) if (String(a[k]) !== String(b[k])) { keepB[k] = b[k]; keepA[k] = a[k]; }
+      if (!Object.keys(keepA).length) continue;
+      b = keepB; a = keepA;
+    }
+    if (done.length >= CHG_ROWS) { more[it.table] = (more[it.table] || 0) + 1; continue; }
+    done.push({ target: it.table.replace(/^t_/, '') + (it.row ? ' ' + it.row : ''), op: it.op, before: b, after: a });
+  }
+  for (const t in more) done.push({ target: t.replace(/^t_/, ''), op: 'more', before: null, after: { rows: more[t], note: 'more rows changed in this step than the log lists one by one' } });
+  return done;
+}
+const chgHex = a => a.map(x => ('0' + x.toString(16)).slice(-2)).join('');
+const chgBody = r => JSON.stringify([r.seq, r.at, r.kind, r.who, r.role, r.ip, r.action, r.place, r.target, r.op, r.before, r.after, r.kid]);
+// students' addresses are cut to the network (a.b.x.x); staff, the admin and failed sign-ins keep the full address
+const chgIp = (ip, role) => {
+  ip = String(ip || '');
+  if (role !== 'student' && role !== 'public') return ip;
+  if (ip.includes(':')) return ip.split(':').slice(0, 4).join(':') + '::/64';
+  return ip.replace(/^(\d+\.\d+)\.\d+\.\d+$/, '$1.x.x');
+};
+
 export class Corner extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -585,6 +796,7 @@ export class Corner extends DurableObject {
     HUB_SQL.forEach(q => this.sql.exec(q));
     // setup = 'no': a starter account that has not chosen its own password yet
     if (!this.all('PRAGMA table_info(staff)').some(c => c.name === 'setup')) this.sql.exec("ALTER TABLE staff ADD COLUMN setup TEXT DEFAULT 'yes'");
+    this.chgErr = chgSetupSafe(this.sql);
   }
   all(q, ...a) { return this.sql.exec(q, ...a).toArray(); }
   one(q, ...a) { return this.all(q, ...a)[0] || null; }
@@ -683,6 +895,99 @@ export class Corner extends DurableObject {
     const coord = !!st && st.admin === 'coord';
     return { ok: true, me: this.staffOut(st), admin: !st, coord, hub: !st || coord, classes: this.classesOf(st) };
   }
+  /* ----- the change log (see chgSetup) ----- */
+  // the seal key is the SETUP_KEY secret, which no database holds; without one, a key kept here (weaker: the
+  // Danger zone can't read it, but someone with the Cloudflare account could)
+  chgKey() { const k = String(this.env.SETUP_KEY || ''); if (k.length >= 12) return k; let p = this.prop('chgKey'); if (!p) { p = randHex(32); this.prop('chgKey', p); } return p; }
+  chgKid() { return SHA.hex('kid:' + this.chgKey()).slice(0, 8); }
+  chgAdd(ctx, kind, items) {
+    if (!items || !items.length) return;
+    ctx = ctx || {};
+    const key = this.chgKey(), kid = this.chgKid(), role = String(ctx.role || 'system').slice(0, 20);
+    let last = this.one('SELECT seq, seal FROM changes ORDER BY seq DESC LIMIT 1') || { seq: 0, seal: '' };
+    const txt = v => (v == null ? '' : (typeof v === 'string' ? v : JSON.stringify(v)).slice(0, 4000));
+    for (const it of items) {
+      const r = { seq: last.seq + 1, at: Date.now(), kind: String(it.kind || kind), who: String(ctx.who || (role === 'system' ? 'server' : '')).slice(0, 120), role,
+        ip: chgIp(ctx.ip, it.kind === 'alert' || kind === 'alert' ? 'staff' : role), action: String(ctx.action || '').slice(0, 40), place: String(it.place || 'American Corner').slice(0, 60),
+        target: String(it.target || '').slice(0, 200), op: String(it.op || ''), before: txt(it.before), after: txt(it.after), kid };
+      r.seal = chgHex(SHA.hmac(key, last.seal + '\n' + chgBody(r)));
+      this.sql.exec('INSERT INTO changes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', r.seq, r.at, r.kind, r.who, r.role, r.ip, r.action, r.place, r.target, r.op, r.before, r.after, r.kid, r.seal);
+      last = r;
+    }
+  }
+  // a failed sign-in or a wrong key: kept with the full address, at most 60 an hour from one address
+  alert(ctx, target, after) {
+    const ip = String((ctx || {}).ip || ''), n = Number(this.kvGet('chga:' + ip) || 0) + 1;
+    if (n <= 61) this.kvPut('chga:' + ip, n, 3600);
+    if (n > 61) return;
+    if (n === 61) after = { note: 'More than 60 failed tries from this address within an hour. The rest are not listed one by one.' };
+    this.chgAdd(ctx, 'alert', [{ target, op: 'try', after }]);
+  }
+  chgFlush(ctx) { let items = []; try { items = chgDrain(this.sql); } catch (e) {} if (items.length) this.chgAdd(ctx, 'change', items); }
+  chgCheckRow(r, prev, key, kid) { return r.kid !== kid ? null : chgHex(SHA.hmac(key, prev + '\n' + chgBody(r))) === r.seal; }
+  chgList(q) {
+    const lim = Math.min(Math.max(Number(q.limit) || 100, 1), 200), before = Number(q.before) || 0, where = [], args = [];
+    if (before) { where.push('seq < ?'); args.push(before); }
+    if (['change', 'signin', 'alert'].includes(q.kind)) { where.push('kind = ?'); args.push(q.kind); }
+    if (q.role) { where.push('role = ?'); args.push(String(q.role)); }
+    const f = String(q.find || '').trim().slice(0, 100);
+    if (f) { where.push('(who LIKE ? OR ip LIKE ? OR action LIKE ? OR place LIKE ? OR target LIKE ? OR before LIKE ? OR after LIKE ?)'); for (let i = 0; i < 7; i++) args.push('%' + f + '%'); }
+    const W = where.length ? ' WHERE ' + where.join(' AND ') : '';
+    const rows = this.all(`SELECT * FROM changes${W} ORDER BY seq DESC LIMIT ?`, ...args, lim);
+    // each row shown is checked against the seal of the row before it
+    const key = this.chgKey(), kid = this.chgKid(), bySeq = {};
+    rows.forEach(r => { bySeq[r.seq] = r; });
+    const out = rows.map(r => {
+      const p = r.seq === 1 ? { seal: '' } : bySeq[r.seq - 1] || this.one('SELECT seal FROM changes WHERE seq = ?', r.seq - 1);
+      const o = Object.assign({}, r, { ok: p ? this.chgCheckRow(r, p.seal, key, kid) : false });
+      delete o.seal; delete o.kid; return o;
+    });
+    const top = this.one('SELECT MAX(seq) AS m, COUNT(*) AS n FROM changes') || {};
+    return { ok: true, rows: out, total: top.n || 0, last: top.m || 0, problem: this.chgErr || '', keyed: String(this.env.SETUP_KEY || '').length >= 12 };
+  }
+  // the whole chain, a few thousand rows per call (the page asks again from `next` until done)
+  async chgVerify(from) {
+    from = Math.max(1, Math.floor(Number(from) || 1));
+    const enc = new TextEncoder(), kid = this.chgKid();
+    const ck = await crypto.subtle.importKey('raw', enc.encode(this.chgKey()), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const rows = this.all('SELECT * FROM changes WHERE seq >= ? ORDER BY seq LIMIT 3000', from);
+    const total = (this.one('SELECT MAX(seq) AS m FROM changes') || {}).m || 0;
+    let prev = '';
+    if (from > 1) { const p = this.one('SELECT seal FROM changes WHERE seq = ?', from - 1); if (!p) return { ok: true, total, broken: { seq: from - 1, why: 'Entry ' + (from - 1) + ' is missing.' } }; prev = p.seal; }
+    let expect = from, old = 0;
+    for (const r of rows) {
+      if (r.seq !== expect) return { ok: true, total, broken: { seq: expect, why: 'Entries ' + expect + (r.seq - 1 > expect ? ' to ' + (r.seq - 1) : '') + ' are missing.' } };
+      if (r.kid !== kid) old++;
+      else {
+        const s = chgHex(Array.from(new Uint8Array(await crypto.subtle.sign('HMAC', ck, enc.encode(prev + '\n' + chgBody(r))))));
+        if (s !== r.seal) return { ok: true, total, broken: { seq: r.seq, why: 'Entry ' + r.seq + ' was changed after it was written.' } };
+      }
+      prev = r.seal; expect++;
+    }
+    return { ok: true, total, checked: rows.length, old, next: expect, done: expect > total };
+  }
+
+  /* ----- restore points of the Corner ----- */
+  snapshot() { const all = { kind: 'corner-copy', at: Date.now(), tables: {} }; for (const t of HUB_TABLES) all.tables[t] = this.all(`SELECT * FROM "${t}"`); return all; }
+  backupNow(why) { return bkSave(this.sql, fn => this.ctx.storage.transactionSync(fn), why, JSON.stringify(this.snapshot()), BACKUPS_KEPT); }
+  restore(id) {
+    const b = bkRead(this.sql, id);
+    if (!b || !b.snap || b.snap.kind !== 'corner-copy') return fail('input', 'That restore point is gone.');
+    const when = new Date(b.at + 330 * 60000).toISOString().slice(0, 16).replace('T', ' ');
+    this.backupNow('Before going back to ' + when);
+    const n = {};
+    chgQuiet(this.sql, () => this.ctx.storage.transactionSync(() => {
+      for (const t of HUB_TABLES) {
+        const rows = Array.isArray(b.snap.tables[t]) ? b.snap.tables[t] : [], cols = this.all(`PRAGMA table_info("${t}")`).map(c => c.name);
+        if (t === 'props') { rows.filter(r => r && !RESTORE_KEEP_PROPS[r.k] && !/^rp:/.test(r.k)).forEach(r => this.prop(r.k, r.v == null ? '' : r.v)); n.settings = rows.length; continue; }
+        this.sql.exec(`DELETE FROM "${t}"`);
+        for (const r of rows) { const use = cols.filter(c => r && c in r); if (use.length) this.sql.exec(`INSERT INTO "${t}" (${use.map(c => `"${c}"`).join(', ')}) VALUES (${use.map(() => '?').join(', ')})`, ...use.map(c => r[c])); }
+        n[t] = rows.length;
+      }
+    }), { restored: 'American Corner', from: when, why: b.why, rows: n });
+    return { ok: true, n, from: b.at };
+  }
+
   staffFor(k) {
     return this.all("SELECT s.*, r.role FROM staff s LEFT JOIN roles r ON r.sid = s.id AND r.k = ? ORDER BY s.name", k)
       .filter(r => r.role).map(r => Object.assign(this.staffOut(r), { role: r.role }));
@@ -832,37 +1137,43 @@ export class Corner extends DurableObject {
     if (this.over('aak:' + phone, 8, 900) || this.over('aai:' + String(q.ip || ''), 40, 900)) return fail('slow', 'Too many tries. Wait 15 minutes.');
     const r = code.length === 8 ? this.one("SELECT * FROM areq WHERE kind = 'signin' AND phone = ? AND code = ? AND status IN ('new', 'sent') AND at > ?", phone, code, now - KEY_DAYS * 86400000) : null;
     if (!r) return fail('key', 'That key is not right for this number, or it has expired. Ask for a new one.');
-    if (pw.length < 6) return fail('password', 'Choose a password with at least 6 characters.');
+    const weak = pwProblem(pw, phone); if (weak) return fail('password', weak);
     const cur = this.one('SELECT * FROM accounts WHERE phone = ?', phone), person = this.one('SELECT name FROM people WHERE phone = ?', phone);
     const salt = randHex(16), pv = cur ? Number(cur.pv) + 1 : 1;
     this.ctx.storage.transactionSync(() => {
       this.sql.exec('INSERT OR REPLACE INTO accounts VALUES (?, ?, ?, ?, ?, ?, ?, ?)', phone, person ? person.name : cur ? cur.name : r.name, salt, hashPw(pw, salt), pv, cur ? cur.photo : '', cur ? cur.created : now, now);
       this.sql.exec("UPDATE areq SET status = 'used', updated = ? WHERE rid = ?", now, r.rid);
     });
-    return { ok: true, token: this.stuTok(phone, pv), me: this.accOut(this.one('SELECT * FROM accounts WHERE phone = ?', phone)) };
+    return { ok: true, token: this.stuTok(phone, pv), trust: this.stuTrust(phone), me: this.accOut(this.one('SELECT * FROM accounts WHERE phone = ?', phone)) };
   }
+  // a phone that signed in before gets its own count of wrong passwords, so a classmate typing wrong passwords
+  // for someone else's number can't lock that student out of their own phone
+  stuTrust(phone) { const t = randHex(16); this.kvPut('strust:' + t, phone, STU_DAYS * 86400); return t; }
+  stuTrusted(t, phone) { return /^[a-f0-9]{32}$/.test(String(t || '')) && this.kvGet('strust:' + t) === phone; }
   accLogin(q) {
-    const phone = cleanPh(q.phone), fk = 'sfail:' + (phone || 'x'), ik = 'sfail:ip:' + String(q.ip || '');
+    const phone = cleanPh(q.phone), trust = this.stuTrusted(q.trust, phone), fk = 'sfail:' + (phone || 'x') + (trust ? ':t' : ''), ik = 'sfail:ip:' + String(q.ip || '');
     const f = Number(this.kvGet(fk) || 0), fi = Number(this.kvGet(ik) || 0);
-    if (f >= 10 || fi >= 60) return fail('locked', 'Too many wrong passwords. Wait 15 minutes, or ask for a new key.');
+    if (f >= 10 || (!trust && fi >= 60)) return fail('locked', 'Too many wrong passwords. Wait 15 minutes, or ask for a new key.');
     const a = phone ? this.one('SELECT * FROM accounts WHERE phone = ?', phone) : null;
     if (!a || hashPw(String(q.password || ''), a.salt) !== a.hash) {
       this.kvPut(fk, f + 1, 900); this.kvPut(ik, fi + 1, 900);
-      return fail('password', a || !phone ? 'Wrong number or password.' : 'This number has no account yet. Tap First time? to ask for a key.');
+      // the same answer whether or not the number has an account, so it can't be used to find who studies here
+      return fail('password', 'Wrong number or password. New here, or forgot it? Tap Ask for a key.');
     }
     this.sql.exec('DELETE FROM kv WHERE k = ?', fk);
     this.sql.exec('UPDATE accounts SET last = ? WHERE phone = ?', Date.now(), phone);
-    return { ok: true, token: this.stuTok(phone, a.pv), me: this.accOut(a) };
+    return { ok: true, token: this.stuTok(phone, a.pv), trust: trust ? q.trust : this.stuTrust(phone), me: this.accOut(a) };
   }
   accSave(q, phone) {
     const a = this.one('SELECT * FROM accounts WHERE phone = ?', phone);
     if (!a) return fail('signin', 'Sign in again.');
+    if (this.over('asv:' + phone, 30, 3600)) return fail('slow', 'Too many changes in a short time. Try again in an hour.');
     const out = { ok: true };
     if (q.name != null) { const n = cleanNm(q.name); if (!okName(n)) return fail('input', 'Type your name with letters only.'); out.renamed = n !== a.name; a.name = n; }
     if (q.photo != null) { if (q.photo !== '' && !okPhoto(q.photo)) return fail('input', 'That photo could not be used. Try another one.'); a.photo = q.photo; out.photo = true; }
     if (q.password != null) {
       if (hashPw(String(q.oldPassword || ''), a.salt) !== a.hash) return fail('input', 'Your current password is not right.');
-      if (String(q.password).length < 6) return fail('input', 'The new password needs at least 6 characters.');
+      const weak = pwProblem(q.password, phone); if (weak) return fail('input', weak);
       a.salt = randHex(16); a.hash = hashPw(String(q.password), a.salt); a.pv = Number(a.pv) + 1;
       // a new password signs out every other phone; this one gets a new sign-in
       out.token = this.stuTok(phone, a.pv);
@@ -951,8 +1262,21 @@ export class Corner extends DurableObject {
 
   async fetch(request) {
     const url = new URL(request.url);
-    if (url.pathname === '/cron') { this.sql.exec('DELETE FROM kv WHERE exp < ?', Date.now()); return json({ ok: true }); }
-    const q = await request.json(), req = q.req || {}, who = q.who;
+    if (url.pathname === '/cron') {
+      this.sql.exec('DELETE FROM kv WHERE exp < ?', Date.now());
+      // a restore point every night, always
+      try { this.backupNow('Nightly restore point'); } catch (e) {}
+      return json({ ok: true });
+    }
+    const q = await request.json(), ctx = q._ctx && typeof q._ctx === 'object' ? q._ctx : { role: 'system' };
+    // the first request after the security update keeps a restore point of everything as it was
+    if (!this.prop(RP_NOW)) { if (this.prop('inited')) { try { this.backupNow(RP_WHY); } catch (e) {} } this.prop(RP_NOW, '1'); }
+    if (q.op === 'chgVerify') return json(await this.chgVerify(q.from));
+    // whatever the step changed goes into the change log, with who asked for it
+    try { return this.route(q, ctx); } finally { this.chgFlush(ctx); }
+  }
+  route(q, ctx) {
+    const req = q.req || {}, who = q.who;
     switch (q.op) {
       case 'inited': return json({ inited: !!this.prop('inited') });
       case 'init': return json(this.init(q.seed));
@@ -1001,8 +1325,21 @@ export class Corner extends DurableObject {
         if (!me && cleanNm(q.name).toLowerCase() === cleanNm(p.name).toLowerCase()) return json({ ok: true });
         return json({ ok: false, other: p.name });
       }
-      case 'maintFails': return json({ locked: Number(this.kvGet('maintfail') || 0) >= 10 });
-      case 'maintFail': this.kvPut('maintfail', Number(this.kvGet('maintfail') || 0) + 1, 900); return json({ ok: true });
+      // wrong server keys: 10 from one address lock that address for 15 minutes; 200 from everywhere lock Setup for everyone
+      // (before, 10 from anywhere locked everyone, so a student could keep the admin out of Setup)
+      case 'maintFails': { const ip = String(ctx.ip || ''); return json({ locked: Number(this.kvGet('maintfail:ip:' + ip) || 0) >= 10 || Number(this.kvGet('maintfail') || 0) >= 200 }); }
+      case 'maintFail': {
+        const ip = String(ctx.ip || '');
+        this.kvPut('maintfail', Number(this.kvGet('maintfail') || 0) + 1, 900); this.kvPut('maintfail:ip:' + ip, Number(this.kvGet('maintfail:ip:' + ip) || 0) + 1, 900);
+        this.alert(Object.assign({}, ctx, { role: 'public', who: 'Setup' }), 'server key', { result: 'wrong server key' });
+        return json({ ok: true });
+      }
+      case 'maintOk': this.chgAdd(Object.assign({}, ctx, { role: 'setup', who: 'SETUP_KEY' }), 'change', [{ target: 'Setup › Cloudflare server tools', op: 'step', after: { step: String(q.step || '') } }]); return json({ ok: true });
+      case 'chg': this.chgAdd(ctx, 'change', (Array.isArray(q.rows) ? q.rows : []).slice(0, 2000)); return json({ ok: true });
+      case 'chgList': return json(this.chgList(q));
+      case 'bkList': return json({ ok: true, points: bkList(this.sql) });
+      case 'bkMake': { const b = this.backupNow(String(q.why || 'Restore point').slice(0, 120)); return json({ ok: true, id: b.id, at: b.at }); }
+      case 'bkRestore': return json(this.restore(q.id));
       case 'person': {
         const ph = cleanPh(q.phone), p = ph ? this.one('SELECT * FROM people WHERE phone = ?', ph) : null;
         return json({ person: p ? { name: p.name, masked: mask(p.name) } : null, staff: !!(ph && this.one('SELECT id FROM staff WHERE phone = ?', ph)) });
@@ -1012,8 +1349,18 @@ export class Corner extends DurableObject {
       case 'stuLogin': return json({ on: this.stuLogin() });
       case 'stuLoginSet': this.prop('stuLogin', q.on ? '1' : '0'); return json({ ok: true, on: this.stuLogin() });
       case 'accRequest': return json(this.accRequest(q));
-      case 'accActivate': return json(this.accActivate(q));
-      case 'accLogin': return json(this.accLogin(q));
+      case 'accActivate': {
+        const r = this.accActivate(q), c = Object.assign({}, ctx, { who: cleanPh(q.phone) || String(q.phone || '').slice(0, 20), role: 'student' });
+        if (r.ok) this.chgAdd(c, 'signin', [{ target: 'student app', op: 'key used', after: { phone: r.me.phone, name: r.me.name } }]);
+        else if (r.reason === 'key' || r.reason === 'slow') this.alert(c, 'student app key', { phone: cleanPh(q.phone), result: r.reason === 'slow' ? 'too many tries' : 'wrong key' });
+        return json(r);
+      }
+      case 'accLogin': {
+        const r = this.accLogin(q), c = Object.assign({}, ctx, { who: cleanPh(q.phone) || String(q.phone || '').slice(0, 20), role: 'student' });
+        if (r.ok) this.chgAdd(c, 'signin', [{ target: 'student app', op: 'signin', after: { phone: r.me.phone, name: r.me.name } }]);
+        else if (r.reason === 'password' || r.reason === 'locked') this.alert(c, 'student app sign-in', { phone: cleanPh(q.phone), result: r.reason === 'locked' ? 'locked out' : 'wrong password' });
+        return json(r);
+      }
       case 'accWho': return json(this.accWho(q.token));
       case 'accSave': return json(this.accSave(q, q.phone));
       case 'accLogout': {
@@ -1043,7 +1390,14 @@ export class Corner extends DurableObject {
       case 'xreqGet': return json({ request: this.one('SELECT * FROM xreq WHERE rid = ?', String(q.rid || '')) });
       case 'xreqSet': this.sql.exec('UPDATE xreq SET status = ?, updated = ?, by = ? WHERE rid = ?', q.status, Date.now(), q.by || '', String(q.rid || '')); return json({ ok: true, request: this.one('SELECT * FROM xreq WHERE rid = ?', String(q.rid || '')) });
       case 'xreqDrop': return json({ ok: true, n: this.sql.exec("DELETE FROM xreq WHERE rid = ? AND phone = ? AND status = 'new'", String(q.rid || ''), q.phone).rowsWritten });
-      case 'login': return json(this.login(req, q.ip));
+      case 'login': {
+        const r = this.login(req, q.ip), main = !req.phone;
+        const c = Object.assign({}, ctx, { who: r.ok ? (r.me ? r.me.name + ' · ' + r.me.phone : 'Admin') : main ? 'main password' : cleanPh(req.phone) || String(req.phone || '').slice(0, 20),
+          role: r.ok ? (r.corner.admin ? 'admin' : r.corner.coordinator ? 'coordinator' : 'facilitator') : 'public' });
+        if (r.ok) this.chgAdd(c, 'signin', [{ target: main ? 'admin sign-in' : 'staff sign-in', op: 'signin', after: { browser: req.trust && r.trust === req.trust ? 'trusted' : 'new' } }]);
+        else if (r.reason === 'password' || r.reason === 'locked') this.alert(c, main ? 'admin sign-in' : 'staff sign-in', { number: main ? '' : cleanPh(req.phone), result: r.reason === 'locked' ? 'locked out' : 'wrong password' });
+        return json(r);
+      }
       case 'logout': this.sql.exec('DELETE FROM kv WHERE k = ?', 'tok:' + String(req.token || '')); return json({ ok: true });
       case 'who': return json(this.who(q.token));
       case 'staffPhones': return json({ phones: this.all('SELECT phone FROM staff').map(r => r.phone) });
@@ -1085,26 +1439,27 @@ export class Corner extends DurableObject {
         let f = { n: 0, at: 0 }; try { f = JSON.parse(this.kvGet('dangerfail') || 'null') || f; } catch (e) {}
         const wait = f.n ? Math.min(60, 2 ** f.n) * 1000 - (Date.now() - f.at) : 0;
         if (wait > 0) return json(fail('wait', 'Wrong password. Try again in ' + Math.ceil(wait / 1000) + ' seconds.'));
-        if (!this.prop('adminHash') || hashPw(String(q.password || ''), this.prop('adminSalt')) !== this.prop('adminHash')) { this.kvPut('dangerfail', JSON.stringify({ n: f.n + 1, at: Date.now() }), 3600); return json(fail('password', 'The main password is not right.')); }
+        if (!this.prop('adminHash') || hashPw(String(q.password || ''), this.prop('adminSalt')) !== this.prop('adminHash')) { this.kvPut('dangerfail', JSON.stringify({ n: f.n + 1, at: Date.now() }), 3600); this.alert(ctx, 'Danger zone', { result: 'wrong main password' }); return json(fail('password', 'The main password is not right.')); }
         this.sql.exec("DELETE FROM kv WHERE k = 'dangerfail'");
         return json({ ok: true });
       }
       case 'dangerDb': return json(dbTool(this.sql, fn => this.ctx.storage.transactionSync(fn), q.q || {}));
       case 'audit':
         this.sql.exec('INSERT INTO audit VALUES (?, ?, ?)', Date.now(), String(q.db || ''), String(q.what || '').slice(0, 300));
+        this.chgAdd(ctx, 'change', [{ place: String(q.db || ''), target: 'Danger zone', op: 'step', after: { what: String(q.what || '').slice(0, 300) } }]);
         this.sql.exec('DELETE FROM audit WHERE rowid NOT IN (SELECT rowid FROM audit ORDER BY at DESC LIMIT 300)');
         return json({ ok: true });
       case 'auditList': return json({ audit: this.all('SELECT at, db, what FROM audit ORDER BY at DESC LIMIT 50') });
       case 'prune': {
         // what nothing points to any more: old sign-ins, enrolments and roles of deleted classes or accounts, people in no class
         const n = {};
-        this.ctx.storage.transactionSync(() => {
+        chgQuiet(this.sql, () => this.ctx.storage.transactionSync(() => {
           n.signins = this.sql.exec('DELETE FROM kv WHERE exp < ?', Date.now()).rowsWritten;
           n.enrolments = this.sql.exec('DELETE FROM enrol WHERE k NOT IN (SELECT id FROM classes)').rowsWritten;
           n.roles = this.sql.exec('DELETE FROM roles WHERE k NOT IN (SELECT id FROM classes) OR sid NOT IN (SELECT id FROM staff)').rowsWritten;
           n.people = this.sql.exec('DELETE FROM people WHERE phone NOT IN (SELECT phone FROM enrol)').rowsWritten;
           if (q.auditDays > 0) n.audit = this.sql.exec('DELETE FROM audit WHERE at < ?', Date.now() - q.auditDays * 86400000).rowsWritten;
-        });
+        }), { pruned: 'American Corner', rows: n });
         return json({ ok: true, n });
       }
       case 'signOutAll': {
@@ -1114,10 +1469,10 @@ export class Corner extends DurableObject {
         if (/^[a-f0-9]{16,64}$/.test(String(req.token || ''))) this.kvPut('tok:' + req.token, JSON.stringify({ sid: '', ep: this.epoch(), s8: '', aep: this.prop('aep') || '1' }), 21600);
         return json({ ok: true });
       }
-      case 'unlockAll': return json({ ok: true, n: this.sql.exec("DELETE FROM kv WHERE k LIKE 'loginfail%' OR k = 'maintfail'").rowsWritten });
+      case 'unlockAll': return json({ ok: true, n: this.sql.exec("DELETE FROM kv WHERE k LIKE 'loginfail%' OR k LIKE 'maintfail%' OR k LIKE 'sfail:%'").rowsWritten });
       case 'maint':
         if (req.op === 'setPassword') { const salt = randHex(20); this.prop('adminSalt', salt); this.prop('adminHash', hashPw(String(req.password || ''), salt)); this.prop('epoch', Number(this.epoch()) + 1); }
-        if (req.op === 'unlock') this.sql.exec("DELETE FROM kv WHERE k LIKE 'loginfail%' OR k = 'maintfail'");
+        if (req.op === 'unlock') this.sql.exec("DELETE FROM kv WHERE k LIKE 'loginfail%' OR k LIKE 'maintfail%' OR k LIKE 'sfail:%'");
         // sign out everywhere: every token, every trusted browser
         if (req.op === 'reset') { this.prop('epoch', Number(this.epoch()) + 1); this.sql.exec("DELETE FROM kv WHERE k LIKE 'loginfail%' OR k LIKE 'trust:%' OR k LIKE 'tok:%'"); }
         return json({ ok: true });
@@ -1134,6 +1489,7 @@ export class ClassRoom extends DurableObject {
     this.sql = ctx.storage.sql;
     this.tabs = {};   // each table kept in memory after the first read; only this object writes, so it stays right
     this.tables();
+    this.chgErr = chgSetupSafe(this.sql);
     this.cur = { net: null, staff: null };
     this.env_ = this.makeEnv();
   }
@@ -1249,8 +1605,8 @@ export class ClassRoom extends DurableObject {
     const key = this.env.SETUP_KEY || '';
     if (key.length < 12) return { ok: false, reason: 'nokey', message: 'Set the SETUP_KEY secret (12+ characters) on the Worker first: Cloudflare > the Worker > Settings > Variables and Secrets.' };
     const fails = Number(this.env_.cacheGet('maintfail') || 0);
-    if (fails >= 10) return { ok: false, reason: 'locked', message: 'Too many wrong server keys. Wait 15 minutes.' };
-    if (!sameText(req.key, key)) { this.env_.cachePut('maintfail', String(fails + 1), 900); return { ok: false, reason: 'key', message: 'Wrong server key.' }; }
+    if (fails >= 200) return { ok: false, reason: 'locked', message: 'Too many wrong server keys. Wait 15 minutes.' };
+    if (typeof req.key !== 'string' || !sameText(req.key, key)) { this.env_.cachePut('maintfail', String(fails + 1), 900); return { ok: false, reason: 'key', message: 'Wrong server key.' }; }
     const core = this.core(), op = req.op;
     if (op === 'check') {
       const n = t => this.sql.exec(`SELECT COUNT(*) AS n FROM t_${t}`).one().n;
@@ -1266,7 +1622,7 @@ export class ClassRoom extends DurableObject {
       if (hasData && !req.replace) return { ok: false, reason: 'notempty', message: 'This server already has students or attendance. Tick "replace" to overwrite them.' };
       if (hasData) { try { this.backupNow('before copying data in'); } catch (e) { return { ok: false, reason: 'error', message: 'Could not back up the current data first, so nothing was replaced: ' + String(e.message || e) }; } }
       const counts = {};
-      this.ctx.storage.transactionSync(() => {
+      chgQuiet(this.sql, () => this.ctx.storage.transactionSync(() => {
         for (const t of Object.keys(TABLES)) {
           const rows = Array.isArray(d[t]) ? d[t].filter(r => r && typeof r === 'object') : [];
           this.sql.exec(`DELETE FROM t_${t}`);
@@ -1278,7 +1634,7 @@ export class ClassRoom extends DurableObject {
         // next student ID: after the highest one already given
         const nums = (Array.isArray(d.students) ? d.students : []).map(r => Number(String(r.id || '').replace(/\D/g, '')) || 0);
         if (nums.length) this.env_.setProp('idNext', String(Math.max(...nums) + 1));
-      });
+      }), { imported: 'a backup file (.json)', replaced: !!hasData, rows: counts });
       this.tabs = {};
       return { ok: true, counts };
     }
@@ -1310,7 +1666,7 @@ export class ClassRoom extends DurableObject {
     if (op === 'prune') {
       const n = { log: 0, backups: 0, requests: 0, cache: 0 };
       const days = Math.max(Number(q.logDays) || 0, 0), keep = q.backupsKept === '' || q.backupsKept == null ? -1 : Math.floor(Number(q.backupsKept));
-      this.ctx.storage.transactionSync(() => {
+      chgQuiet(this.sql, () => this.ctx.storage.transactionSync(() => {
         if (days) n.log = this.sql.exec('DELETE FROM t_log WHERE CAST(ts AS INTEGER) < ?', Date.now() - days * 86400000).rowsWritten;
         if (keep >= 0) {
           n.backups = this.sql.exec('DELETE FROM backups WHERE id NOT IN (SELECT id FROM backups ORDER BY id DESC LIMIT ?)', keep).rowsWritten;
@@ -1319,7 +1675,7 @@ export class ClassRoom extends DurableObject {
         // profile key requests that were used, dismissed, or never answered in 30 days
         n.requests = this.sql.exec("DELETE FROM t_requests WHERE status IN ('used', 'dismissed') OR CAST(at AS INTEGER) < ?", Date.now() - 30 * 86400000).rowsWritten;
         n.cache = this.sql.exec('DELETE FROM kv WHERE exp < ?', Date.now()).rowsWritten;
-      });
+      }), { pruned: 'class', rows: n });
       const info = this.backupInfo(); info.count = this.sql.exec('SELECT COUNT(*) AS n FROM backups').one().n; E.setProp('backup', JSON.stringify(info));
       return after({ ok: true, n });
     }
@@ -1329,10 +1685,35 @@ export class ClassRoom extends DurableObject {
     if (op === 'clearAttendance') {
       try { this.backupNow('before clearing attendance'); } catch (e) { return fail('error', 'Could not back up the class first, so nothing was cleared: ' + String(e.message || e)); }
       const n = {};
-      this.ctx.storage.transactionSync(() => { for (const t of ['attendance', 'excuses', 'days', 'log']) n[t] = this.sql.exec(`DELETE FROM t_${t}`).rowsWritten; });
+      chgQuiet(this.sql, () => this.ctx.storage.transactionSync(() => { for (const t of ['attendance', 'excuses', 'days', 'log']) n[t] = this.sql.exec(`DELETE FROM t_${t}`).rowsWritten; }), { cleared: 'attendance, excuses, class days and log (a restore point was made first)', rows: n });
       return after({ ok: true, n });
     }
+    // restore points: list, make one, go back to one (a restore point of now is made first, so going back can be undone)
+    if (op === 'backups') return { ok: true, points: bkList(this.sql) };
+    if (op === 'backup') { const info = this.backupNow(String(q.why || 'Restore point').slice(0, 120)); return { ok: true, at: info.last }; }
+    if (op === 'restore') return after(this.restore(q.id));
     return fail('action', 'Unknown step.');
+  }
+  restore(id) {
+    const b = bkRead(this.sql, id);
+    if (!b || !b.snap || !b.snap.tables) return fail('input', 'That restore point is gone.');
+    const when = new Date(b.at + 330 * 60000).toISOString().slice(0, 16).replace('T', ' ');
+    try { this.backupNow('Before going back to ' + when); } catch (e) { return fail('error', 'Could not keep a restore point of now first, so nothing was changed: ' + String(e.message || e)); }
+    const n = {}, E = this.env_;
+    chgQuiet(this.sql, () => this.ctx.storage.transactionSync(() => {
+      // the activity log stays as it is: it is the record of what happened since
+      for (const t of Object.keys(TABLES).filter(t => t !== 'log')) {
+        const rows = Array.isArray(b.snap.tables[t]) ? b.snap.tables[t].filter(r => r && typeof r === 'object') : [];
+        this.sql.exec(`DELETE FROM t_${t}`);
+        rows.forEach(o => this.sql.exec(`INSERT INTO t_${t} VALUES (${TABLES[t].map(() => '?').join(',')})`, ...TABLES[t].map(c => (o[c] == null ? '' : String(o[c])))));
+        n[t] = rows.length;
+      }
+      for (const k of Object.keys(b.snap.props || {})) if (!RESTORE_KEEP_PROPS[k] && !/^rp:/.test(k) && k !== 'sver') E.setProp(k, b.snap.props[k] == null ? '' : b.snap.props[k]);
+      // the Corner takes this class's student list as new
+      E.setProp('sver', String(Number(E.getProp('sver') || 0) + 1));
+    }), { restored: 'class', from: when, why: b.why, rows: n });
+    this.tabs = {};
+    return { ok: true, n, from: b.at };
   }
 
   // asked by the front door only (clients can't reach these paths)
@@ -1401,24 +1782,39 @@ export class ClassRoom extends DurableObject {
   async fetch(request) {
     const url = new URL(request.url);
     // a deleted class: everything it stored goes
-    if (url.pathname === '/int' && request.headers.get('x-wipe') !== null) { await this.ctx.storage.deleteAll(); this.tabs = {}; this.tables(); return json({ ok: true }); }
+    if (url.pathname === '/int' && request.headers.get('x-wipe') !== null) { await this.ctx.storage.deleteAll(); this.tabs = {}; this.tables(); this.chgErr = chgSetupSafe(this.sql); return json({ ok: true }); }
     if (url.pathname === '/cron' && request.headers.get('x-cron') === '1' && request.method === 'POST') {
-      if (this.backupInfo().auto) { try { this.backupNow('daily'); } catch (e) { const i = this.backupInfo(); i.error = String(e.message || e); i.errorAt = Date.now(); this.env_.setProp('backup', JSON.stringify(i)); } }
+      // a restore point every night, always (the switch on the page used to make this optional)
+      try { this.backupNow('Nightly restore point'); } catch (e) { const i = this.backupInfo(); i.error = String(e.message || e); i.errorAt = Date.now(); this.env_.setProp('backup', JSON.stringify(i)); }
       this.sql.exec('DELETE FROM kv WHERE exp < ?', Date.now());
       return json({ ok: true });
     }
-    if (url.pathname === '/int') return json(this.internal(await request.json()));
+    // the first request after the security update keeps a restore point of the class as it was
+    if (this.env_.getProp(RP_NOW) == null) {
+      try { if (this.sql.exec('SELECT (SELECT COUNT(*) FROM t_students) + (SELECT COUNT(*) FROM t_attendance) AS n').one().n) this.backupNow(RP_WHY); } catch (e) {}
+      this.env_.setProp(RP_NOW, '1');
+    }
+    return json(this.answer(await this.handle(request, url)));
+  }
+  // what this request changed (the triggers' rows) rides back to the front door, which puts it in the change log
+  answer(out) {
+    let c = []; try { c = chgDrain(this.sql); } catch (e) {}
+    if (c.length && out && typeof out === 'object') out._chg = c;
+    return out;
+  }
+  async handle(request, url) {
+    if (url.pathname === '/int') return this.internal(await request.json());
     let net = null, staff = null;
     try { net = JSON.parse(request.headers.get('x-att-net') || 'null'); } catch (e) {}
     try { staff = JSON.parse(request.headers.get('x-att-staff') || 'null'); } catch (e) {}
-    if (request.method === 'GET') return json(this.run({ action: 'status' }, net, null));
+    if (request.method === 'GET') return this.run({ action: 'status' }, net, null);
     const body = await request.text();
-    if (body.length > MAX_IMPORT) return json({ ok: false, reason: 'input', message: 'Request too big.' });
+    if (body.length > MAX_IMPORT) return { ok: false, reason: 'input', message: 'Request too big.' };
     let req;
-    try { req = JSON.parse(body); } catch (e) { return json({ ok: false, reason: 'input', message: 'Bad request.' }); }
-    if (!req || typeof req !== 'object' || Array.isArray(req)) return json({ ok: false, reason: 'input', message: 'Bad request.' });
-    if (body.length > MAX_BODY && !(req.action === 'maint' && req.op === 'import')) return json({ ok: false, reason: 'input', message: 'Request too big.' });
-    if (req.action === 'maint') { this.cur = { net: null, staff: null }; return json(this.maint(req)); }
-    return json(this.run(req, net, staff));
+    try { req = JSON.parse(body); } catch (e) { return { ok: false, reason: 'input', message: 'Bad request.' }; }
+    if (!req || typeof req !== 'object' || Array.isArray(req)) return { ok: false, reason: 'input', message: 'Bad request.' };
+    if (body.length > MAX_BODY && !(req.action === 'maint' && req.op === 'import')) return { ok: false, reason: 'input', message: 'Request too big.' };
+    if (req.action === 'maint') { this.cur = { net: null, staff: null }; return this.maint(req); }
+    return this.run(req, net, staff);
   }
 }

@@ -212,6 +212,8 @@ input[type=checkbox]{width:20px;height:20px;min-height:0;accent-color:var(--navy
 .dz-sql textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9rem;min-height:110px}
 .dz-add{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--s3);margin:var(--s3) 0}
 .dz-add label{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8rem;color:var(--muted)}
+.cl-t td{vertical-align:top;font-size:.88rem}.cl-t .cl-v{min-width:200px;max-width:380px;overflow-wrap:anywhere;color:var(--muted)}.cl-t .cl-v s{opacity:.75}
+.cl-bar{flex-wrap:wrap}.cl-bar .search{flex:1 1 220px}@media (max-width:640px){.cl-bar{width:100%}.cl-bar .btn{flex:1 1 auto}}.cl-t .clk{color:var(--ink);font-weight:600}.cl-t tr.cl-alert td{background:color-mix(in srgb,var(--red) 7%,transparent)}
 .dz-log{list-style:none;margin:0;padding:0}.dz-log li{padding:10px 0;border-top:1px solid var(--line);font-size:.92rem}.dz-log li:first-child{border-top:0}
 .dz-log time{display:block;color:var(--muted);font-size:.8rem}
 .combo{position:relative}.combo input{padding-right:44px}
@@ -952,6 +954,7 @@ const ICON={
   stureq:IC('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 11h6M19 8v6"/>'),
   branch:IC('<path d="M5 21V4M5 4h11l-2 4 2 4H5"/><path d="M3 21h6"/>'),
   danger:IC('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>'),
+  changes:IC('<path d="M12 2.5 4 5.5v6c0 4.6 3.4 8.6 8 10 4.6-1.4 8-5.4 8-10v-6z"/><path d="M8.5 10.5h7M8.5 14h5"/>'),
   corner:IC('<path d="M3 21h18M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6M9 11h.01M15 11h.01"/>'),
   logout:IC('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>'),
   inbox:IC('<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/>')
@@ -1021,6 +1024,13 @@ const FOREIGN=!!QS&&SID===QS&&QS!==BUILT_IN&&QS!==PIN;
 if(BUILT_IN&&!wantDemo&&store.get('att-server')&&store.get('att-server')!==BUILT_IN)store.del('att-server');
 if(params.get('s')&&SID&&SID!=='demo')store.set('att-server',SID);
 const isDemo=()=>SID==='demo';
+// A link can carry another server (?s=). Anyone can make such a link or QR (a fake one in class would collect
+// passwords), so a password never goes to a server this page doesn't know without a clear warning first.
+async function foreignOk(){if(!FOREIGN||sess.get('att-foreign-ok'))return true;
+  const ok=await ask({title:'This link uses a different server',text:'Your password would go to '+serverUrl(SID)+', not to the class server. The real class QR never does this. If someone sent you this link or QR, stop and tell your facilitator. Continue only if you set up this server yourself.',ok:'Continue anyway',danger:true});
+  if(ok)sess.set('att-foreign-ok','1');return !!ok}
+// and students see it at the top before they type anything
+if(FOREIGN)addEventListener('DOMContentLoaded',()=>{const h=document.querySelector('#studentView .hero');if(h)h.insertAdjacentHTML('afterend','<div class="msg err" style="margin:12px auto;max-width:640px"><b>Careful: this link uses a different server</b> ('+esc(serverUrl(SID))+'), not the class server. The real class QR never does this. Don’t type your password here, and tell your facilitator who sent it.</div>')});
 // many classes (Cloudflare): the QR link says which class (?k=); facilitators pick theirs after signing in
 const okK=v=>/^[a-z0-9][a-z0-9-]{1,19}$/.test(v||'')?v:'';
 let STUK=okK(params.get('k')),ADMK=okK(store.get(SK('att-k')));
@@ -1474,8 +1484,10 @@ function appSignIn(msg,phone){
     if(!phone)return appSignIn('Type your mobile number, like 0771234567.',$('#apPhone').value);
     if(!pw)return appSignIn('Type your password.',phone);
     const b=e.submitter||$('#apIn .btn');b.disabled=true;b.textContent='Signing in…';
-    const r=await stuApi({action:'accLogin',phone,password:pw},false);
+    if(!await foreignOk())return appSignIn(null,phone);
+    const r=await stuApi({action:'accLogin',phone,password:pw,trust:store.get(SK('att-app-trust'))||''},false);
     if(!r.ok)return appSignIn(r.message,phone);
+    if(r.trust)store.set(SK('att-app-trust'),r.trust);
     store.set(SK('att-app-phone'),phone);appSave({token:r.token,phone:r.me.phone,name:r.me.name,photo:r.me.photo},keep);startApp()};
   if(!('ontouchstart' in window))setTimeout(()=>($('#apPhone').value?$('#apPw'):$('#apPhone')).focus(),60);
 }
@@ -1502,7 +1514,7 @@ function appKey(phone,code,msg){
     <p class="lead">Type the key the admin sent you, then choose a password only you know.</p>
     <form id="apKeyF" novalidate autocomplete="on"><div class="field"><label for="apPhone">Mobile number</label><input id="apPhone" name="username" class="big" type="tel" inputmode="tel" autocomplete="username" maxlength="16" placeholder="07X XXX XXXX" value="${esc(showPhone(phone||''))}"></div>
     <div class="field"><label for="apCode">Key</label><input id="apCode" class="code" maxlength="9" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX" value="${esc(code?code.slice(0,4)+'-'+code.slice(4):'')}"><div class="hint">8 letters and numbers. It works once, within 7 days.</div></div>
-    <div class="field"><label for="apPw">New password</label><input id="apPw" class="big" type="password" autocomplete="new-password" minlength="6"><div class="hint">At least 6 characters.</div></div>
+    <div class="field"><label for="apPw">New password</label><input id="apPw" class="big" type="password" autocomplete="new-password" minlength="8"><div class="hint">At least 8 characters, with letters. Not your mobile number.</div></div>
     <div class="field"><label for="apPw2">Type it again</label><input id="apPw2" class="big" type="password" autocomplete="new-password"></div>
     ${keepBox()}<div id="apMsg">${errBox(msg)}</div><button class="btn wide big">Save and sign in</button></form>
     <p class="hint mt" style="text-align:center"><button class="linkbtn" id="apBack">Back to sign in</button> · <button class="linkbtn" id="apAsk">I have no key</button></p>`;
@@ -1511,11 +1523,13 @@ function appKey(phone,code,msg){
     const bad=m=>{$('#apMsg').innerHTML=errBox(m)};
     if(!p)return bad('Type your mobile number, like 0771234567.');
     if(c.length!==8)return bad('Type the 8-letter key from the admin.');
-    if(pw.length<6)return bad('Choose a password with at least 6 characters.');
+    if(pw.length<8)return bad('Choose a password with at least 8 characters.');
     if(pw!==$('#apPw2').value)return bad('The two passwords are not the same.');
     const b=e.submitter||$('#apKeyF .btn');b.disabled=true;b.textContent='Saving…';
+    if(!await foreignOk()){b.disabled=false;b.textContent='Save and sign in';return}
     const r=await stuApi({action:'accActivate',phone:p,code:c,password:pw},false);
     if(!r.ok){b.disabled=false;b.textContent='Save and sign in';return bad(r.message)}
+    if(r.trust)store.set(SK('att-app-trust'),r.trust);
     store.set(SK('att-app-phone'),p);appSave({token:r.token,phone:r.me.phone,name:r.me.name,photo:r.me.photo},keep);toast('Welcome! You are signed in.');startApp()};
 }
 /* check in: the code finds the class, the student confirms, done */
@@ -1636,7 +1650,7 @@ function appProfile(view,msg){
   if(view==='pw'){
     box.innerHTML=`<div class="card-h"><h2>Change password</h2></div><form id="apPwF" novalidate autocomplete="on"><input type="text" name="username" autocomplete="username" value="${esc(me.phone)}" hidden>
       <div class="field"><label for="apOld">Current password</label><input id="apOld" type="password" autocomplete="current-password"></div>
-      <div class="field"><label for="apNew">New password</label><input id="apNew" type="password" autocomplete="new-password" minlength="6"><div class="hint">At least 6 characters. Your other phones sign out.</div></div>
+      <div class="field"><label for="apNew">New password</label><input id="apNew" type="password" autocomplete="new-password" minlength="8"><div class="hint">At least 8 characters, with letters. Your other phones sign out.</div></div>
       <div id="apMsg"></div><div class="row"><button class="btn big grow">Change</button><button type="button" class="btn ghost big" id="apX">Cancel</button></div></form>`;
     $('#apX').onclick=()=>appProfile();
     $('#apPwF').onsubmit=async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;
@@ -1729,8 +1743,8 @@ function renderFirst(){
     STARTER='';SETUP_ME=null;toast('All set. Welcome!');DATA=null;showAdmin()};
 }
 // the Danger zone's unlock lives in memory only; signing out locks it
-const DZ={pw:'',at:0,db:'corner',table:'',offset:0,find:'',classes:[],audit:[]};
-function logoutLocal(){DZ.pw='';STARTER='';SETUP_ME=null;PHOTOS=null;photosAt=0;TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
+const DZ={pw:'',at:0,db:'corner',rpDb:'corner',table:'',offset:0,find:'',classes:[],audit:[]};
+function logoutLocal(){DZ.pw='';CL.rows=[];CL.stale=true;CL.check=null;STARTER='';SETUP_ME=null;PHOTOS=null;photosAt=0;TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
 // the admin signs in with the main password only: a mode to pick, not an empty box to remember
 function loginMode(admin){$('#lphoneF').hidden=admin;$('#loginT').textContent=admin?'Admin sign in':'Staff sign in';
   $('#loginP').textContent=admin?'The main password. It opens every class and every setting.':'Facilitators and coordinators sign in with their own number.';
@@ -1743,9 +1757,7 @@ $('#loginForm').onsubmit=async e=>{
     if(!lp&&!$('#lphoneF').hidden&&isCloud(SID)&&!isDemo()){$('#loginMsg').innerHTML='<div class="msg err">Type your mobile number, or choose Sign in as admin.</div>';btn.disabled=false;btn.textContent='Sign in';return}
     if(lp){body.phone=cleanPhone(lp);if(!body.phone){$('#loginMsg').innerHTML='<div class="msg err">Type a mobile number like 0771234567, or leave it empty.</div>';btn.disabled=false;btn.textContent='Sign in';return}store.set('att-lphone',lp)}else store.del('att-lphone');
     // a link can carry another server (?s=); never send the password there without asking
-    if(FOREIGN&&!sess.get('att-foreign-ok')){btn.disabled=false;btn.textContent='Sign in';
-      if(!await ask({title:'Sign in to a different server?',text:'This link points to a server this page doesn\'t know: '+serverUrl(SID)+'. Your password would go there. Only continue if you set up this server yourself.',ok:'Continue'}))return;
-      sess.set('att-foreign-ok','1');btn.disabled=true;btn.textContent='Checking…'}
+    if(FOREIGN&&!sess.get('att-foreign-ok')){btn.disabled=false;btn.textContent='Sign in';if(!await foreignOk())return;btn.disabled=true;btn.textContent='Checking…'}
     const r=await api(body);logRead('login',Date.now()-t0,r.ok?null:r.message);
     if(r.ok){if(r.trust)store.set('att-trust',r.trust);if(r.corner)pickClass(r.corner.classes);STARTER=r.me&&r.me.mustSetup?body.password:'';SETUP_ME=r.me&&r.me.mustSetup?r.me:null;TOKEN=r.token;QRKEY=r.qrKey;OFFSET=r.now-Date.now();sess.set('att-token',TOKEN);sess.set('att-qrkey',QRKEY);$('#pw').value='';showAdmin();opsAfterLogin()}
     else $('#loginMsg').innerHTML='<div class="msg err">'+esc(r.message)+'</div>';
@@ -1761,13 +1773,13 @@ $('#toSetup').onclick=()=>{location.hash='#setup'};
 $('#toStudent').onclick=()=>{location.hash=''};
 $('#toAdmin').onclick=()=>{location.hash='#admin'};
 
-const TABS_ALL=[['corner','Overview'],['users','Users'],['home','Today'],['live','Live QR'],['register','Register'],['students','Students'],['reports','Reports'],['excuses','Excuses'],['days','Class days'],['inbox','Inbox'],['team','Team'],['settings','Settings'],['log','Activity log'],['ops','Operations'],['danger','Danger zone'],['branch','Branch'],['stureq','Student requests']];
+const TABS_ALL=[['corner','Overview'],['users','Users'],['home','Today'],['live','Live QR'],['register','Register'],['students','Students'],['reports','Reports'],['excuses','Excuses'],['days','Class days'],['inbox','Inbox'],['team','Team'],['settings','Settings'],['log','Activity log'],['ops','Operations'],['danger','Danger zone'],['branch','Branch'],['stureq','Student requests'],['changes','Change log']];
 const TAB_NAME=Object.fromEntries(TABS_ALL);
 // who is using the page decides the menu: each role sees only what it can do
 // admin: main password, everything · coord: every class to look at, accounts · lead / fac: one class · single: older one-class server
 function roleNow(){const c=DATA&&DATA.corner;if(!c)return DATA&&DATA.me&&!DATA.owner?'fac':'single';if(c.coordinator)return 'coord';if(c.admin)return 'admin';return DATA.owner?'lead':'fac'}
 function tabsFor(r){const G=[],cn=DATA&&DATA.corner?DATA.corner.className:'This class';
-  if(r==='admin'||r==='coord')G.push(['American Corner',r==='admin'?['corner','users','stureq','branch','danger']:['corner','users','stureq']]);
+  if(r==='admin'||r==='coord')G.push(['American Corner',r==='admin'?['corner','users','stureq','branch'].concat(isCloud(SID)&&(DATA.status&&DATA.status.version||0)>=27?['changes']:[],['danger']):['corner','users','stureq']]);
   G.push([cn,r==='coord'?['home','register','students','reports','excuses','days','team']:['home','live','register','students','reports','excuses','days','inbox','team']]);
   if(r==='admin'||r==='lead'||r==='single')G.push(['Class tools',['settings','log','ops']]);
   return G.flatMap(([g,ks])=>ks.map(k=>[k,TAB_NAME[k],g]))}
@@ -1780,7 +1792,8 @@ const PAGES={corner:['American Corner','Every class today. Add, archive and dele
   team:['Team','Who runs this class. Accounts are made on the Users page.'],account:['My account','Your name, number, photo and password.'],
   stureq:['Student requests','Students asking for an app key, and students whose records are on an old number.'],
   branch:['Branch','The name and logo at the top left of every page, for students and staff. Each branch runs the same system with its own server.'],
-  danger:['Danger zone','Prune old data, critical steps, and a data editor with SQL. Changes go straight into the database.']};
+  danger:['Danger zone','Prune old data, critical steps, restore points, and a data editor with SQL. Changes go straight into the database.'],
+  changes:['Change log','Every change in every class and the American Corner: who made it, from where, and what it was before and after. Entries can’t be edited or removed.']};
 let BNAV=[];
 function navHTML(){let g='';return TABS.map(([k,l,grp])=>{const h=grp!==g?'<h6>'+esc(grp)+'</h6>':'';g=grp;return h+`<button class="nav-i${k===TAB?' on':''}" data-k="${k}"${k===TAB?' aria-current="page"':''}>${ICON[k]}<span>${l}</span></button>`}).join('')}
 function paintNav(){
@@ -1791,7 +1804,7 @@ function paintNav(){
   opsPaint();
 }
 function goTab(k){if(k==='more'){$('#moreSheet').showModal();return}if(k==='logout'){$('#moreSheet').close();$('#logout').click();return}
-  const was=TAB;TAB=k;sess.set('att-tab',TAB);if($('#moreSheet').open)$('#moreSheet').close();paintNav();
+  const was=TAB;TAB=k;sess.set('att-tab',TAB);if(k==='changes'){CL.stale=true;CL.check=null}if($('#moreSheet').open)$('#moreSheet').close();paintNav();
   // the new page slides in softly
   const box=$('#paneBox');box.classList.remove('swap');void box.offsetWidth;box.classList.add('swap');renderPane();
   document.body.classList.remove('tb-hide');window.scrollTo({top:0});
@@ -1884,14 +1897,14 @@ function wireClsMenu(){const btn=$('#clsBtn');if(!btn)return;const M=$('#clsMenu
     else if(e.key==='ArrowUp'){e.preventDefault();hi=Math.max(hi-1,0);paint();if(!Q)L.querySelectorAll('.clso')[hi].focus()}
     else if(e.key==='Enter'&&Q&&document.activeElement===Q&&n){e.preventDefault();go(list[hi].id)}}}
 function paintHead(acts){const [t,d]=PAGES[TAB];document.title=t+' · Class Attendance';
-  const cn=DATA&&DATA.corner&&!['corner','users','account','stureq','branch','danger'].includes(TAB)?DATA.corner.className:'';
+  const cn=DATA&&DATA.corner&&!['corner','users','account','stureq','branch','danger','changes'].includes(TAB)?DATA.corner.className:'';
   $('#phead').innerHTML=`<div class="phtxt">${clsSwitch(cn)}<h1>${esc(t)}</h1><p>${esc(d)}</p></div><div class="acts noprint" id="pacts"><span id="opsChip"></span>${acts||''}<button class="btn ghost" id="refresh">${ICON.refresh}<span>Refresh</span></button></div>`;
   $('#refresh').onclick=()=>{if(TAB==='stureq')SR.list=null;loadData(true)};wireClsMenu();opsPaint()}
 function renderPane(){
   stopLive();if(!DATA)return;paintHead();
   const box=$('#paneBox');
   if(!TABS.some(t=>t[0]===TAB)&&TAB!=='account'){TAB='home';paintNav();paintHead()}
-  ({corner:paneCorner,users:paneUsers,home:paneHome,inbox:paneInbox,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,ops:paneOps,danger:paneDanger,branch:paneBranch,stureq:paneStuReq,log:paneLog,settings:paneSettings,team:paneTeam,account:paneAccount})[TAB](box);
+  ({corner:paneCorner,users:paneUsers,home:paneHome,inbox:paneInbox,live:paneLive,register:paneRegister,reports:paneReports,students:paneStudents,excuses:paneExcuses,days:paneDays,ops:paneOps,danger:paneDanger,changes:paneChanges,branch:paneBranch,stureq:paneStuReq,log:paneLog,settings:paneSettings,team:paneTeam,account:paneAccount})[TAB](box);
   if(oldServer()){box.insertAdjacentHTML('afterbegin',oldServerHTML());$('#oldSrvCopy').onclick=copyServerCode}
   if(isCoord()&&TAB!=='corner'&&TAB!=='team'&&TAB!=='account')box.insertAdjacentHTML('afterbegin','<div class="msg mb vo"><b>View only.</b> '+esc(COORD_MSG)+'</div>');
   inboxBadge();stuBadge();
@@ -2799,6 +2812,48 @@ async function dzCall(o){
   if(!r.ok&&r.reason==='action')r.message='Deploy the new server code first (version 21).';
   return r;
 }
+/* Change log (admin): every change in every database, each entry sealed to the one before */
+const CL={rows:[],kind:'',find:'',total:0,keyed:true,more:false,check:null,err:'',stale:true};
+const CL_ROLE={admin:'Admin',coordinator:'Coordinator',lead:'Lead',facilitator:'Facilitator',student:'Student',public:'Not signed in',setup:'Server key',system:'Server'};
+const CL_OP={add:'Added',edit:'Changed',del:'Deleted',step:'Step',signin:'Signed in','key used':'Set password',try:'Failed try',more:'More'};
+// before and after in one column: each field that changed, old → new
+function clDiff(r){const P=t=>{if(t==null||t==='')return null;try{return JSON.parse(t)}catch(e){return t}},b=P(r.before),a=P(r.after),S=v=>v==null?'':typeof v==='object'?JSON.stringify(v):String(v);
+  if((b&&typeof b!=='object')||(a&&typeof a!=='object'))return esc(S(b))+(b!=null&&a!=null?' → ':'')+esc(S(a));
+  const keys=[...new Set(Object.keys(b||{}).concat(Object.keys(a||{})))];
+  return keys.map(k=>{const o=b&&k in b?S(b[k]):null,n=a&&k in a?S(a[k]):null;
+    return `<span class="clk">${esc(k)}</span> `+(o!=null&&n!=null?`<s>${esc(o)}</s> → ${esc(n)}`:o!=null?`<s>${esc(o)}</s>`:esc(n))}).join('<br>')}
+async function clLoad(more){
+  const r=await staffCall({action:'changes',kind:CL.kind,find:CL.find,before:more&&CL.rows.length?CL.rows[CL.rows.length-1].seq:0,limit:100});
+  if(!r.ok){CL.err=r.message||'Could not load the change log.';return}
+  CL.err='';CL.stale=false;CL.rows=more?CL.rows.concat(r.rows):r.rows;CL.total=r.total;CL.keyed=r.keyed;CL.problem=r.problem||'';CL.more=r.rows.length===100}
+function paneChanges(box){
+  if(!isAdmin()){box.innerHTML='<div class="msg err">Only the admin can see the change log.</div>';return}
+  const bad=CL.rows.filter(r=>r.ok===false),ck=CL.check;
+  const seal=ck?(ck.broken?`<div class="msg err mb"><b>The log was tampered with.</b> ${esc(ck.broken.why)} Everything after it may not be what really happened.</div>`
+      :ck.done?`<div class="msg good mb"><b>All ${esc(ck.total)} entries checked: unbroken.</b> Nothing was edited or removed.${ck.old?' '+esc(ck.old)+' older entries were sealed with an earlier server key and could only be checked for gaps.':''}</div>`
+      :`<div class="msg mb">Checking… ${esc(ck.next-1)} of ${esc(ck.total)}</div>`)
+    :bad.length?`<div class="msg err mb"><b>${bad.length} entr${bad.length===1?'y':'ies'} below ${bad.length===1?'does':'do'} not match ${bad.length===1?'its':'their'} seal.</b> Press Check the whole log.</div>`:'';
+  box.innerHTML=`<div class="pane">
+   ${CL.keyed?'':'<div class="msg mb">The seals use a key kept in the database because the Worker has no SETUP_KEY secret. Add SETUP_KEY in Cloudflare to make the seals stronger.</div>'}
+   ${CL.problem?'<div class="msg err mb">This server could not set up row-by-row recording ('+esc(CL.problem)+'). Steps, sign-ins and failed tries are still logged. Tell Claude.</div>':''}${seal}${CL.err?'<div class="msg err mb">'+esc(CL.err)+'</div>':''}
+   <div class="row mb" style="justify-content:space-between;flex-wrap:wrap"><div class="seg" id="clSeg">${[['','All'],['change','Changes'],['signin','Sign-ins'],['alert','Failed tries']].map(([k,l])=>`<button data-v="${k}" class="${CL.kind===k?'on':''}">${l}</button>`).join('')}</div>
+    <div class="row cl-bar"><div class="search">${ICON.search}<input id="clQ" type="search" placeholder="Search name, number, address, ID" value="${esc(CL.find)}"></div><button class="btn ghost" id="clCheck">Check the whole log</button><button class="btn ghost" id="clCsv">${ICON.download}<span>CSV</span></button></div></div>
+   <p class="hint mb">${esc(CL.total)} entries in all. Failed tries keep the full internet address; students’ own changes keep only the first half of it.</p>
+   <div class="tblwrap"><table class="cl-t"><thead><tr><th>#</th><th>When</th><th>Who</th><th>Where</th><th>What</th><th>Before → after</th><th title="Seal">✓</th></tr></thead><tbody>
+   ${CL.rows.map(r=>`<tr class="${r.kind==='alert'?'cl-alert':''}"><td class="num">${esc(r.seq)}</td><td class="nw">${esc(niceMs(Number(r.at)))}</td><td><b>${esc(r.who||'—')}</b>${(r.who||'')!==(CL_ROLE[r.role]||r.role)?` <span class="chip ${r.role==='admin'?'p':r.role==='public'?'a':'g'}">${esc(CL_ROLE[r.role]||r.role)}</span>`:''}${r.ip?'<br><span class="hint nw">'+esc(r.ip)+'</span>':''}</td><td>${esc(r.place)}</td><td>${esc(CL_OP[r.op]||r.op||'')} ${esc(r.target)}${r.action?'<br><span class="hint">'+esc(r.action)+'</span>':''}</td><td class="cl-v">${clDiff(r)}</td><td>${r.ok===true?'<span title="Seal matches" style="color:#15803d">✓</span>':r.ok===false?'<span title="Seal does not match" style="color:var(--red)">✕</span>':'<span class="hint" title="Sealed with an earlier key">·</span>'}</td></tr>`).join('')||`<tr><td colspan="7" class="hint">${CL.stale?'Loading…':CL.err?'':'Nothing here.'}</td></tr>`}
+   </tbody></table></div>
+   ${CL.more?'<div class="row mt"><button class="btn ghost" id="clMore">Show older entries</button></div>':''}</div>`;
+  if(CL.stale&&!CL.loading){CL.loading=true;clLoad(false).then(()=>{CL.loading=false;CL.stale=false;if(TAB==='changes')renderPane()})}
+  $('#clSeg').onclick=async e=>{const b=e.target.closest('button');if(!b)return;CL.kind=b.dataset.v;CL.rows=[];CL.stale=true;renderPane()};
+  let ft;$('#clQ').oninput=e=>{clearTimeout(ft);ft=setTimeout(async()=>{CL.find=e.target.value.trim();await clLoad(false);if(TAB==='changes'){renderPane();const q=$('#clQ');q.focus();q.setSelectionRange(q.value.length,q.value.length)}},350)};
+  if($('#clMore'))$('#clMore').onclick=async e=>{e.target.disabled=true;await clLoad(true);renderPane()};
+  $('#clCheck').onclick=async e=>{e.target.disabled=true;CL.check={next:1,total:CL.total};renderPane();
+    for(let from=1;;){const r=await staffCall({action:'changesCheck',from});if(!r.ok){CL.check=null;toast(r.message,true);break}
+      CL.check=Object.assign({},r,{next:r.next||from});if(r.broken||r.done){CL.check.done=r.done;break}from=r.next;if(TAB==='changes')renderPane()}
+    if(TAB==='changes')renderPane()};
+  $('#clCsv').onclick=()=>{const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+    download('change-log-'+DATA.today+'.csv',[['#','when','who','role','from','where','what','target','action','before','after','seal'].join(',')].concat(CL.rows.map(r=>[r.seq,new Date(Number(r.at)).toISOString(),r.who,r.role,r.ip,r.place,r.op,r.target,r.action,r.before,r.after,r.ok===true?'ok':r.ok===false?'BROKEN':'old key'].map(q).join(','))).join('\n'),'text/csv')};
+}
 const dzName=t=>t.replace(/^t_/,'');
 const dzDbName=id=>id==='corner'?'American Corner (shared)':((DZ.classes.find(c=>c.id===id)||{}).name||id)+((DZ.classes.find(c=>c.id===id)||{}).active===false?' (archived)':'');
 function paneDanger(box){
@@ -2835,6 +2890,10 @@ function paneDanger(box){
      <div class="dz-act"><div><b>Clear attendance</b><span class="hint">For a new term: the register, excuses, class days and log go. Students, team and settings stay. A backup is made first.</span></div><button class="btn danger" id="dzClr">Clear</button></div>
      <div id="dzCrMsg"></div></div>
    </div>
+   ${(DATA.status&&DATA.status.version||0)>=27?`<div class="card mt"><h3>Restore points</h3><p class="hint mb">A full copy of one database (a class, or the American Corner with its accounts and classes). One is made every night, before Danger zone changes and before clearing a term. Going back first makes a restore point of now, so it can be undone. The activity log and the change log are never rolled back.</p>
+    <div class="row" style="align-items:flex-end"><div class="field" style="margin:0;flex:1 1 260px"><label for="rpDb">Database</label><div class="combo"><input id="rpDb" role="combobox" aria-expanded="false" autocomplete="off" spellcheck="false" placeholder="Pick a database" value="${esc(dzDbName(DZ.rpDb))}"><button type="button" class="combo-b" tabindex="-1" aria-label="Show every database"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="combo-l" role="listbox" hidden></div></div></div>
+     <button class="btn" id="rpMake">Make a restore point of everything</button></div>
+    <div id="rpMsg"></div><div id="rpList" class="mt"></div></div>`:''}
    <div class="card mt"><div class="row" style="justify-content:space-between;align-items:flex-end"><div style="flex:1 1 280px"><h3>Data editor</h3><div class="field" style="margin:8px 0 0"><label for="dzDb">Database</label>${dbPick('dzDb')}</div></div>
      <div class="row"><input id="dzFind" type="search" placeholder="Search this table" style="width:220px;max-width:100%;flex:1 1 160px"><button class="btn ghost" id="dzAddT">Add row</button></div></div>
     <div class="dz-tabs" id="dzTabs"></div><div id="dzAddF"></div><div id="dzGrid"></div>
@@ -2867,6 +2926,26 @@ function paneDanger(box){
   combo($('#dzDb'),dbItems,k=>{DZ.db=k;DZ.table='';DZ.offset=0;DZ.find='';$('#dzFind').value='';$('#dzAddF').innerHTML='';loadTables()});
   $('#dzDb').addEventListener('blur',()=>setTimeout(()=>{$('#dzDb').value=dzDbName(DZ.db)},180));
   combo($('#dzCls'),()=>DZ.classes.map(c=>({id:c.id,name:c.name,note:c.active?'':'archived'})),()=>{});
+  // restore points: the list for the database picked, make one of every database, go back to one
+  const rpBox=$('#rpList');
+  const rpLoad=async()=>{if(!rpBox)return;rpBox.innerHTML='<span class="hint">Loading…</span>';
+    const r=await dzCall({op:'points',db:DZ.rpDb});if(!r.ok){if(relock(r))return;rpBox.innerHTML='<div class="msg err">'+esc(r.message)+'</div>';return}
+    const kb=n=>n>1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
+    rpBox.innerHTML=r.points.length?`<div class="tblwrap" style="max-height:50vh"><table><thead><tr><th>When</th><th>Why</th><th class="num">Size</th><th></th></tr></thead><tbody>${r.points.map(p=>`<tr><td class="nw">${esc(niceMs(Number(p.at)))}</td><td>${esc(p.why||'')}</td><td class="num">${esc(kb(Number(p.size)||0))}</td><td><button class="btn small danger" data-rp="${esc(p.id)}" data-at="${esc(p.at)}">Go back to this</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="hint">No restore points here yet. Make one with the button above.</p>'};
+  if(rpBox){
+    combo($('#rpDb'),dbItems,k=>{DZ.rpDb=k;rpLoad()});
+    $('#rpDb').addEventListener('blur',()=>setTimeout(()=>{$('#rpDb').value=dzDbName(DZ.rpDb)},180));
+    rpLoad();
+    rpBox.onclick=async e=>{const b=e.target.closest('[data-rp]');if(!b)return;const name=dzDbName(DZ.rpDb),when=niceMs(Number(b.dataset.at));
+      const v=await ask({title:'Go back to '+when+'?',text:name+' becomes exactly what it was then: '+(DZ.rpDb==='corner'?'classes, people, accounts, passwords and roles.':'students, attendance, excuses, days and settings.')+' Everything changed since is undone (a restore point of now is made first). Type RESTORE to confirm.',input:'',label:'Type RESTORE',ok:'Go back',danger:true});
+      if(v==null)return;b.disabled=true;
+      const r=await dzCall({op:'restore',db:DZ.rpDb,id:Number(b.dataset.rp),confirm:v});
+      if(!r.ok){b.disabled=false;if(!relock(r))m('#rpMsg',r.message);return}
+      DZ.dirty=true;m('#rpMsg',name+' is back to '+when+'. A restore point of just before was made, so this can be undone.',true);refreshLog();rpLoad()};
+    $('#rpMake').onclick=async()=>{const why=await ask({title:'Make a restore point of everything?',text:'A copy of the American Corner and of every class, kept on the server. Give it a name you will recognise later (optional).',input:'',label:'Name',ok:'Make it'});
+      if(why==null)return;const b=$('#rpMake'),list=['corner'].concat(DZ.classes.map(c=>c.id));b.disabled=true;let bad='';
+      for(let i=0;i<list.length;i++){b.textContent='Copying '+(i+1)+' of '+list.length+'…';const r=await dzCall({op:'point',db:list[i],why:why.trim()||'Made by the admin'});if(!r.ok){bad=dzDbName(list[i])+': '+r.message;if(relock(r))return;break}}
+      b.disabled=false;b.textContent='Make a restore point of everything';m('#rpMsg',bad||'Restore point made of the American Corner and '+(list.length-1)+' class'+(list.length===2?'':'es')+'.',!bad);refreshLog();rpLoad()}}
   const pickedCls=()=>{const k=$('#dzCls').dataset.k;return DZ.classes.find(c=>c.id===k)||null};
   // prune: the Corner, then each class in turn
   $('#dzPrune').onclick=async()=>{
@@ -3261,7 +3340,7 @@ function backupCard(){
   return `<div class="card mt" style="animation:none" id="bkCard"><h3>Backups</h3>
     <p class="mb">${b.last?'Last copy <b>'+esc(niceMs(b.last))+'</b>'+(link(b.url)?' · <a href="'+esc(b.url)+'" target="_blank" rel="noopener">open it</a>':'')+(link(b.folder)?' · <a href="'+esc(b.folder)+'" target="_blank" rel="noopener">all copies</a>':'')+'<br><span class="hint">'+(b.count||1)+(isCloud(SID)?' kept on the server.':' kept in Drive › Attendance backups.')+' The newest 30 are kept.</span>':(isCloud(SID)?'No copy yet. A copy is a full snapshot kept on the Cloudflare server; to keep one yourself, download the .json below.':'No copy yet. A copy is a full Google Sheet in your Drive, in a folder called Attendance backups.')}</p>
     ${b.error?'<div class="msg err mb">The last nightly copy failed: '+esc(b.error)+'</div>':''}
-    <label class="check"><input type="checkbox" id="bkAuto" ${b.auto?'checked':''}>Make a copy every night, about 10 pm</label>
+    ${isCloud(SID)&&(DATA.status.version||0)>=27?'<p class="hint">A restore point is made every night at about 10 pm, always. The admin can go back to any of them in Danger zone › Restore points.</p>':`<label class="check"><input type="checkbox" id="bkAuto" ${b.auto?'checked':''}>Make a copy every night, about 10 pm</label>`}
     <div class="row mt"><button class="btn" id="bkNow" type="button">${isCloud(SID)?'Back up now':'Back up to Drive now'}</button><button class="btn ghost" id="bkJson" type="button">Download full backup (.json)</button></div>
     <p class="hint mt">The download has every tab, including the whole activity log. Keep it somewhere private: it has phone numbers.</p></div>`;
 }
@@ -3270,7 +3349,7 @@ function paintBackup(box){
   now.onclick=async()=>{now.disabled=true;now.textContent='Copying…';const t0=Date.now();
     let r;try{r=await adminCall({action:'backup'})}catch(e){r={ok:false,message:e.message}}logRead('backup',Date.now()-t0,r.ok?null:r.message);
     if(r.ok){DATA.backup=r.backup;toast(isCloud(SID)?'Backed up':'Backed up to Drive');renderPane()}else{toast(r.message,true);now.disabled=false;now.textContent=isCloud(SID)?'Back up now':'Back up to Drive now'}};
-  box.querySelector('#bkAuto').onchange=async e=>{const on=e.target.checked;
+  if(box.querySelector('#bkAuto'))box.querySelector('#bkAuto').onchange=async e=>{const on=e.target.checked;
     let r;try{r=await adminCall({action:'backupAuto',on})}catch(err){r={ok:false,message:err.message}}
     if(r.ok){DATA.backup=r.backup;toast(on?'Nightly copy on':'Nightly copy off')}else{e.target.checked=!on;toast(r.message,true)}};
   box.querySelector('#bkJson').onclick=async e=>{const b=e.target;b.disabled=true;b.textContent='Preparing…';const t0=Date.now();

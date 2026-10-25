@@ -4,6 +4,8 @@ const fs = require('fs');
 const W = process.env.ATT_URL || 'http://localhost:8787/';
 const KEY = process.env.SETUP_KEY || fs.readFileSync(__dirname + '/../.dev.vars', 'utf8').match(/SETUP_KEY=(.*)/)[1].trim();
 const call = async b => (await fetch(W, { method: 'POST', body: JSON.stringify(b) })).json();
+// the same, from another internet address (wrangler dev takes the client's cf-connecting-ip; Cloudflare itself sets it)
+const callFrom = async (ip, b) => (await fetch(W, { method: 'POST', headers: { 'cf-connecting-ip': ip }, body: JSON.stringify(b) })).json();
 let f = 0; const ok = (n, v, x) => { console.log(v ? 'PASS' : 'FAIL', n, v ? '' : JSON.stringify(x).slice(0, 300)); if (!v) f++; };
 const section = n => console.log('\n## ' + n);
 (async () => {
@@ -86,8 +88,8 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  r=await D({op:'db',db:'cyber',q:{op:'sql',sql:"SELEC nonsense"}});ok('bad sql message',!r.ok&&/database said/.test(r.message),r);
  r=await D({op:'db',db:'cyber',q:{op:'add',table:'t_excuses',values:{date:'2026-10-01',id:'X',reason:'test'}}});ok('add row',r.ok&&r.rowid>0,r);
  r=await D({op:'db',db:'cyber',q:{op:'del',table:'t_excuses',rowid:r.rowid}});ok('del row',r.ok,r);
- r=await D({op:'db',db:'cyber',q:{op:'rows',table:'backups'}});ok('backup made before change',r.ok&&r.rows.some(b=>/Danger/.test(b.why)),r);
- r=await D({op:'db',db:'cyber',q:{op:'rows',table:'backup_parts'}});ok('long values cut',r.ok&&r.rows.every(x=>String(x.data).length<=300)&&r.rows.some(x=>x._cut),r);
+ r=await D({op:'points',db:'cyber'});ok('backup made before change',r.ok&&r.points.some(b=>/Danger/.test(b.why)),r);
+ r=await D({op:'db',db:'cyber',q:{op:'rows',table:'backups'}});ok('restore points are not editable by hand',!r.ok,r);
  r=await D({op:'prune',db:'cyber',logDays:0,backupsKept:''});ok('prune keeps backups when blank',r.ok&&r.n.backups===0,r);
  r=await D({op:'prune',db:'cyber',backupsKept:0});ok('prune backups',r.ok&&r.n.backups>=1,r);
  r=await D({op:'prune',db:'corner'});ok('prune corner',r.ok,r);
@@ -123,12 +125,12 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  r=await call({action:'stuInbox',token:A});const rq=(r.requests||[]).filter(x=>x.phone==='0761234567');
  ok('one request in the inbox, with who it is',rq.length===1&&rq[0].who.name==='Sahan Silva'&&rq[0].who.classes.length===1&&rq[0].code.length===8,r);
  r=await call({action:'data',token:A,k:c1});ok('admin sees the count',r.corner.stuReq>=1,r.corner);
- r=await call({action:'accActivate',phone:'0761234567',code:'AAAAAAAA',password:'secret1'});ok('wrong key',!r.ok&&r.reason==='key',r);
+ r=await call({action:'accActivate',phone:'0761234567',code:'AAAAAAAA',password:'secret-one'});ok('wrong key',!r.ok&&r.reason==='key',r);
  r=await call({action:'accActivate',phone:'0761234567',code:rq[0].code,password:'123'});ok('short password',!r.ok,r);
- r=await call({action:'accActivate',phone:'0761234567',code:rq[0].code,password:'secret1'});ok('activated',r.ok&&r.token&&r.me.name==='Sahan Silva',r);let T=r.token;
- r=await call({action:'accActivate',phone:'0761234567',code:rq[0].code,password:'secret2'});ok('key works once',!r.ok,r);
+ r=await call({action:'accActivate',phone:'0761234567',code:rq[0].code,password:'secret-one'});ok('activated',r.ok&&r.token&&r.me.name==='Sahan Silva',r);let T=r.token;
+ r=await call({action:'accActivate',phone:'0761234567',code:rq[0].code,password:'secret-two'});ok('key works once',!r.ok,r);
  r=await call({action:'accLogin',phone:'0761234567',password:'nope'});ok('wrong password',!r.ok,r);
- r=await call({action:'accLogin',phone:'0761234567',password:'secret1'});ok('sign in',r.ok&&r.token,r);const T2=r.token;
+ r=await call({action:'accLogin',phone:'0761234567',password:'secret-one'});ok('sign in',r.ok&&r.token,r);const T2=r.token;
  r=await call({action:'app',token:T});ok('home: one class',r.ok&&r.classes.length===1&&r.classes[0].k===c1,r);
  r=await call({action:'app',token:'0'.repeat(40)});ok('bad token',r.reason==='signin',r);
  // check in with the code of class 1: no class picked
@@ -154,12 +156,12 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  // profile: name and password
  r=await call({action:'appSave',token:T,name:'Sahan Kumara Silva'});ok('renamed',r.ok&&r.me.name==='Sahan Kumara Silva',r);
  r=await call({action:'data',token:A,k:c2});ok('new name in the class',r.students.some(s=>s.name==='Sahan Kumara Silva'),r.students);
- r=await call({action:'appSave',token:T,password:'secret9',oldPassword:'secret1'});ok('password changed',r.ok&&r.token,r);const T3=r.token;
+ r=await call({action:'appSave',token:T,password:'secret-nine',oldPassword:'secret-one'});ok('password changed',r.ok&&r.token,r);const T3=r.token;
  r=await call({action:'app',token:T2});ok('other phone signed out',r.reason==='signin',r);
  r=await call({action:'app',token:T3});ok('this phone kept',r.ok,r);
  // a new number: records are not there; the student tells the admin, the admin moves them
  r=await call({action:'stuKey',token:A,phone:'0769999999',name:'Sahan New Sim'});ok('admin gives a key',r.ok&&r.request.code,r);
- r=await call({action:'accActivate',phone:'0769999999',code:r.request.code,password:'newnum1'});ok('new number signs in',r.ok,r);const N=r.token;
+ r=await call({action:'accActivate',phone:'0769999999',code:r.request.code,password:'newnum-one'});ok('new number signs in',r.ok,r);const N=r.token;
  // they also registered again in class 1 with the new number (a second student ID)
  r=await call({action:'student',token:A,k:c1,name:'Sahan Kumara Silva',phone:'0769999999'});ok('second ID in class 1',r.ok,r);
  r=await call({action:'app',token:N});ok('new number: only the new ID',r.classes.length===1,r.classes);
@@ -194,5 +196,58 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  r=await call({action:'adminPassword',token:r.token,oldPassword:'newpass123',password:'pass12345'});ok('changed back',r.ok,r);
  }
 
+
+ section('Security: lockouts, passwords, change log, restore points');
+ {
+ const A=(await call({action:'login',password:'pass12345'})).token;
+ // wrong server keys from a student's address lock only that address
+ for(let i=0;i<11;i++)r=await callFrom('10.9.9.9',{action:'maint',key:'guess'+i,op:'check'});ok('wrong server keys lock that address',r.reason==='locked',r);
+ r=await callFrom('10.1.1.1',{action:'maint',key:KEY,op:'check'});ok('the admin elsewhere still gets in',r.ok,r);
+ r=await call({action:'maint',key:[KEY],op:'check'});ok('server key must be text',!r.ok,r);
+ // student app: weak passwords, a classmate can't lock a phone that signed in before, the same answer for any number
+ await call({action:'student',token:A,k:'cyber',name:'Ruwan Jayasuriya',phone:'0745550001'});
+ let kq=(await call({action:'stuKey',token:A,phone:'0745550001',name:'Ruwan Jayasuriya'})).request.code;
+ for(const pw of ['short1','12345678','password1','aaaaaaaa','x0745550001'])r=await call({action:'accActivate',phone:'0745550001',code:kq,password:pw}),ok('weak password refused: '+pw,!r.ok&&r.reason==='password',r);
+ r=await call({action:'accActivate',phone:'0745550001',code:kq,password:'blue-river-42'});ok('good password',r.ok&&r.trust,r);const ST=r.token,TR=r.trust;
+ for(let i=0;i<11;i++)r=await callFrom('10.7.7.7',{action:'accLogin',phone:'0745550001',password:'nope'+i});ok('classmate locked a new phone',r.reason==='locked',r);
+ r=await callFrom('10.8.8.8',{action:'accLogin',phone:'0745550001',password:'blue-river-42',trust:TR});ok('own phone still signs in',r.ok,r);
+ const m1=(await call({action:'accLogin',phone:'0745559999',password:'whatever1'})).message,m2=(await callFrom('10.6.6.6',{action:'accLogin',phone:'0761234567',password:'whatever1'})).message;
+ ok('same answer with or without an account',m1===m2,[m1,m2]);
+ let saves=0;for(let i=0;i<35;i++){r=await call({action:'appSave',token:ST,name:i%2?'Ruwan Jayasuriya':'Ruwan Jayasooriya'});if(r.ok)saves++}
+ ok('profile saves are limited',saves<=30&&r.reason==='slow',saves);
+ // change log: what changed, by whom, sealed; the Danger zone can't reach it
+ await call({action:'student',token:A,k:'cyber',name:'Log Test One',phone:'0745550002'});
+ r=await call({action:'changes',token:A,find:'Log Test One'});
+ const row=r.rows&&r.rows.find(x=>x.place==='Cyber Security'&&/^students /.test(x.target));
+ ok('change log has the new student',row&&row.op==='add'&&row.role==='admin'&&row.ok===true,r.rows&&r.rows.slice(0,3));
+ r=await call({action:'changes',token:A,kind:'alert'});ok('failed tries are listed with the address',r.rows.some(x=>x.ip==='10.9.9.9'&&x.target==='server key')&&r.rows.some(x=>x.ip==='10.7.7.7'),r.rows.slice(0,3));
+ r=await call({action:'changes',token:A,find:'0745550001',kind:'change'});ok('a student password is never shown',r.rows.length&&!JSON.stringify(r.rows).includes('blue-river')&&!/"hash":"[a-f0-9]{20,}/.test(JSON.stringify(r.rows)),r.rows.slice(0,2));
+ const F2=(await call({action:'login',phone:'0711111111',password:'owner1234'})).token;
+ r=await call({action:'changes',token:F2});ok('a facilitator cannot read the change log',!r.ok,r);
+ for(const q of ['DELETE FROM changes','UPDATE changes SET who = 1','DROP TRIGGER changes_keep_d','SELECT * FROM sqlite_master','PRAGMA writable_schema = 1'])
+   r=await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'sql',sql:q}}),ok('refused: '+q,!r.ok,r);
+ r=await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'tables'}});ok('the editor does not list the log',r.ok&&!r.tables.some(t=>/^(changes|chg_)/.test(t.name)),r.tables&&r.tables.map(t=>t.name));
+ r=await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'rows',table:'changes'}});ok('the editor cannot open the log',!r.ok,r);
+ let ck={next:1};for(;;){ck=await call({action:'changesCheck',token:A,from:ck.next});if(!ck.ok||ck.broken||ck.done)break}
+ ok('the whole chain checks out',ck.ok&&ck.done&&!ck.broken,ck);
+ // restore points: a class and the Corner go back, and going back can be undone
+ r=await call({action:'danger',token:A,password:'pass12345',op:'point',db:'cyber',why:'before the test'});ok('class restore point',r.ok,r);
+ const sid=(await call({action:'data',token:A,k:'cyber'})).students.find(x=>x.phone==='0745550002').id;
+ await call({action:'student',token:A,k:'cyber',id:sid,name:'Changed Later',phone:'0745550002'});
+ r=await call({action:'danger',token:A,password:'pass12345',op:'points',db:'cyber'});const pt=r.points.find(x=>x.why==='before the test');ok('listed',!!pt,r);
+ r=await call({action:'danger',token:A,password:'pass12345',op:'restore',db:'cyber',id:pt.id,confirm:'nope'});ok('needs RESTORE',!r.ok,r);
+ r=await call({action:'danger',token:A,password:'pass12345',op:'restore',db:'cyber',id:pt.id,confirm:'RESTORE'});ok('class went back',r.ok,r);
+ r=await call({action:'data',token:A,k:'cyber'});ok('name is back',r.students.find(x=>x.id===sid).name==='Log Test One',r.students.find(x=>x.id===sid));
+ r=await call({action:'danger',token:A,password:'pass12345',op:'points',db:'cyber'});ok('a restore point of just before was made',/^Before going back/.test(r.points[0].why),r.points[0]);
+ r=await call({action:'changes',token:A,find:'restored'});ok('the restore is in the change log',r.rows.some(x=>x.place==='Cyber Security'),r.rows.slice(0,2));
+ r=await call({action:'danger',token:A,password:'pass12345',op:'point',db:'corner',why:'corner test'});ok('Corner restore point',r.ok,r);
+ await call({action:'staffSave',token:A,name:'Temp Person',phone:'0745550003',password:'start123',k:'cyber',role:'instructor'});
+ r=await call({action:'people',token:A});
+ const cp=(await call({action:'danger',token:A,password:'pass12345',op:'points',db:'corner'})).points.find(x=>x.why==='corner test');
+ r=await call({action:'danger',token:A,password:'pass12345',op:'restore',db:'corner',id:cp.id,confirm:'RESTORE'});ok('Corner went back',r.ok,r);
+ r=await call({action:'login',phone:'0745550003',password:'start123'});ok('account made after it is gone',!r.ok,r);
+ r=await call({action:'data',token:A,k:'cyber'});ok('admin still signed in after a restore',r.ok,r);
+ r=await call({action:'danger',token:F2,password:'pass12345',op:'points',db:'corner'});ok('facilitator cannot use restore points',!r.ok,r);
+ }
  console.log(f ? '\n' + f + ' FAILED' : '\nALL PASS'); process.exit(f ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

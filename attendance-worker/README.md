@@ -137,3 +137,29 @@ Before anything changes (server version 25), **Move records** and **Mark done** 
 The app shows the student's name from the class lists (server version 26). The name typed when asking for a key is used only until the number is on a class list, so a name the admin fixes in **Students**, or one a move brings, reaches the app the next time it opens.
 
 New Corner tables: `accounts`, `areq` (sign-in and help requests), `xreq` (excuses sent from the app).
+
+## Security update: change log and restore points (server version 27)
+
+Students in the cyber security class will try to break in, so this version was checked the way a student attacker would and hardened. The full findings are in the pull request.
+
+**Change log** (American Corner › Change log, admin only)
+- Every change in every database is recorded: who made it (name and role), when, from which internet address, which row, and what each field was before and after. This covers changes made in the page, by students in the app, in the Danger zone (editor and SQL), by imports, restores and Setup.
+- Sign-ins and failed tries are listed too. Failed tries keep the full address; a student's own changes keep only the first half of it (like 112.134.x.x).
+- Passwords, keys, codes and photos are never written into the log, only that they changed.
+- The log can only grow. The database refuses to edit or delete its rows, the Danger zone can't open or name it, and every entry is sealed to the one before it with the SETUP_KEY secret. **Check the whole log** finds any entry that was changed or removed some other way.
+- **CSV** downloads the entries shown.
+
+**Restore points** (Danger zone › Restore points)
+- A restore point is a full copy of one database: a class, or the American Corner (classes, people, accounts, passwords, roles).
+- One is made every night at 10 pm (always on now), before Danger zone changes, before clearing a term, before each restore, and once automatically on the first request after this update ("Restore point before the security update"). The newest 30 per database are kept.
+- **Make a restore point of everything** copies the Corner and every class now, with a name you choose.
+- **Go back to this** (type RESTORE) puts that database back exactly as it was. A restore point of just before is made first, so going back can be undone. The activity log and the change log are never rolled back, and everyone stays signed in.
+- Restore points can't be edited or deleted by hand in the Danger zone (Prune still keeps the newest N, and is logged).
+
+**Sign-in and passwords**
+- Wrong server keys are counted per internet address (10 lock that address for 15 minutes, 200 from everywhere lock Setup). Before, 10 wrong keys from anyone locked the admin out of Setup.
+- A phone that signed in to the student app before has its own count of wrong passwords, so a classmate can't lock a student out by typing wrong passwords for their number.
+- The student app gives the same answer for a wrong password whether or not the number has an account.
+- New student passwords need 8 characters with letters, not only numbers, not the mobile number and not a common password.
+- A student can save their profile at most 30 times an hour.
+- A link or QR that points the page to another server (`?s=`) shows a red warning to students, and asks before any password (student or staff) goes there.

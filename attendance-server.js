@@ -30,7 +30,7 @@
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 26;
+var SERVER_VERSION = 27;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
