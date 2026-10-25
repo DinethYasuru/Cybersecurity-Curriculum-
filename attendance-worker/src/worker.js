@@ -1357,11 +1357,12 @@ export class Corner extends DurableObject {
     // one at a time: a key taken and not answered for 10 minutes counts as one try
     if (this.kvGet('wa:claim')) return wait(60, 'Waiting for the last message.');
     const list = this.all("SELECT * FROM areq WHERE kind = 'signin' AND status = 'new' AND at > ? AND at < ? ORDER BY at LIMIT 50", now - KEY_DAYS * 86400000, free ? now + 1 : now - 60000);
-    const r = list.find(x => Number(this.kvGet('wa:try:' + x.rid) || 0) < 2 && !this.one('SELECT id FROM staff WHERE phone = ?', x.phone)
+    // the helper tries a key twice; the Firebase queue tries again until the reader says the number has no WhatsApp
+    const r = list.find(x => Number(this.kvGet('wa:try:' + x.rid) || 0) < (free ? 9 : 2) && !this.one('SELECT id FROM staff WHERE phone = ?', x.phone)
       && (!c.known || this.one("SELECT sid FROM enrol WHERE phone = ? AND active != 'no'", x.phone)));
     if (!r) return wait(120, 'Nothing to send.');
     const claim = randHex(8);
-    this.kvPut('wa:claim', JSON.stringify({ rid: r.rid, claim, code: r.code }), hold);
+    this.kvPut('wa:claim', JSON.stringify({ rid: r.rid, claim, code: r.code, fb: !!free }), hold);
     this.kvPut('wa:try:' + r.rid, Number(this.kvGet('wa:try:' + r.rid) || 0) + 1, (KEY_DAYS + 1) * 86400);
     this.chgAdd(ctx, 'change', [{ target: 'areq ' + r.rid, op: 'helper took key', after: { phone: r.phone, name: r.name } }]);
     const link = new URL(c.base); link.searchParams.set('key', r.phone + '.' + r.code);
@@ -1447,11 +1448,9 @@ export class Corner extends DurableObject {
     let why = '';
     const say = async w => {
       why = w;
-      const last = this.kvGet('wa:fb');
       this.kvPut('wa:fb', JSON.stringify({ at: Date.now(), why: w }), 7 * 86400);
-      // the reader can show why nothing comes; written only when it changes
-      let lw = ''; try { lw = JSON.parse(last || '{}').why; } catch (e) {}
-      if (lw !== w) await fb('PUT', 'status', { why: w, at: Date.now() }).catch(() => {});
+      // the reader can show why nothing comes (written on every look, so a status deleted by hand comes back)
+      await fb('PUT', 'status', { why: w, at: Date.now() }).catch(() => {});
     };
     try {
       const c = this.waCfg(), cur = await fb('GET', 'current');
@@ -1468,6 +1467,9 @@ export class Corner extends DurableObject {
           await fb('DELETE', 'current');
         }
       }
+      // the slot no longer holds the key handed out (deleted by hand in the console, or replaced): it goes in again
+      // (a key handed out before this marked the queue's own keys counts as the queue's)
+      if (cl && cl.fb !== false && this.kvGet('wa:claim')) this.sql.exec("DELETE FROM kv WHERE k = 'wa:claim'");
       if (!c.on) { await say('Sending is turned off in Student requests.'); return { ok: true, why }; }
       // the slot is held for up to 12 hours: the laptop may be off
       const n = this.waTake(ctx, 12 * 3600, true);

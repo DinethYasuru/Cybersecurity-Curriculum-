@@ -314,7 +314,10 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  ok('the key is in the slot at once, pending',tree.current&&tree.current.flag==='pending'&&tree.current.phone==='94742220003'&&tree.current.text.includes('key=0742220003.')&&/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(tree.current.key)&&tree.current.link.includes('key=0742220003.')&&tree.current.name==='Fb',tree);
  const rid=tree.current&&tree.current.rid;
  await tick();ok('pending stays while the reader works',tree.current&&tree.current.rid===rid,tree);
- r=await call({action:'stuInbox',token:A});ok('still new in the app',r.requests.find(x=>x.rid===rid).status==='new'&&r.wa.fb&&/reader/.test(r.wa.fb.why),r.wa);
+ // deleted by hand in the console: the same key goes in again, and the status comes back
+ delete tree.current;delete tree.status;await tick();ok('a slot deleted by hand is filled again',tree.current&&tree.current.rid===rid&&tree.current.flag==='pending'&&tree.status,tree);
+ delete tree.current;await tick();delete tree.current;await tick();ok('and again (no try limit)',tree.current&&tree.current.rid===rid,tree);
+ r=await call({action:'stuInbox',token:A});ok('still new in the app',r.requests.find(x=>x.rid===rid).status==='new'&&r.wa.fb&&/reader|waiting/.test(r.wa.fb.why),r.wa);
  // a second student asks while the first is pending: it waits for the flag
  r=await call({action:'accRequest',phone:'0742220004',name:'Fb Second'});ok('second asks',r.ok,r);ok('first still in the slot',tree.current.rid===rid,tree);
  tree.current.flag='sent';r=await call({action:'fbPoke'});ok('poke',r.ok,r);
