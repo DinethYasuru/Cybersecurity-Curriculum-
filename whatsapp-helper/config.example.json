@@ -1,0 +1,6 @@
+{
+  "server": "https://cyber-attendance.dinethyasuru.workers.dev",
+  "helperKey": "paste the helper key from Student requests here",
+  "maxPerHour": 6,
+  "maxPerDay": 20
+}

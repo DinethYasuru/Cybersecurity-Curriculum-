@@ -1961,7 +1961,7 @@ function appKeyMessage(r){return `Hi ${String(r.name||'').split(' ')[0]}, your k
 const appWa=r=>'https://wa.me/94'+String(r.phone||'').replace(/^0/,'')+'?text='+encodeURIComponent(appKeyMessage(r));
 function stuBadge(){const n=DATA&&DATA.corner?DATA.corner.stuReq||0:0;document.querySelectorAll('.sbadge').forEach(e=>e.remove());
   if(n)document.querySelectorAll('[data-k="stureq"]').forEach(e=>e.insertAdjacentHTML('beforeend',`<span class="nbadge sbadge">${n}</span>`))}
-async function loadStuReq(){const r=await adminCall({action:'stuInbox',k:''});if(r.ok){SR.list=r.requests;SR.on=r.on;if(DATA&&DATA.corner)DATA.corner.stuReq=r.requests.filter(x=>x.status==='new'&&x.live).length;stuBadge()}return r}
+async function loadStuReq(){const r=await adminCall({action:'stuInbox',k:''});if(r.ok){SR.list=r.requests;SR.on=r.on;SR.wa=r.wa||null;if(DATA&&DATA.corner)DATA.corner.stuReq=r.requests.filter(x=>x.status==='new'&&x.live).length;stuBadge()}return r}
 function whoLine(w){if(!w)return '';return w.classes.length?`On the list as <b>${esc(w.name)}</b> in ${w.classes.map(c=>esc(c.name)+' ('+esc(c.sid)+')').join(', ')}`:'Not on any class list'}
 function paneStuReq(box){
   if(!SR.list){box.innerHTML='<div class="skel" style="height:260px"></div>';loadStuReq().then(r=>{if(TAB!=='stureq')return;if(!r.ok){box.innerHTML='<div class="msg err">'+esc(r.message)+'</div>';return}paneStuReq(box)});return}
@@ -1969,7 +1969,7 @@ function paneStuReq(box){
   const list=SR.f==='signin'?sign:SR.f==='help'?help:all;
   const ST={new:['New','x'],sent:['Sent','p'],used:['Signed in','p'],dismissed:['Dismissed','g'],done:['Done','p']};
   const chip=r=>{const st=!r.live&&(r.status==='new'||r.status==='sent')?['Expired','g']:ST[r.status]||[r.status,'g'];return `<span class="chip ${st[1]}">${esc(st[0])}</span>`};
-  const row=r=>r.kind==='signin'?`<div class="li inb"><div class="l">${avatar(r.name)}<div class="nm"><b>${esc(r.name)}</b><span>${esc(showPhone(r.phone))} · asked ${esc(niceMs(Number(r.at)))}${r.by?' · key made by '+esc(r.by):''}</span><span class="srwho">${whoLine(r.who)}${r.who&&r.who.account?' · has an account (a new key resets the password)':''}</span></div></div>
+  const row=r=>r.kind==='signin'?`<div class="li inb"><div class="l">${avatar(r.name)}<div class="nm"><b>${esc(r.name)}</b><span>${esc(showPhone(r.phone))} · asked ${esc(niceMs(Number(r.at)))}${r.by?' · key made by '+esc(r.by):''}</span><span class="srwho">${whoLine(r.who)}${r.who&&r.who.account?' · has an account (a new key resets the password)':''}</span>${r.waErr?`<span class="srwho">WhatsApp helper could not send it: ${esc(r.waErr)}</span>`:''}</div></div>
       <div class="inb-r">${chip(r)}${r.live?`<code class="kcode">${esc(fmtCode(r.code))}</code>
         <a class="btn small" href="${esc(appWa(r))}" target="_blank" rel="noopener" data-ssent="${esc(r.rid)}">Send on WhatsApp</a>
         <button class="btn small ghost" data-scopy="${esc(r.rid)}">Copy message</button>
@@ -1978,7 +1978,7 @@ function paneStuReq(box){
         ${r.note?`<span class="srwho">“${esc(r.note)}”</span>`:''}<span class="srwho">Old number: ${r.was?whoLine(r.was):'not a number we know'} · New number: ${whoLine(r.who)}</span></div></div>
       <div class="inb-r">${chip(r)}${r.live?`${isAdmin()&&r.was&&r.was.classes.length?`<button class="btn small" data-smove="${esc(r.rid)}">Move records</button>`:''}<button class="btn small ghost" data-sdone="${esc(r.rid)}">Mark done</button><button class="btn small ghost" data-sdis="${esc(r.rid)}">Dismiss</button>`:''}</div></div>`;
   box.innerHTML=`<div class="pane">
-    ${isAdmin()?`<div class="msg mb srsw"><label class="chk"><input type="checkbox" id="srOn"${SR.on!==false?' checked':''}> Students sign in to the app before they check in</label><span class="hint">${SR.on!==false?'On: check-in needs an app account.':'Off: students check in with their number, as before.'}</span></div>`:''}
+    ${isAdmin()?`<div class="msg mb srsw"><label class="chk"><input type="checkbox" id="srOn"${SR.on!==false?' checked':''}> Students sign in to the app before they check in</label><span class="hint">${SR.on!==false?'On: check-in needs an app account.':'Off: students check in with their number, as before.'}</span></div>${SR.wa?waCard(SR.wa):''}`:''}
     <div class="toolbar"><div class="seg" role="tablist"><button class="${SR.f==='signin'?'on':''}" data-f="signin">Sign-in keys (${sign.length})</button><button class="${SR.f==='help'?'on':''}" data-f="help">Records missing (${help.length})</button><button class="${SR.f==='all'?'on':''}" data-f="all">All, last 30 days (${all.length})</button></div></div>
     ${SR.f==='signin'?`<p class="hint mb">A student asks for a key on the check-in page. Check it is really them, then send the key on WhatsApp. The link in the message opens the app with the key filled in. It works once, within 7 days.</p>
       <details class="srform"><summary class="btn ghost small">Give a key without a request</summary><form id="srKey" class="row mt" novalidate><input id="srKP" type="tel" inputmode="tel" maxlength="16" placeholder="Mobile number"><input id="srKN" maxlength="60" placeholder="Name (if not on a class list)"><button class="btn">Make key</button></form></details>`:''}
@@ -2015,9 +2015,41 @@ function paneStuReq(box){
   const on=$('#srOn');if(on)on.onchange=async()=>{const want=on.checked;
     if(!want&&!await ask({title:'Let students check in without the app?',text:'They check in with their number again, with no password.',ok:'Turn off',danger:true})){on.checked=true;return}
     const r=await adminCall({action:'stuLoginSet',k:'',on:want});if(!r.ok){on.checked=!want;return toast(r.message,true)}SR.on=r.on;toast(r.on?'Students now sign in to check in.':'Students check in with their number.');redraw()};
+  waWire(redraw);
   const kf=$('#srKey');if(kf)kf.onsubmit=async e=>{e.preventDefault();const phone=cleanPhone($('#srKP').value);if(!phone)return toast('Type a mobile number like 0771234567.',true);
     const r=await adminCall({action:'stuKey',k:'',phone,name:$('#srKN').value});if(!r.ok)return toast(r.message,true);toast('Key made. Send it now.');await loadStuReq();redraw()};
   const mf=$('#srMove');if(mf)mf.onsubmit=e=>{e.preventDefault();const f=cleanPhone($('#srMF').value),t=cleanPhone($('#srMT').value);if(!f||!t)return toast('Type both numbers.',true);move(f,t,'')};
+}
+
+/* the WhatsApp helper (admin only): a program on the admin's laptop sends the sign-in keys from WhatsApp Web.
+   The server keeps the limits; the page sets them, makes the helper's key and shows when it last checked in. */
+function waBase(){const u=new URL('attendance.html',location.href);u.search='';u.hash='';if(isCloud(SID))u.searchParams.set('s',SID);return u.toString()}
+function waCard(w){
+  const ago=w.seen?Math.round((Date.now()-w.seen)/60000):-1;
+  const st=!w.hasKey?'No helper key yet. Open Helper settings.':ago<0?'The helper has not checked in yet.':ago<=5?'Helper running · sent '+w.day+' of '+w.perDay+' today':'Helper last checked in '+(ago<120?ago+' min':Math.round(ago/60)+' h')+' ago · sent '+w.day+' today';
+  return `<div class="msg mb"><div class="srsw"><label class="chk"><input type="checkbox" id="waOn"${w.on?' checked':''}> Send keys automatically from WhatsApp Web</label><span class="hint">${esc(st)}</span></div>
+    <details class="srform mt"><summary class="btn ghost small">Helper settings</summary>
+      <p class="hint mt">The helper runs on your laptop and sends each key to the number that asked for it, from your WhatsApp. To keep that number safe from a WhatsApp ban it sends slowly: the server allows at most 10 an hour and 40 a day, never two within 2 minutes, and only in the hours below. Use a spare number if you can. Setup steps: whatsapp-helper/README.md in the repository.</p>
+      <form id="waForm" class="row mt" novalidate>
+        <label class="hint">Per hour <input id="waH" type="number" min="1" max="10" value="${w.perHour}" style="width:5em"></label>
+        <label class="hint">Per day <input id="waD" type="number" min="1" max="40" value="${w.perDay}" style="width:5em"></label>
+        <label class="hint">Minutes between <input id="waG" type="number" min="2" max="60" value="${w.gap}" style="width:5em"></label>
+        <label class="hint">From <input id="waF" type="time" value="${esc(w.from)}"></label>
+        <label class="hint">To <input id="waT" type="time" value="${esc(w.to)}"></label>
+        <label class="chk"><input type="checkbox" id="waK"${w.known?' checked':''}> Only numbers on a class list</label>
+        <button class="btn small">Save</button></form>
+      <div class="row mt"><button class="btn small ghost" id="waNew">${w.hasKey?'Make a new helper key':'Make helper key'}</button>${w.hasKey?'<button class="btn small ghost" id="waRev">Stop the helper key</button>':''}</div></details></div>`}
+function waWire(redraw){
+  const save=async(cfg,extra)=>{const r=await adminCall(Object.assign({action:'waSave',k:'',cfg:Object.assign(/^https?:/.test(location.protocol)?{base:waBase()}:{},cfg)},extra||{}));if(!r.ok){toast(r.message,true);return null}SR.wa=r.wa;return r};
+  const on=$('#waOn');if(on)on.onchange=async()=>{const want=on.checked;
+    if(want&&!await ask({title:'Send keys automatically?',text:'The helper on your laptop sends each new key on WhatsApp, slowly and within your limits. WhatsApp may block a number that sends many messages to people who never saved it. A spare number is safest.',ok:'Turn on'})){on.checked=false;return}
+    const r=await save({on:want});if(!r){on.checked=!want;return}toast(want?'On. Keys go out while the helper runs.':'Off. The helper stops sending.');redraw()};
+  const f=$('#waForm');if(f)f.onsubmit=async e=>{e.preventDefault();const r=await save({perHour:$('#waH').value,perDay:$('#waD').value,gap:$('#waG').value,from:$('#waF').value,to:$('#waT').value,known:$('#waK').checked});if(r){toast('Saved.');redraw()}};
+  const nk=$('#waNew');if(nk)nk.onclick=async()=>{
+    if(SR.wa&&SR.wa.hasKey&&!await ask({title:'Make a new helper key?',text:'The old key stops working. Put the new one in the helper’s config.json.',ok:'Make new key'}))return;
+    const r=await save({},{newKey:true});if(!r)return;let copied=false;try{await navigator.clipboard.writeText(r.key);copied=true}catch(e){}
+    await ask({title:'Helper key',html:`<span class="srnote">Put this in the helper’s config.json as "helperKey". It is shown only once${copied?' and is copied now':''}. Anyone with it can take the sign-in keys waiting to be sent, so keep it on your laptop only.</span><code class="kcode" style="display:block;word-break:break-all;font-size:.95rem;margin-top:10px;user-select:all">${esc(r.key)}</code>`,ok:'Done'});redraw()};
+  const rv=$('#waRev');if(rv)rv.onclick=async()=>{if(!await ask({title:'Stop the helper key?',text:'The helper can’t send anything until you make a new key.',ok:'Stop key',danger:true}))return;const r=await save({},{revoke:true});if(r){toast('Helper key stopped.');redraw()}};
 }
 
 async function copyServerCode(){try{const t=await (await fetch('attendance-server.js',{cache:'no-store'})).text();await navigator.clipboard.writeText(t);toast('Server code copied')}catch(e){toast('Copy failed. Use "view" in Setup and copy by hand.',true)}}

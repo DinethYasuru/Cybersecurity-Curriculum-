@@ -1,0 +1,16 @@
+{
+  "name": "attendance-whatsapp-helper",
+  "private": true,
+  "description": "Sends class attendance app sign-in keys from WhatsApp Web, slowly, on the admin's own laptop.",
+  "main": "helper.js",
+  "scripts": {
+    "start": "node helper.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.34.7"
+  }
+}

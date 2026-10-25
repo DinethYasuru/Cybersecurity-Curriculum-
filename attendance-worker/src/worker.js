@@ -60,7 +60,9 @@ const STUDENT = { status: 1, lookup: 1, register: 1, checkin: 1, me: 1, profile:
 const APP_OPEN = { accRequest: 1, accActivate: 1, accLogin: 1 };
 const APP = { app: 1, appFind: 1, appCheckin: 1, appExcuse: 1, appExcuseDrop: 1, appSave: 1, appLogout: 1, appHelp: 1 };
 // the admin's (and coordinators') side of it: the requests inbox, keys, moving records to a new number, the on/off switch
-const STU_ADMIN = { stuInbox: 1, stuReq: 1, stuKey: 1, stuMove: 1, stuMoveCheck: 1, stuLoginSet: 1 };
+const STU_ADMIN = { stuInbox: 1, stuReq: 1, stuKey: 1, stuMove: 1, stuMoveCheck: 1, stuLoginSet: 1, waSave: 1 };
+// the WhatsApp helper on the admin's laptop: its own key, and only these two steps (the next key to send, and "sent")
+const WA_HELPER = { waNext: 1, waDone: 1 };
 const HUB_ADMIN = { corner: 1, classSave: 1, classDelete: 1, people: 1, staffSave: 1, myAccount: 1, adminPassword: 1, branchSave: 1 };
 // what a coordinator account may do inside a class: look, never change (and never get the QR key)
 const COORD_READ = { data: 1, today: 1, photos: 1, export: 1 };
@@ -236,6 +238,11 @@ async function serve(request, env, T) {
       return fail('action', 'Unknown step.');
     };
 
+    // the WhatsApp helper: never a person's sign-in, never any other data (see Corner.waNext)
+    if (WA_HELPER[a]) {
+      T.actor.role = 'helper'; T.actor.who = 'WhatsApp helper';
+      return json(await H(a, { key: req.helperKey, rid: req.rid, claim: req.claim, sent: req.sent === true, reason: req.reason }));
+    }
     if (a === 'login') return json(await H('login', { req, ip }));
     if (a === 'logout') return json(await H('logout', { req }));
     if (a === 'maint') {
@@ -433,7 +440,7 @@ async function serve(request, env, T) {
     if (STU_ADMIN[a]) {
       if (!who.hub) return json(fail('input', 'Only the admin and coordinators can see student requests.'));
       const by = who.me ? who.me.name : 'Admin';
-      if (a === 'stuInbox') return json(await H('areqList'));
+      if (a === 'stuInbox') return json(Object.assign(await H('areqList'), who.admin ? { wa: (await H('waState')).wa } : {}));
       if (a === 'stuReq') return json(await H('areqSet', { rid: req.rid, status: req.status, by }));
       if (a === 'stuKey') return json(await H('areqIssue', { phone: req.phone, name: req.name, by }));
       // before a move the page shows both numbers as they are now (names, classes, accounts)
@@ -444,6 +451,7 @@ async function serve(request, env, T) {
       }
       if (!who.admin) return json(fail('input', 'Only the admin can do this.'));
       if (a === 'stuLoginSet') { const r = await H('stuLoginSet', { on: !!req.on }); dropClasses(); return json(r); }
+      if (a === 'waSave') return json(await H('waSave', { cfg: req.cfg, newKey: req.newKey === true, revoke: req.revoke === true }));
       // a student's records move to their new number: in each class the old number's student gets the new number,
       // and where the new number already had its own student (they registered again) the two become one
       const from = cleanPh(req.from), to = cleanPh(req.to);
@@ -559,7 +567,8 @@ const HUB_SQL = [
 ];
 const HUB_TABLES = ['props', 'classes', 'people', 'enrol', 'staff', 'roles', 'accounts', 'areq', 'xreq'];
 // a restore keeps today's sign-ins and the log's key: only the data goes back
-const RESTORE_KEEP_PROPS = { epoch: 1, aep: 1, inited: 1, chgKey: 1, backup: 1, dangerBak: 1, bkAt: 1 };
+// (and the WhatsApp helper's key and switch: a restore must not bring back a key the admin replaced)
+const RESTORE_KEEP_PROPS = { epoch: 1, aep: 1, inited: 1, chgKey: 1, backup: 1, dangerBak: 1, bkAt: 1, waHash: 1, wa: 1 };
 // a restore point is stored in pieces: one SQLite value holds at most 2 MB
 function bkSave(sql, tx, why, text, kept) {
   const at = Date.now(), PART = 500000;
@@ -581,6 +590,9 @@ function bkRead(sql, id) {
   const text = b.data || sql.exec('SELECT data FROM backup_parts WHERE bid = ? ORDER BY n', b.id).toArray().map(r => r.data).join('');
   try { return { id: b.id, at: b.at, why: b.why, snap: JSON.parse(text) }; } catch (e) { return null; }
 }
+// the WhatsApp helper's limits: the admin picks within these (WhatsApp blocks numbers that send too much, too fast)
+const WA_MAX = { perHour: 10, perDay: 40, gap: 2 };
+const WA_DEFAULT = { on: false, perHour: 6, perDay: 20, gap: 4, from: '07:30', to: '20:30', known: true, base: '' };
 const RP_NOW = 'rp:27';
 const RP_WHY = 'Restore point before the security update (server 27)';
 // student app sign-in: a key from the admin works once within KEY_DAYS; a phone stays signed in for STU_DAYS after its last use
@@ -681,7 +693,7 @@ const CHG_SKIP = /^(kv|chg_buf|chg_mute|chg_meta|changes|backups|backup_parts|au
 const CHG_PROP_SKIP = "k NOT IN ('roomNet','backup','dangerBak','sver','idNext','inited','chgKey','bkAt') AND k NOT LIKE 'ver:%' AND k NOT LIKE 'sched:%' AND k NOT LIKE 'rp:%'";
 // what is never written into the log as it is: password hashes, keys, codes and pictures
 const CHG_SECRET_COLS = { salt: 1, hash: 1, code: 1 };
-const CHG_SECRET_PROPS = { adminHash: 1, adminSalt: 1, qrKey: 1, stuSecret: 1, trusted: 1 };
+const CHG_SECRET_PROPS = { adminHash: 1, adminSalt: 1, qrKey: 1, stuSecret: 1, trusted: 1, waHash: 1 };
 const CHG_PIC_COLS = { photo: 1, logo: 1 };
 // how a row is named in the log
 const CHG_ID = {
@@ -1196,7 +1208,8 @@ export class Corner extends DurableObject {
     const now = Date.now(), cls = {}; this.all('SELECT id, name FROM classes').forEach(c => { cls[c.id] = c.name; });
     const info = ph => this.phoneInfo(ph, cls);
     return this.all("SELECT * FROM areq WHERE status IN ('new', 'sent') OR updated > ? ORDER BY at DESC LIMIT 300", now - 30 * 86400000)
-      .map(r => Object.assign(r, { live: (r.status === 'new' || r.status === 'sent') && (r.kind !== 'signin' || r.at > now - KEY_DAYS * 86400000), who: info(r.phone), was: r.kind === 'help' ? info(cleanPh(r.other)) : null }));
+      .map(r => Object.assign(r, { live: (r.status === 'new' || r.status === 'sent') && (r.kind !== 'signin' || r.at > now - KEY_DAYS * 86400000), who: info(r.phone), was: r.kind === 'help' ? info(cleanPh(r.other)) : null,
+        waErr: r.kind === 'signin' && r.status === 'new' ? this.kvGet('wa:err:' + r.rid) || '' : '' }));
   }
   areqCount() { return this.one("SELECT COUNT(*) AS n FROM areq WHERE status = 'new' AND (kind != 'signin' OR at > ?)", Date.now() - KEY_DAYS * 86400000).n; }
   areqSet(q, by) {
@@ -1258,6 +1271,109 @@ export class Corner extends DurableObject {
     const rid = randHex(6);
     this.sql.exec("INSERT INTO xreq VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, '')", rid, q.k, q.sid, q.phone, q.name, q.date, q.reason, now, now);
     return { ok: true, request: this.one('SELECT * FROM xreq WHERE rid = ?', rid) };
+  }
+
+  /* ----- the WhatsApp helper: a small program on the admin's laptop sends sign-in keys from WhatsApp Web -----
+     It has its own key (only its hash is kept here), made in Student requests. With it the helper can do two
+     things and nothing else: take the next sign-in key to send, and say whether it went. The limits are kept
+     here, not in the helper, so a changed or copied helper can't send more: a few messages an hour and a day,
+     minutes apart, in the day only, one at a time, each only to the number that asked. Every key it takes and
+     every message it sends goes into the change log. */
+  waCfg() {
+    let c = {}; try { c = JSON.parse(this.prop('wa') || '{}'); } catch (e) {}
+    return Object.assign({}, WA_DEFAULT, c);
+  }
+  waState() {
+    const c = this.waCfg(), sent = this.waSent(), now = Date.now();
+    return Object.assign({}, c, { hasKey: !!this.prop('waHash'), seen: Number(this.kvGet('wa:seen') || 0),
+      hour: sent.filter(t => t > now - 3600000).length, day: sent.filter(t => t > now - 86400000).length, last: sent.length ? sent[sent.length - 1] : 0 });
+  }
+  waSent() { try { return JSON.parse(this.kvGet('wa:sent') || '[]').filter(t => t > Date.now() - 86400000); } catch (e) { return []; } }
+  waSave(q) {
+    const c = this.waCfg(), x = q.cfg && typeof q.cfg === 'object' ? q.cfg : {};
+    const num = (v, lo, hi, d) => { v = Math.round(Number(v)); return isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
+    const hm = (v, d) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || '')) ? String(v) : d);
+    if (x.on != null) c.on = !!x.on;
+    if (x.perHour != null) c.perHour = num(x.perHour, 1, WA_MAX.perHour, c.perHour);
+    if (x.perDay != null) c.perDay = num(x.perDay, 1, WA_MAX.perDay, c.perDay);
+    if (x.gap != null) c.gap = num(x.gap, WA_MAX.gap, 60, c.gap);
+    if (x.from != null) c.from = hm(x.from, c.from);
+    if (x.to != null) c.to = hm(x.to, c.to);
+    if (x.known != null) c.known = !!x.known;
+    if (x.base != null) {
+      let u = null; try { u = new URL(String(x.base)); } catch (e) {}
+      if (!u || !/^https?:$/.test(u.protocol) || String(x.base).length > 300 || u.searchParams.has('key')) return fail('input', 'The link to the attendance app is not right.');
+      u.hash = ''; c.base = u.toString();
+    }
+    if (c.from >= c.to) return fail('input', 'The sending hours must start before they end.');
+    if (c.on && !c.base) return fail('input', 'Open this page from the attendance app’s own address first.');
+    let key = '';
+    this.ctx.storage.transactionSync(() => {
+      this.prop('wa', JSON.stringify(c));
+      if (q.newKey) { key = 'wa_' + randHex(24); this.prop('waHash', SHA.hex('wa:' + key)); this.sql.exec("DELETE FROM kv WHERE k = 'wa:claim'"); }
+      else if (q.revoke) { this.prop('waHash', ''); this.sql.exec("DELETE FROM kv WHERE k = 'wa:claim'"); }
+    });
+    // the key is shown once, to the admin; only its hash is kept
+    return Object.assign({ ok: true, wa: this.waState() }, key ? { key } : {});
+  }
+  // the helper's key; wrong keys are counted like wrong passwords (10 from one address in 15 minutes lock it)
+  waAuth(q, ctx) {
+    const ip = String(ctx.ip || ''), h = this.prop('waHash');
+    if (Number(this.kvGet('wafail:' + ip) || 0) >= 10 || Number(this.kvGet('wafail') || 0) >= 100) return fail('locked', 'Too many wrong helper keys. Wait 15 minutes.');
+    if (!h || !/^wa_[a-f0-9]{48}$/.test(String(q.key || '')) || !sameText(SHA.hex('wa:' + q.key), h)) {
+      this.kvPut('wafail', Number(this.kvGet('wafail') || 0) + 1, 900); this.kvPut('wafail:' + ip, Number(this.kvGet('wafail:' + ip) || 0) + 1, 900);
+      this.alert(ctx, 'WhatsApp helper', { result: h ? 'wrong helper key' : 'no helper key is set' });
+      return fail('key', 'The helper key is not right. Make a new one in Student requests.');
+    }
+    this.kvPut('wa:seen', Date.now(), 7 * 86400);
+    if (!this.waCfg().on) return fail('off', 'Sending is turned off in Student requests.');
+    return null;
+  }
+  waNext(q, ctx) {
+    const bad = this.waAuth(q, ctx); if (bad) return bad;
+    const c = this.waCfg(), now = Date.now(), sent = this.waSent();
+    const wait = (sec, why) => ({ ok: true, wait: Math.max(30, Math.ceil(sec)), why });
+    // in the day only (Sri Lanka time)
+    const hm = new Date(now + 330 * 60000).toISOString().slice(11, 16);
+    if (hm < c.from || hm >= c.to) return wait(15 * 60, 'Outside the sending hours (' + c.from + ' to ' + c.to + ').');
+    const hour = sent.filter(t => t > now - 3600000), last = sent.length ? sent[sent.length - 1] : 0;
+    if (sent.length >= c.perDay) return wait(sent[sent.length - c.perDay] + 86400000 - now, 'Daily limit reached (' + c.perDay + ').');
+    if (hour.length >= c.perHour) return wait(hour[hour.length - c.perHour] + 3600000 - now, 'Hourly limit reached (' + c.perHour + ').');
+    if (last && now - last < c.gap * 60000) return wait((last + c.gap * 60000 - now) / 1000, 'Waiting between messages.');
+    // one at a time: a key taken and not answered for 10 minutes counts as one try
+    if (this.kvGet('wa:claim')) return wait(60, 'Waiting for the last message.');
+    const list = this.all("SELECT * FROM areq WHERE kind = 'signin' AND status = 'new' AND at > ? AND at < ? ORDER BY at LIMIT 50", now - KEY_DAYS * 86400000, now - 60000);
+    const r = list.find(x => Number(this.kvGet('wa:try:' + x.rid) || 0) < 2 && !this.one('SELECT id FROM staff WHERE phone = ?', x.phone)
+      && (!c.known || this.one("SELECT sid FROM enrol WHERE phone = ? AND active != 'no'", x.phone)));
+    if (!r) return wait(120, 'Nothing to send.');
+    const claim = randHex(8);
+    this.kvPut('wa:claim', JSON.stringify({ rid: r.rid, claim, code: r.code }), 600);
+    this.kvPut('wa:try:' + r.rid, Number(this.kvGet('wa:try:' + r.rid) || 0) + 1, (KEY_DAYS + 1) * 86400);
+    this.chgAdd(ctx, 'change', [{ target: 'areq ' + r.rid, op: 'helper took key', after: { phone: r.phone, name: r.name } }]);
+    const link = new URL(c.base); link.searchParams.set('key', r.phone + '.' + r.code);
+    const first = String(r.name || '').split(' ')[0];
+    return { ok: true, rid: r.rid, claim, to: '94' + r.phone.slice(1),
+      text: 'Hi ' + first + ', your key for the class attendance app:\n\n*' + r.code.slice(0, 4) + '-' + r.code.slice(4) + '*\n\nOpen this link and choose your password:\n' + link.toString() + '\n\nThe key works once, within 7 days. After that the app keeps you signed in.' };
+  }
+  waDone(q, ctx) {
+    const bad = this.waAuth(q, ctx); if (bad && bad.reason !== 'off') return bad;
+    let cl = null; try { cl = JSON.parse(this.kvGet('wa:claim') || 'null'); } catch (e) {}
+    if (!cl || cl.rid !== String(q.rid || '') || !sameText(cl.claim, String(q.claim || ''))) return fail('input', 'That message was not handed out, or it is too late to answer it.');
+    this.sql.exec("DELETE FROM kv WHERE k = 'wa:claim'");
+    const r = this.one('SELECT * FROM areq WHERE rid = ?', cl.rid);
+    if (q.sent) {
+      const sent = this.waSent(); sent.push(Date.now()); this.kvPut('wa:sent', JSON.stringify(sent), 2 * 86400);
+      this.sql.exec("DELETE FROM kv WHERE k = ?", 'wa:err:' + cl.rid);
+      // the admin may have sent it by hand, or given a new key, in the meantime: only the key that went is marked
+      if (r && r.status === 'new' && r.code === cl.code) this.sql.exec("UPDATE areq SET status = 'sent', updated = ?, by = 'WhatsApp helper' WHERE rid = ?", Date.now(), r.rid);
+      return { ok: true };
+    }
+    const why = String(q.reason || 'not sent').replace(/[^\w .,:'()-]/g, '').slice(0, 80) || 'not sent';
+    // a number that has no WhatsApp is not tried again; anything else gets one more try later
+    if (/no whatsapp/i.test(why)) this.kvPut('wa:try:' + cl.rid, 9, (KEY_DAYS + 1) * 86400);
+    this.kvPut('wa:err:' + cl.rid, why, (KEY_DAYS + 1) * 86400);
+    this.chgAdd(ctx, 'change', [{ target: 'areq ' + cl.rid, op: 'helper not sent', after: { phone: r ? r.phone : '', reason: why } }]);
+    return { ok: true };
   }
 
   async fetch(request) {
@@ -1372,6 +1488,10 @@ export class Corner extends DurableObject {
       }
       case 'enrolFull': return json({ enrol: this.all("SELECT k, sid, name FROM enrol WHERE phone = ? AND active != 'no'", cleanPh(q.phone)) });
       case 'areqList': return json({ ok: true, requests: this.areqList(), on: this.stuLogin() });
+      case 'waState': return json({ wa: this.waState() });
+      case 'waSave': return json(this.waSave(q));
+      case 'waNext': return json(this.waNext(q, ctx));
+      case 'waDone': return json(this.waDone(q, ctx));
       case 'areqCount': return json({ n: this.areqCount() });
       case 'areqSet': return json(this.areqSet(q, q.by || ''));
       case 'areqIssue': return json(this.areqIssue(q, q.by || ''));
