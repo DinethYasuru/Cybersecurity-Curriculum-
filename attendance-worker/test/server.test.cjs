@@ -285,5 +285,43 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  r=await H({action:'waNext'});ok('old key refused',!r.ok&&r.reason==='key',r);
  await call({action:'waSave',token:A,cfg:{on:false}});
  }
+ section('Firebase key queue');
+{const A=(await call({action:'login',password:'pass12345'})).token;
+ // a stand-in for the Firebase Realtime Database REST API (the Worker's .dev.vars point FIREBASE_URL here)
+ const http=require('http');const tree={};let badAuth=0;
+ const fbsrv=http.createServer((q,s)=>{let b='';q.on('data',d=>b+=d);q.on('end',()=>{const u=new URL(q.url,'http://x');
+   if(u.searchParams.get('auth')!=='ci-firebase-secret'){badAuth++;s.writeHead(401);return s.end('null')}
+   const key=u.pathname.replace(/^\/keyQueue\//,'').replace(/\.json$/,'');
+   if(q.method==='PUT')tree[key]=JSON.parse(b);if(q.method==='DELETE')delete tree[key];
+   s.writeHead(200,{'content-type':'application/json'});s.end(JSON.stringify(q.method==='DELETE'?null:tree[key]===undefined?null:tree[key]))})});
+ await new Promise(z=>fbsrv.listen(8799,'127.0.0.1',z));
+ const tick=async()=>{await fetch(W+'__scheduled?cron='+encodeURIComponent('* * * * *'));await new Promise(z=>setTimeout(z,300))};
+ let r=await call({action:'stuInbox',token:A});
+ if(!r.wa.firebase){ok('Firebase set up for the test (FIREBASE_URL and FIREBASE_SECRET in .dev.vars)',false,r.wa)}else{
+ r=await call({action:'waSave',token:A,cfg:{on:true,base:'https://example.org/attendance.html',gap:2,from:'00:00',to:'23:59',known:false}});ok('on',r.ok,r);
+ r=await call({action:'accRequest',phone:'0742220003',name:'Fb Student'});ok('student asks',r.ok,r);
+ await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'sql',sql:"UPDATE areq SET at = at - 120000 WHERE phone = '0742220003'"}});
+ // the stranger from the helper section is older and would go first: dismissed
+ await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'sql',sql:"UPDATE areq SET status = 'dismissed' WHERE phone = '0742220002'"}});
+ await tick();
+ const wait1=tree.status&&tree.status.why;
+ // (the WhatsApp helper section sent one a moment ago: the gap applies to both ways of sending)
+ ok('the gap counts sends from the helper too',!tree.current&&/between/.test(wait1||''),{tree});
+ await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'sql',sql:"DELETE FROM kv WHERE k = 'wa:sent'"}});
+ await tick();
+ ok('the key is in the slot, pending',tree.current&&tree.current.flag==='pending'&&tree.current.phone==='94742220003'&&tree.current.text.includes('key=0742220003.'),tree);
+ const rid=tree.current&&tree.current.rid;
+ await tick();ok('pending stays while the reader works',tree.current&&tree.current.rid===rid,tree);
+ r=await call({action:'stuInbox',token:A});ok('still new in the app',r.requests.find(x=>x.rid===rid).status==='new'&&r.wa.fb&&/reader/.test(r.wa.fb.why),r.wa);
+ tree.current.flag='sent';await tick();
+ r=await call({action:'stuInbox',token:A});const q=r.requests.find(x=>x.rid===rid);ok('flag sent: marked sent in the app',q.status==='sent'&&q.by==='Firebase queue',q);
+ ok('slot emptied, next waits',!tree.current,tree);
+ // a forged slot (not handed out by the server) is thrown away and changes nothing
+ tree.current={rid,claim:'forged',flag:'sent'};await tick();ok('forged slot removed',!tree.current||tree.current.rid!==rid,tree);
+ r=await call({action:'changes',token:A,find:'Firebase queue'});ok('in the change log',r.rows.some(x=>x.who==='Firebase queue'&&x.op==='helper took key')&&r.rows.some(x=>x.who==='Firebase queue'&&/sent/.test(x.after)),r.rows.slice(0,4));
+ r=await call({action:'waSave',token:A,cfg:{on:false}});await tick();ok('off: says so',/off/.test(tree.status.why),tree.status);
+ ok('never a wrong secret',badAuth===0,badAuth);}
+ fbsrv.close();
+ }
  console.log(f ? '\n' + f + ' FAILED' : '\nALL PASS'); process.exit(f ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

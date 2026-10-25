@@ -101,3 +101,7 @@ To stop it for good: untick the switch, and tap **Stop the helper key**. On the 
 ## No Node? Run it inside WhatsApp Web instead
 
 `attendance-keys.user.js` does the same job from your open WhatsApp Web tab, with nothing to install but the free **Tampermonkey** browser extension. Install Tampermonkey, open the file's **Raw** view on GitHub and click **Install**, then open https://web.whatsapp.com. A small *Attendance keys* box appears at the bottom left: click **Key**, paste the helper key, and leave the tab open. **Pause** stops it. The same server limits apply. It presses WhatsApp Web's own Send button, so a WhatsApp Web update can break it until the script is updated.
+
+## Or: a Firebase queue
+
+The server can also put the keys, one at a time, into a Firebase Realtime Database for your own WhatsApp side to send. See [FIREBASE.md](FIREBASE.md).

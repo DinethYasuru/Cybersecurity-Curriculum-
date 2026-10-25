@@ -2026,7 +2026,7 @@ function paneStuReq(box){
 function waBase(){const u=new URL('attendance.html',location.href);u.search='';u.hash='';if(isCloud(SID))u.searchParams.set('s',SID);return u.toString()}
 function waCard(w){
   const ago=w.seen?Math.round((Date.now()-w.seen)/60000):-1;
-  const st=!w.hasKey?'No helper key yet. Open Helper settings.':ago<0?'The helper has not checked in yet.':ago<=5?'Helper running · sent '+w.day+' of '+w.perDay+' today':'Helper last checked in '+(ago<120?ago+' min':Math.round(ago/60)+' h')+' ago · sent '+w.day+' today';
+  const st=w.firebase?'Firebase queue: '+(w.fb?w.fb.why:'starts within a minute')+' · sent '+w.day+' today':!w.hasKey?'No helper key yet. Open Helper settings.':ago<0?'The helper has not checked in yet.':ago<=5?'Helper running · sent '+w.day+' of '+w.perDay+' today':'Helper last checked in '+(ago<120?ago+' min':Math.round(ago/60)+' h')+' ago · sent '+w.day+' today';
   return `<div class="msg mb"><div class="srsw"><label class="chk"><input type="checkbox" id="waOn"${w.on?' checked':''}> Send keys automatically from WhatsApp Web</label><span class="hint">${esc(st)}</span></div>
     <details class="srform mt"><summary class="btn ghost small">Helper settings</summary>
       <p class="hint mt">The helper runs on your laptop and sends each key to the number that asked for it, from your WhatsApp. To keep that number safe from a WhatsApp ban it sends slowly: the server allows at most 10 an hour and 40 a day, never two within 2 minutes, and only in the hours below. Use a spare number if you can. Setup steps: whatsapp-helper/README.md in the repository.</p>

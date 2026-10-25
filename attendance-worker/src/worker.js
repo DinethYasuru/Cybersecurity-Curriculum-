@@ -98,6 +98,8 @@ export default {
   },
   async scheduled(event, env) {
     const hub = env.CORNER.get(env.CORNER.idFromName('corner'));
+    // every minute: the Firebase queue (sends nothing unless it is set up and turned on)
+    if (event.cron === '* * * * *') { await hub.fetch('https://hub/fbtick', { method: 'POST' }); return; }
     const list = (await (await hub.fetch('https://hub/op', { method: 'POST', body: JSON.stringify({ op: 'classes' }) })).json()).classes || [{ id: 'cyber' }];
     for (const c of list) await env.CLASS.get(env.CLASS.idFromName(doName(c.id))).fetch('https://class/cron', { method: 'POST', headers: { 'x-cron': '1' } });
     await hub.fetch('https://hub/cron', { method: 'POST' });
@@ -1285,7 +1287,8 @@ export class Corner extends DurableObject {
   }
   waState() {
     const c = this.waCfg(), sent = this.waSent(), now = Date.now();
-    return Object.assign({}, c, { hasKey: !!this.prop('waHash'), seen: Number(this.kvGet('wa:seen') || 0),
+    let fb = null; try { fb = JSON.parse(this.kvGet('wa:fb') || 'null'); } catch (e) {}
+    return Object.assign({}, c, { hasKey: !!this.prop('waHash'), seen: Number(this.kvGet('wa:seen') || 0), firebase: this.fbSet(), fb,
       hour: sent.filter(t => t > now - 3600000).length, day: sent.filter(t => t > now - 86400000).length, last: sent.length ? sent[sent.length - 1] : 0 });
   }
   waSent() { try { return JSON.parse(this.kvGet('wa:sent') || '[]').filter(t => t > Date.now() - 86400000); } catch (e) { return []; } }
@@ -1331,6 +1334,10 @@ export class Corner extends DurableObject {
   }
   waNext(q, ctx) {
     const bad = this.waAuth(q, ctx); if (bad) return bad;
+    return this.waTake(ctx, 600);
+  }
+  // the next key to send, if the limits allow; it stays taken (one at a time) for `hold` seconds or until answered
+  waTake(ctx, hold) {
     const c = this.waCfg(), now = Date.now(), sent = this.waSent();
     const wait = (sec, why) => ({ ok: true, wait: Math.max(30, Math.ceil(sec)), why });
     // in the day only (Sri Lanka time)
@@ -1347,28 +1354,31 @@ export class Corner extends DurableObject {
       && (!c.known || this.one("SELECT sid FROM enrol WHERE phone = ? AND active != 'no'", x.phone)));
     if (!r) return wait(120, 'Nothing to send.');
     const claim = randHex(8);
-    this.kvPut('wa:claim', JSON.stringify({ rid: r.rid, claim, code: r.code }), 600);
+    this.kvPut('wa:claim', JSON.stringify({ rid: r.rid, claim, code: r.code }), hold);
     this.kvPut('wa:try:' + r.rid, Number(this.kvGet('wa:try:' + r.rid) || 0) + 1, (KEY_DAYS + 1) * 86400);
     this.chgAdd(ctx, 'change', [{ target: 'areq ' + r.rid, op: 'helper took key', after: { phone: r.phone, name: r.name } }]);
     const link = new URL(c.base); link.searchParams.set('key', r.phone + '.' + r.code);
     const first = String(r.name || '').split(' ')[0];
-    return { ok: true, rid: r.rid, claim, to: '94' + r.phone.slice(1),
+    return { ok: true, rid: r.rid, claim, to: '94' + r.phone.slice(1), name: first,
       text: 'Hi ' + first + ', your key for the class attendance app:\n\n*' + r.code.slice(0, 4) + '-' + r.code.slice(4) + '*\n\nOpen this link and choose your password:\n' + link.toString() + '\n\nThe key works once, within 7 days. After that the app keeps you signed in.' };
   }
   waDone(q, ctx) {
     const bad = this.waAuth(q, ctx); if (bad && bad.reason !== 'off') return bad;
     let cl = null; try { cl = JSON.parse(this.kvGet('wa:claim') || 'null'); } catch (e) {}
     if (!cl || cl.rid !== String(q.rid || '') || !sameText(cl.claim, String(q.claim || ''))) return fail('input', 'That message was not handed out, or it is too late to answer it.');
+    return this.waFinish(cl, q.sent === true, q.reason, ctx);
+  }
+  waFinish(cl, sentOk, reason, ctx) {
     this.sql.exec("DELETE FROM kv WHERE k = 'wa:claim'");
     const r = this.one('SELECT * FROM areq WHERE rid = ?', cl.rid);
-    if (q.sent) {
+    if (sentOk) {
       const sent = this.waSent(); sent.push(Date.now()); this.kvPut('wa:sent', JSON.stringify(sent), 2 * 86400);
       this.sql.exec("DELETE FROM kv WHERE k = ?", 'wa:err:' + cl.rid);
       // the admin may have sent it by hand, or given a new key, in the meantime: only the key that went is marked
-      if (r && r.status === 'new' && r.code === cl.code) this.sql.exec("UPDATE areq SET status = 'sent', updated = ?, by = 'WhatsApp helper' WHERE rid = ?", Date.now(), r.rid);
+      if (r && r.status === 'new' && r.code === cl.code) this.sql.exec("UPDATE areq SET status = 'sent', updated = ?, by = ? WHERE rid = ?", Date.now(), String(ctx.who || 'WhatsApp helper'), r.rid);
       return { ok: true };
     }
-    const why = String(q.reason || 'not sent').replace(/[^\w .,:'()-]/g, '').slice(0, 80) || 'not sent';
+    const why = String(reason || 'not sent').replace(/[^\w .,:'()-]/g, '').slice(0, 80) || 'not sent';
     // a number that has no WhatsApp is not tried again; anything else gets one more try later
     if (/no whatsapp/i.test(why)) this.kvPut('wa:try:' + cl.rid, 9, (KEY_DAYS + 1) * 86400);
     this.kvPut('wa:err:' + cl.rid, why, (KEY_DAYS + 1) * 86400);
@@ -1376,8 +1386,62 @@ export class Corner extends DurableObject {
     return { ok: true };
   }
 
+  /* ----- the Firebase queue: the same sending, through a Firebase Realtime Database -----
+     One slot, /keyQueue/current: { rid, phone, name, text, flag: "pending" }. The admin's own WhatsApp side
+     watches it, sends the message and sets flag to "sent" (or "failed", with a reason). Once a minute the
+     Worker's timer looks: a "sent" slot marks the request sent here, and the next key goes in (within the same
+     limits as the helper). Settings: FIREBASE_URL in wrangler.toml, the secret FIREBASE_SECRET in Cloudflare. */
+  fbSet() { return !!(String(this.env.FIREBASE_URL || '').startsWith('http') && String(this.env.FIREBASE_SECRET || '')); }
+  async fbTick() {
+    if (!this.fbSet()) return { ok: false, why: 'Firebase is not set up.' };
+    const ctx = { role: 'helper', who: 'Firebase queue', ip: '', action: 'firebase' };
+    const base = String(this.env.FIREBASE_URL).replace(/\/+$/, '') + '/keyQueue/', sec = encodeURIComponent(String(this.env.FIREBASE_SECRET));
+    const fb = async (method, p, body) => {
+      const r = await fetch(base + p + '.json?auth=' + sec, { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+      if (!r.ok) throw new Error('Firebase said ' + r.status);
+      return r.json();
+    };
+    let why = '';
+    const say = async w => {
+      why = w;
+      const last = this.kvGet('wa:fb');
+      this.kvPut('wa:fb', JSON.stringify({ at: Date.now(), why: w }), 7 * 86400);
+      // the reader can show why nothing comes; written only when it changes
+      let lw = ''; try { lw = JSON.parse(last || '{}').why; } catch (e) {}
+      if (lw !== w) await fb('PUT', 'status', { why: w, at: Date.now() }).catch(() => {});
+    };
+    try {
+      const c = this.waCfg(), cur = await fb('GET', 'current');
+      let cl = null; try { cl = JSON.parse(this.kvGet('wa:claim') || 'null'); } catch (e) {}
+      if (cur && cur.rid) {
+        const mine = cl && cl.rid === cur.rid && sameText(cl.claim, String(cur.claim || ''));
+        if (cur.flag === 'pending') {
+          // still waiting for the reader; a slot the server no longer stands behind (turned off, key replaced) is taken away
+          if (mine && c.on) { await say('Waiting for the reader to send it.'); return { ok: true, why }; }
+          if (mine) this.sql.exec("DELETE FROM kv WHERE k = 'wa:claim'");
+          await fb('DELETE', 'current');
+        } else {
+          if (mine) this.waFinish(cl, cur.flag === 'sent', cur.reason || cur.flag, ctx);
+          await fb('DELETE', 'current');
+        }
+      }
+      if (!c.on) { await say('Sending is turned off in Student requests.'); return { ok: true, why }; }
+      // the slot is held for up to 12 hours: the laptop may be off
+      const n = this.waTake(ctx, 12 * 3600);
+      if (!n.rid) { await say(n.why || 'Nothing to send.'); return { ok: true, why }; }
+      try { await fb('PUT', 'current', { rid: n.rid, claim: n.claim, phone: n.to, name: n.name, text: n.text, flag: 'pending', at: Date.now() }); }
+      catch (e) { this.sql.exec("DELETE FROM kv WHERE k = 'wa:claim'"); throw e; }
+      await say('A key is waiting to be sent.');
+      return { ok: true, why };
+    } catch (e) {
+      this.kvPut('wa:fb', JSON.stringify({ at: Date.now(), why: 'Problem: ' + String(e && e.message || e).slice(0, 80) }), 7 * 86400);
+      return { ok: false, why: String(e && e.message || e) };
+    } finally { this.chgFlush(ctx); }
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
+    if (url.pathname === '/fbtick') return json(await this.fbTick());
     if (url.pathname === '/cron') {
       this.sql.exec('DELETE FROM kv WHERE exp < ?', Date.now());
       // a restore point every night, always
