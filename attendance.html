@@ -2027,9 +2027,12 @@ function waBase(){const u=new URL('attendance.html',location.href);u.search='';u
 function waCard(w){
   const ago=w.seen?Math.round((Date.now()-w.seen)/60000):-1;
   const st=w.firebase?'Firebase queue: '+(w.fb?w.fb.why:'starts within a minute')+' · sent '+w.day+' today':!w.hasKey?'No helper key yet. Open Helper settings.':ago<0?'The helper has not checked in yet.':ago<=5?'Helper running · sent '+w.day+' of '+w.perDay+' today':'Helper last checked in '+(ago<120?ago+' min':Math.round(ago/60)+' h')+' ago · sent '+w.day+' today';
+  // with Firebase set up there is no timer: each key goes in when asked for, the next when the reader sets the flag
+  if(w.firebase)return `<div class="msg mb"><div class="srsw"><label class="chk"><input type="checkbox" id="waOn"${w.on?' checked':''}> Send keys to the Firebase queue</label><span class="hint">${esc(st)}</span></div>
+    <p class="hint mt">Each key goes into Firebase (keyQueue/current) as soon as a student asks, and the next one as soon as your reader sets the flag to sent. One at a time, no hours or limits. Setup: whatsapp-helper/FIREBASE.md in the repository.</p>
+    <label class="chk mt"><input type="checkbox" id="waK"${w.known?' checked':''}> Only numbers on a class list</label></div>`;
   return `<div class="msg mb"><div class="srsw"><label class="chk"><input type="checkbox" id="waOn"${w.on?' checked':''}> Send keys automatically from WhatsApp Web</label><span class="hint">${esc(st)}</span></div>
     <details class="srform mt"><summary class="btn ghost small">Helper settings</summary>
-      ${w.firebase?'<p class="hint mt"><b>Firebase queue:</b> each key goes into Firebase as soon as a student asks, and the next one as soon as your reader sets the flag. The limits and hours below are only for the laptop helper.</p>':''}
       <p class="hint mt">The helper runs on your laptop and sends each key to the number that asked for it, from your WhatsApp. To keep that number safe from a WhatsApp ban it sends slowly: the server allows at most 10 an hour and 40 a day, never two within 2 minutes, and only in the hours below. Use a spare number if you can. Setup steps: whatsapp-helper/README.md in the repository.</p>
       <form id="waForm" class="row mt" novalidate>
         <label class="hint">Per hour <input id="waH" type="number" min="1" max="10" value="${w.perHour}" style="width:5em"></label>
@@ -2043,8 +2046,9 @@ function waCard(w){
 function waWire(redraw){
   const save=async(cfg,extra)=>{const r=await adminCall(Object.assign({action:'waSave',k:'',cfg:Object.assign(/^https?:/.test(location.protocol)?{base:waBase()}:{},cfg)},extra||{}));if(!r.ok){toast(r.message,true);return null}SR.wa=r.wa;return r};
   const on=$('#waOn');if(on)on.onchange=async()=>{const want=on.checked;
-    if(want&&!await ask({title:'Send keys automatically?',text:'The helper on your laptop sends each new key on WhatsApp, slowly and within your limits. WhatsApp may block a number that sends many messages to people who never saved it. A spare number is safest.',ok:'Turn on'})){on.checked=false;return}
-    const r=await save({on:want});if(!r){on.checked=!want;return}toast(want?'On. Keys go out while the helper runs.':'Off. The helper stops sending.');redraw()};
+    if(want&&!(SR.wa&&SR.wa.firebase)&&!await ask({title:'Send keys automatically?',text:'The helper on your laptop sends each new key on WhatsApp, slowly and within your limits. WhatsApp may block a number that sends many messages to people who never saved it. A spare number is safest.',ok:'Turn on'})){on.checked=false;return}
+    const r=await save({on:want});if(!r){on.checked=!want;return}toast(SR.wa&&SR.wa.firebase?(want?'On. Keys go into Firebase as students ask.':'Off. No more keys go into Firebase.'):want?'On. Keys go out while the helper runs.':'Off. The helper stops sending.');redraw()};
+  const kn=$('#waK');if(kn&&!$('#waForm'))kn.onchange=async()=>{const r=await save({known:kn.checked});if(!r){kn.checked=!kn.checked;return}toast('Saved.');redraw()};
   const f=$('#waForm');if(f)f.onsubmit=async e=>{e.preventDefault();const r=await save({perHour:$('#waH').value,perDay:$('#waD').value,gap:$('#waG').value,from:$('#waF').value,to:$('#waT').value,known:$('#waK').checked});if(r){toast('Saved.');redraw()}};
   const nk=$('#waNew');if(nk)nk.onclick=async()=>{
     if(SR.wa&&SR.wa.hasKey&&!await ask({title:'Make a new helper key?',text:'The old key stops working. Put the new one in the helper’s config.json.',ok:'Make new key'}))return;
