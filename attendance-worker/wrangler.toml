@@ -25,6 +25,12 @@ new_sqlite_classes = ["ClassRoom"]
 tag = "v2"
 new_sqlite_classes = ["Corner"]
 
-# nightly backup at 22:00 Sri Lanka time (16:30 UTC), when daily backup is on
+# nightly backup at 22:00 Sri Lanka time (16:30 UTC), when daily backup is on;
+# every minute: the Firebase key queue (does nothing unless it is set up and turned on in Student requests)
 [triggers]
-crons = ["30 16 * * *"]
+crons = ["30 16 * * *", "* * * * *"]
+
+# the Firebase Realtime Database for the key queue (not secret). Its secret, FIREBASE_SECRET, is set in
+# Cloudflare: Settings > Variables and Secrets (type Secret), never here
+[vars]
+FIREBASE_URL = "https://attendance-whatsap-keyque-default-rtdb.firebaseio.com"

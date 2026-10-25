@@ -31,7 +31,9 @@ jobs:
       - name: Start a local Worker
         run: |
           echo "SETUP_KEY=ci-$(openssl rand -hex 16)" > .dev.vars
-          nohup npx wrangler dev --port 8787 --persist-to ../.wrangler-ci > ../wrangler.log 2>&1 &
+          # the Firebase key queue talks to a stand-in that the server checks start (test/server.test.cjs)
+          printf 'FIREBASE_URL=http://127.0.0.1:8799\nFIREBASE_SECRET=ci-firebase-secret\n' >> .dev.vars
+          nohup npx wrangler dev --test-scheduled --port 8787 --persist-to ../.wrangler-ci > ../wrangler.log 2>&1 &
           for i in $(seq 90); do curl -sf http://localhost:8787/ > /dev/null && break; sleep 1; done
           curl -sf http://localhost:8787/ | head -c 120; echo
       - name: Server checks

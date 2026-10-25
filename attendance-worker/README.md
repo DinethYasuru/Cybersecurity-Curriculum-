@@ -120,7 +120,7 @@ A class is backed up before its first change (at most once every 10 minutes, and
 Students now sign in to the app before they check in. This is on by default. The admin can turn it off under **Student requests**.
 
 1. On the check-in page the student taps **Ask for a key** and sends their number and name.
-2. The admin (or a coordinator) sees it under **Student requests › Sign-in keys**, checks who it is, and taps **Send on WhatsApp**. The message has a link that opens the app with the key filled in. A key works once, within 7 days. **Give a key without a request** makes one for any number.
+2. The admin (or a coordinator) sees it under **Student requests › Sign-in keys**, checks who it is, and taps **Send on WhatsApp**. The message has a link that opens the app with the key filled in. A key works once, within 7 days. **Give a key without a request** makes one for any number. The admin can also let the **WhatsApp helper** on their laptop send the keys automatically, slowly and within limits the server keeps: see [whatsapp-helper/README.md](../whatsapp-helper/README.md).
 3. The student chooses their own password. With **Keep me signed in on this phone** ticked, the phone stays signed in (180 days from the last use). A new password signs out their other phones.
 
 Once signed in, a student:

@@ -249,5 +249,79 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  r=await call({action:'data',token:A,k:'cyber'});ok('admin still signed in after a restore',r.ok,r);
  r=await call({action:'danger',token:F2,password:'pass12345',op:'points',db:'corner'});ok('facilitator cannot use restore points',!r.ok,r);
  }
+ section('WhatsApp helper');
+{const A=(await call({action:'login',password:'pass12345'})).token;
+ const H=b=>call(Object.assign({helperKey:HK},b));let HK='';
+ let r=await call({action:'stuInbox',token:A});ok('inbox shows the helper, off, no key',r.wa&&r.wa.on===false&&r.wa.hasKey===false,r.wa);
+ r=await call({action:'waSave',token:A,cfg:{on:true}});ok('cannot turn on without the app link',!r.ok,r);
+ r=await call({action:'waSave',token:A,cfg:{base:'javascript:alert(1)'}});ok('bad link refused',!r.ok,r);
+ r=await call({action:'waSave',token:A,cfg:{on:true,base:'https://example.org/attendance.html?s=x',perHour:99,perDay:999,gap:0,from:'00:00',to:'23:59',known:true},newKey:true});
+ ok('turned on, limits capped',r.ok&&r.wa.on&&r.wa.perHour===10&&r.wa.perDay===40&&r.wa.gap===2,r.wa);ok('key shown once',/^wa_[a-f0-9]{48}$/.test(r.key),r);HK=r.key;
+ r=await call({action:'stuInbox',token:A});ok('key not shown again',r.wa.hasKey&&!JSON.stringify(r).includes(HK),r.wa);
+ const L=(await call({action:'login',phone:'0715555555',password:'lead12345'})).token;
+ r=await call({action:'waSave',token:L,cfg:{on:false}});ok('a facilitator cannot change it',!r.ok,r);
+ r=await callFrom('10.9.9.9',{action:'waNext',helperKey:'wa_'+'0'.repeat(48)});ok('wrong helper key',!r.ok&&r.reason==='key',r);
+ r=await H({action:'waNext',token:A});ok('helper key is not a sign-in',r.ok,r);
+ r=await H({action:'data',k:'cyber'});ok('helper key opens nothing else',!r.ok&&r.reason==='auth',r);
+ r=await H({action:'stuInbox'});ok('helper cannot read the inbox',!r.ok,r);
+ // two students ask: one on a class list, one not
+ await call({action:'student',token:A,k:'cyber',name:'Wa Known',phone:'0742220001'});
+ r=await call({action:'accRequest',phone:'0742220001',name:'Wa Known'});ok('known asks',r.ok,r);
+ r=await call({action:'accRequest',phone:'0742220002',name:'Wa Stranger'});ok('stranger asks',r.ok,r);
+ r=await H({action:'waNext'});ok('a request under a minute old waits',r.ok&&r.wait&&!r.rid,r);
+ await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'sql',sql:"UPDATE areq SET at = at - 120000 WHERE phone IN ('0742220001','0742220002')"}});
+ r=await H({action:'waNext'});ok('next: the known student only',r.ok&&r.to==='94742220001'&&r.text.includes('https://example.org/attendance.html?s=x&key=0742220001.'),r);const n1=r;
+ r=await H({action:'waNext'});ok('one at a time',r.ok&&r.wait&&!r.rid,r);
+ r=await H({action:'waDone',rid:n1.rid,claim:'nope',sent:true});ok('wrong claim refused',!r.ok,r);
+ r=await H({action:'waDone',rid:n1.rid,claim:n1.claim,sent:true});ok('sent',r.ok,r);
+ r=await call({action:'stuInbox',token:A});const q1=r.requests.find(x=>x.rid===n1.rid);ok('marked sent by the helper',q1.status==='sent'&&q1.by==='WhatsApp helper',q1);ok('counted',r.wa.day===1&&r.wa.seen>0,r.wa);
+ r=await H({action:'waNext'});ok('minutes between messages',r.ok&&r.wait>=30&&/between/.test(r.why),r);
+ r=await call({action:'changes',token:A,find:'WhatsApp helper'});
+ ok('the change log has the key taken, the send and the wrong key',r.rows.some(x=>x.op==='helper took key')&&r.rows.some(x=>x.role==='helper'&&/sent/.test(x.after))&&r.rows.some(x=>x.kind==='alert'&&/wrong helper key/.test(x.after)),r.rows.slice(0,5));
+ ok('the code is never in the log',!JSON.stringify(r.rows).includes(n1.text.match(/\*(\w{4})-(\w{4})\*/).slice(1).join('')),'');
+ r=await call({action:'waSave',token:A,cfg:{on:false}});ok('off',r.ok&&!r.wa.on,r);
+ r=await H({action:'waNext'});ok('off: nothing',!r.ok&&r.reason==='off',r);
+ r=await call({action:'waSave',token:A,cfg:{on:true},revoke:true});ok('key stopped',r.ok&&!r.wa.hasKey,r);
+ r=await H({action:'waNext'});ok('old key refused',!r.ok&&r.reason==='key',r);
+ await call({action:'waSave',token:A,cfg:{on:false}});
+ }
+ section('Firebase key queue');
+{const A=(await call({action:'login',password:'pass12345'})).token;
+ // a stand-in for the Firebase Realtime Database REST API (the Worker's .dev.vars point FIREBASE_URL here)
+ const http=require('http');const tree={};let badAuth=0;
+ const fbsrv=http.createServer((q,s)=>{let b='';q.on('data',d=>b+=d);q.on('end',()=>{const u=new URL(q.url,'http://x');
+   if(u.searchParams.get('auth')!=='ci-firebase-secret'){badAuth++;s.writeHead(401);return s.end('null')}
+   const key=u.pathname.replace(/^\/keyQueue\//,'').replace(/\.json$/,'');
+   if(q.method==='PUT')tree[key]=JSON.parse(b);if(q.method==='DELETE')delete tree[key];
+   s.writeHead(200,{'content-type':'application/json'});s.end(JSON.stringify(q.method==='DELETE'?null:tree[key]===undefined?null:tree[key]))})});
+ await new Promise(z=>fbsrv.listen(8799,'127.0.0.1',z));
+ const tick=async()=>{await fetch(W+'__scheduled?cron='+encodeURIComponent('* * * * *'));await new Promise(z=>setTimeout(z,300))};
+ let r=await call({action:'stuInbox',token:A});
+ if(!r.wa.firebase){ok('Firebase set up for the test (FIREBASE_URL and FIREBASE_SECRET in .dev.vars)',false,r.wa)}else{
+ r=await call({action:'waSave',token:A,cfg:{on:true,base:'https://example.org/attendance.html',gap:2,from:'00:00',to:'23:59',known:false}});ok('on',r.ok,r);
+ r=await call({action:'accRequest',phone:'0742220003',name:'Fb Student'});ok('student asks',r.ok,r);
+ await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'sql',sql:"UPDATE areq SET at = at - 120000 WHERE phone = '0742220003'"}});
+ // the stranger from the helper section is older and would go first: dismissed
+ await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'sql',sql:"UPDATE areq SET status = 'dismissed' WHERE phone = '0742220002'"}});
+ await tick();
+ const wait1=tree.status&&tree.status.why;
+ // (the WhatsApp helper section sent one a moment ago: the gap applies to both ways of sending)
+ ok('the gap counts sends from the helper too',!tree.current&&/between/.test(wait1||''),{tree});
+ await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'sql',sql:"DELETE FROM kv WHERE k = 'wa:sent'"}});
+ await tick();
+ ok('the key is in the slot, pending',tree.current&&tree.current.flag==='pending'&&tree.current.phone==='94742220003'&&tree.current.text.includes('key=0742220003.'),tree);
+ const rid=tree.current&&tree.current.rid;
+ await tick();ok('pending stays while the reader works',tree.current&&tree.current.rid===rid,tree);
+ r=await call({action:'stuInbox',token:A});ok('still new in the app',r.requests.find(x=>x.rid===rid).status==='new'&&r.wa.fb&&/reader/.test(r.wa.fb.why),r.wa);
+ tree.current.flag='sent';await tick();
+ r=await call({action:'stuInbox',token:A});const q=r.requests.find(x=>x.rid===rid);ok('flag sent: marked sent in the app',q.status==='sent'&&q.by==='Firebase queue',q);
+ ok('slot emptied, next waits',!tree.current,tree);
+ // a forged slot (not handed out by the server) is thrown away and changes nothing
+ tree.current={rid,claim:'forged',flag:'sent'};await tick();ok('forged slot removed',!tree.current||tree.current.rid!==rid,tree);
+ r=await call({action:'changes',token:A,find:'Firebase queue'});ok('in the change log',r.rows.some(x=>x.who==='Firebase queue'&&x.op==='helper took key')&&r.rows.some(x=>x.who==='Firebase queue'&&/sent/.test(x.after)),r.rows.slice(0,4));
+ r=await call({action:'waSave',token:A,cfg:{on:false}});await tick();ok('off: says so',/off/.test(tree.status.why),tree.status);
+ ok('never a wrong secret',badAuth===0,badAuth);}
+ fbsrv.close();
+ }
  console.log(f ? '\n' + f + ' FAILED' : '\nALL PASS'); process.exit(f ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
