@@ -30,7 +30,8 @@ new_sqlite_classes = ["Corner"]
 [triggers]
 crons = ["30 16 * * *", "* * * * *"]
 
-# the Firebase Realtime Database for the key queue (not secret). Its secret, FIREBASE_SECRET, is set in
-# Cloudflare: Settings > Variables and Secrets (type Secret), never here
+# the Firebase Realtime Database for the key queue (not secret). Its key, the service account JSON file
+# (FIREBASE_SERVICE_ACCOUNT; the older database secret FIREBASE_SECRET also works), is set in Cloudflare:
+# Settings > Variables and Secrets (type Secret), never here
 [vars]
 FIREBASE_URL = "https://attendance-whatsap-keyque-default-rtdb.firebaseio.com"

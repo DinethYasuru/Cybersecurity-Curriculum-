@@ -1357,11 +1357,12 @@ export class Corner extends DurableObject {
     // one at a time: a key taken and not answered for 10 minutes counts as one try
     if (this.kvGet('wa:claim')) return wait(60, 'Waiting for the last message.');
     const list = this.all("SELECT * FROM areq WHERE kind = 'signin' AND status = 'new' AND at > ? AND at < ? ORDER BY at LIMIT 50", now - KEY_DAYS * 86400000, free ? now + 1 : now - 60000);
-    const r = list.find(x => Number(this.kvGet('wa:try:' + x.rid) || 0) < 2 && !this.one('SELECT id FROM staff WHERE phone = ?', x.phone)
+    // the helper tries a key twice; the Firebase queue tries again until the reader says the number has no WhatsApp
+    const r = list.find(x => Number(this.kvGet('wa:try:' + x.rid) || 0) < (free ? 9 : 2) && !this.one('SELECT id FROM staff WHERE phone = ?', x.phone)
       && (!c.known || this.one("SELECT sid FROM enrol WHERE phone = ? AND active != 'no'", x.phone)));
     if (!r) return wait(120, 'Nothing to send.');
     const claim = randHex(8);
-    this.kvPut('wa:claim', JSON.stringify({ rid: r.rid, claim, code: r.code }), hold);
+    this.kvPut('wa:claim', JSON.stringify({ rid: r.rid, claim, code: r.code, fb: !!free }), hold);
     this.kvPut('wa:try:' + r.rid, Number(this.kvGet('wa:try:' + r.rid) || 0) + 1, (KEY_DAYS + 1) * 86400);
     this.chgAdd(ctx, 'change', [{ target: 'areq ' + r.rid, op: 'helper took key', after: { phone: r.phone, name: r.name } }]);
     const link = new URL(c.base); link.searchParams.set('key', r.phone + '.' + r.code);
@@ -1399,8 +1400,31 @@ export class Corner extends DurableObject {
      straight away when a student asks for a key (or the admin makes one), when the reader pokes the Worker
      (action fbPoke) after setting the flag, and once a minute in any case. A "sent" slot marks the request sent
      here, and the next key goes in at once: no hours or limits here, the reader decides how fast it sends.
-     Settings: FIREBASE_URL in wrangler.toml, the secret FIREBASE_SECRET in Cloudflare. */
-  fbSet() { return !!(String(this.env.FIREBASE_URL || '').startsWith('http') && String(this.env.FIREBASE_SECRET || '')); }
+     Settings: FIREBASE_URL in wrangler.toml; in Cloudflare the secret FIREBASE_SERVICE_ACCOUNT (or FIREBASE_SECRET). */
+  fbSet() { return !!(String(this.env.FIREBASE_URL || '').startsWith('http') && (this.fbAccount() || String(this.env.FIREBASE_SECRET || ''))); }
+  // the service account (its JSON key file, as the secret FIREBASE_SERVICE_ACCOUNT): the same sign-in the Admin SDK
+  // uses, which the Admin SDK can't do on Cloudflare itself. The older database secret (FIREBASE_SECRET) still works.
+  fbAccount() {
+    try { const a = JSON.parse(String(this.env.FIREBASE_SERVICE_ACCOUNT || '')); return a && a.client_email && a.private_key ? a : null; } catch (e) { return null; }
+  }
+  // "access_token=…" from a signed JWT, kept for 50 minutes; or "auth=…" with the database secret
+  async fbAuth() {
+    const a = this.fbAccount();
+    if (!a) return 'auth=' + encodeURIComponent(String(this.env.FIREBASE_SECRET));
+    if (this.fbTok && this.fbTok.exp > Date.now()) return this.fbTok.q;
+    const b64 = x => btoa(typeof x === 'string' ? x : String.fromCharCode(...new Uint8Array(x))).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const aud = a.token_uri || 'https://oauth2.googleapis.com/token', now = Math.floor(Date.now() / 1000);
+    const head = b64(JSON.stringify({ alg: 'RS256', typ: 'JWT' })) + '.' + b64(JSON.stringify({ iss: a.client_email, aud, iat: now, exp: now + 3600,
+      scope: 'https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email' }));
+    const der = Uint8Array.from(atob(String(a.private_key).replace(/-----[^-]+-----|\s/g, '')), c => c.charCodeAt(0));
+    const key = await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+    const jwt = head + '.' + b64(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(head)));
+    const r = await fetch(aud, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'grant_type=' + encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer') + '&assertion=' + jwt });
+    const t = await r.json().catch(() => ({}));
+    if (!r.ok || !t.access_token) throw new Error('Google sign-in for the service account failed (' + r.status + ')');
+    this.fbTok = { q: 'access_token=' + encodeURIComponent(t.access_token), exp: Date.now() + 50 * 60000 };
+    return this.fbTok.q;
+  }
   // one look at a time (two at once could empty a slot the other just filled); a call meanwhile looks again after
   async fbTick() {
     if (!this.fbSet()) return { ok: false, why: 'Firebase is not set up.' };
@@ -1413,20 +1437,20 @@ export class Corner extends DurableObject {
   }
   async fbLook() {
     const ctx = { role: 'helper', who: 'Firebase queue', ip: '', action: 'firebase' };
-    const base = String(this.env.FIREBASE_URL).replace(/\/+$/, '') + '/keyQueue/', sec = encodeURIComponent(String(this.env.FIREBASE_SECRET));
+    const base = String(this.env.FIREBASE_URL).replace(/\/+$/, '') + '/keyQueue/';
     const fb = async (method, p, body) => {
-      const r = await fetch(base + p + '.json?auth=' + sec, { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+      const r = await fetch(base + p + '.json?' + await this.fbAuth(), { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+      // a token Google stopped taking: a new one next time
+      if (r.status === 401) this.fbTok = null;
       if (!r.ok) throw new Error('Firebase said ' + r.status);
       return r.json();
     };
     let why = '';
     const say = async w => {
       why = w;
-      const last = this.kvGet('wa:fb');
       this.kvPut('wa:fb', JSON.stringify({ at: Date.now(), why: w }), 7 * 86400);
-      // the reader can show why nothing comes; written only when it changes
-      let lw = ''; try { lw = JSON.parse(last || '{}').why; } catch (e) {}
-      if (lw !== w) await fb('PUT', 'status', { why: w, at: Date.now() }).catch(() => {});
+      // the reader can show why nothing comes (written on every look, so a status deleted by hand comes back)
+      await fb('PUT', 'status', { why: w, at: Date.now() }).catch(() => {});
     };
     try {
       const c = this.waCfg(), cur = await fb('GET', 'current');
@@ -1443,6 +1467,9 @@ export class Corner extends DurableObject {
           await fb('DELETE', 'current');
         }
       }
+      // the slot no longer holds the key handed out (deleted by hand in the console, or replaced): it goes in again
+      // (a key handed out before this marked the queue's own keys counts as the queue's)
+      if (cl && cl.fb !== false && this.kvGet('wa:claim')) this.sql.exec("DELETE FROM kv WHERE k = 'wa:claim'");
       if (!c.on) { await say('Sending is turned off in Student requests.'); return { ok: true, why }; }
       // the slot is held for up to 12 hours: the laptop may be off
       const n = this.waTake(ctx, 12 * 3600, true);

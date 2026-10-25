@@ -40,7 +40,7 @@ It is realtime, with no hours, limits or waiting:
 
 ## Set it up (once)
 
-1. **The server's secret.** Firebase console › Project settings (gear) › **Service accounts** › **Database secrets** › Show, and copy it. In Cloudflare: Workers & Pages › **cyber-attendance** › Settings › **Variables and Secrets** › Add, type **Secret**, name `FIREBASE_SECRET`, paste, Deploy. Never put it in GitHub or in your reader.
+1. **The server's key (a service account, as the Admin SDK uses).** Firebase console › Project settings (gear) › **Service accounts** › **Generate new private key** › Generate. A `.json` file downloads. In Cloudflare: Workers & Pages › **cyber-attendance** › Settings › **Variables and Secrets** › Add, type **Secret**, name `FIREBASE_SERVICE_ACCOUNT`, paste the **whole content** of that file, Deploy. Then delete the file from Downloads. Never put it in GitHub or in your reader. (The Admin SDK itself can't run on Cloudflare, so the Worker signs in with the same key the way the SDK does.) If you added `FIREBASE_SECRET` earlier you can delete it once this works.
 2. **A sign-in for your reader.** Firebase console › Build › **Authentication** › Get started › Email/Password › Enable. Under Users, **Add user** (any email and a long password). Copy its **User UID**.
 3. **Rules.** Realtime Database › **Rules**, paste this with your reader's UID, and Publish. Only your reader can read the slot, and it can only change `flag` and `reason`. (The server's secret is not limited by rules.)
 
