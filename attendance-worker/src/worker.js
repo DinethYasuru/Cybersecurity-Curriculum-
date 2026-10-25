@@ -1359,7 +1359,7 @@ export class Corner extends DurableObject {
     this.chgAdd(ctx, 'change', [{ target: 'areq ' + r.rid, op: 'helper took key', after: { phone: r.phone, name: r.name } }]);
     const link = new URL(c.base); link.searchParams.set('key', r.phone + '.' + r.code);
     const first = String(r.name || '').split(' ')[0];
-    return { ok: true, rid: r.rid, claim, to: '94' + r.phone.slice(1), name: first,
+    return { ok: true, rid: r.rid, claim, to: '94' + r.phone.slice(1), name: first, key: r.code.slice(0, 4) + '-' + r.code.slice(4), link: link.toString(),
       text: 'Hi ' + first + ', your key for the class attendance app:\n\n*' + r.code.slice(0, 4) + '-' + r.code.slice(4) + '*\n\nOpen this link and choose your password:\n' + link.toString() + '\n\nThe key works once, within 7 days. After that the app keeps you signed in.' };
   }
   waDone(q, ctx) {
@@ -1429,7 +1429,7 @@ export class Corner extends DurableObject {
       // the slot is held for up to 12 hours: the laptop may be off
       const n = this.waTake(ctx, 12 * 3600);
       if (!n.rid) { await say(n.why || 'Nothing to send.'); return { ok: true, why }; }
-      try { await fb('PUT', 'current', { rid: n.rid, claim: n.claim, phone: n.to, name: n.name, text: n.text, flag: 'pending', at: Date.now() }); }
+      try { await fb('PUT', 'current', { rid: n.rid, claim: n.claim, phone: n.to, name: n.name, key: n.key, link: n.link, text: n.text, flag: 'pending', at: Date.now() }); }
       catch (e) { this.sql.exec("DELETE FROM kv WHERE k = 'wa:claim'"); throw e; }
       await say('A key is waiting to be sent.');
       return { ok: true, why };

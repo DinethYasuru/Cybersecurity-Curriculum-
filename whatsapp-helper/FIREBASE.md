@@ -14,6 +14,8 @@ There is only ever one key in the database, at `/keyQueue/current`:
   "claim": "a872afeb067dbd00",
   "phone": "94771234567",
   "name": "Sahan",
+  "key": "Q5Q7-WNB5",
+  "link": "https://.../attendance.html?key=0771234567.Q5Q7WNB5",
   "text": "Hi Sahan, your key for the class attendance app: ... (the full WhatsApp message with the link)",
   "flag": "pending",
   "at": 1792940326814
@@ -23,7 +25,7 @@ There is only ever one key in the database, at `/keyQueue/current`:
 Your reader:
 
 1. watches `/keyQueue/current`,
-2. when `flag` is `"pending"`, sends `text` to `phone` on WhatsApp,
+2. when `flag` is `"pending"`, sends `text` to `phone` on WhatsApp (or builds its own message from `name`, `key` and `link`),
 3. sets `flag` to `"sent"`, or to `"failed"` with a short `reason` (for example `"no WhatsApp on this number"`; a number with no WhatsApp is not tried again).
 
 Change only `flag` and `reason`. Leave `rid` and `claim` as they are: the server only accepts a slot it put there itself.
