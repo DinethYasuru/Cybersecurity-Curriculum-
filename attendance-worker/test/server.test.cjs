@@ -309,7 +309,7 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  ok('the gap counts sends from the helper too',!tree.current&&/between/.test(wait1||''),{tree});
  await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'sql',sql:"DELETE FROM kv WHERE k = 'wa:sent'"}});
  await tick();
- ok('the key is in the slot, pending',tree.current&&tree.current.flag==='pending'&&tree.current.phone==='94742220003'&&tree.current.text.includes('key=0742220003.'),tree);
+ ok('the key is in the slot, pending',tree.current&&tree.current.flag==='pending'&&tree.current.phone==='94742220003'&&tree.current.text.includes('key=0742220003.')&&/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(tree.current.key)&&tree.current.link.includes('key=0742220003.')&&tree.current.name==='Fb',tree);
  const rid=tree.current&&tree.current.rid;
  await tick();ok('pending stays while the reader works',tree.current&&tree.current.rid===rid,tree);
  r=await call({action:'stuInbox',token:A});ok('still new in the app',r.requests.find(x=>x.rid===rid).status==='new'&&r.wa.fb&&/reader/.test(r.wa.fb.why),r.wa);
