@@ -97,3 +97,7 @@ The window tells you what it is doing: waiting, sending, or why it is not sendin
 | It stopped working after a WhatsApp update | In the folder, run `npm update`, then `npm start`. |
 
 To stop it for good: untick the switch, and tap **Stop the helper key**. On the phone, remove the laptop under **Linked devices**.
+
+## No Node? Run it inside WhatsApp Web instead
+
+`attendance-keys.user.js` does the same job from your open WhatsApp Web tab, with nothing to install but the free **Tampermonkey** browser extension. Install Tampermonkey, open the file's **Raw** view on GitHub and click **Install**, then open https://web.whatsapp.com. A small *Attendance keys* box appears at the bottom left: click **Key**, paste the helper key, and leave the tab open. **Pause** stops it. The same server limits apply. It presses WhatsApp Web's own Send button, so a WhatsApp Web update can break it until the script is updated.
