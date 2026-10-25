@@ -298,28 +298,28 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  const tick=async()=>{await fetch(W+'__scheduled?cron='+encodeURIComponent('* * * * *'));await new Promise(z=>setTimeout(z,300))};
  let r=await call({action:'stuInbox',token:A});
  if(!r.wa.firebase){ok('Firebase set up for the test (FIREBASE_URL and FIREBASE_SECRET in .dev.vars)',false,r.wa)}else{
- r=await call({action:'waSave',token:A,cfg:{on:true,base:'https://example.org/attendance.html',gap:2,from:'00:00',to:'23:59',known:false}});ok('on',r.ok,r);
- r=await call({action:'accRequest',phone:'0742220003',name:'Fb Student'});ok('student asks',r.ok,r);
- await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'sql',sql:"UPDATE areq SET at = at - 120000 WHERE phone = '0742220003'"}});
  // the stranger from the helper section is older and would go first: dismissed
  await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'sql',sql:"UPDATE areq SET status = 'dismissed' WHERE phone = '0742220002'"}});
- await tick();
- const wait1=tree.status&&tree.status.why;
- // (the WhatsApp helper section sent one a moment ago: the gap applies to both ways of sending)
- ok('the gap counts sends from the helper too',!tree.current&&/between/.test(wait1||''),{tree});
- await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'sql',sql:"DELETE FROM kv WHERE k = 'wa:sent'"}});
- await tick();
- ok('the key is in the slot, pending',tree.current&&tree.current.flag==='pending'&&tree.current.phone==='94742220003'&&tree.current.text.includes('key=0742220003.')&&/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(tree.current.key)&&tree.current.link.includes('key=0742220003.')&&tree.current.name==='Fb',tree);
+ r=await call({action:'waSave',token:A,cfg:{on:true,base:'https://example.org/attendance.html',gap:2,from:'08:00',to:'08:01',known:false}});ok('on',r.ok,r);
+ ok('turning on with nothing waiting leaves the slot empty',!tree.current,tree);
+ // no tick: asking puts the key in the slot at once, whatever the hours, limits or gap (the helper section sent one just now)
+ r=await call({action:'accRequest',phone:'0742220003',name:'Fb Student'});ok('student asks',r.ok,r);
+ ok('the key is in the slot at once, pending',tree.current&&tree.current.flag==='pending'&&tree.current.phone==='94742220003'&&tree.current.text.includes('key=0742220003.')&&/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(tree.current.key)&&tree.current.link.includes('key=0742220003.')&&tree.current.name==='Fb',tree);
  const rid=tree.current&&tree.current.rid;
  await tick();ok('pending stays while the reader works',tree.current&&tree.current.rid===rid,tree);
  r=await call({action:'stuInbox',token:A});ok('still new in the app',r.requests.find(x=>x.rid===rid).status==='new'&&r.wa.fb&&/reader/.test(r.wa.fb.why),r.wa);
- tree.current.flag='sent';await tick();
+ // a second student asks while the first is pending: it waits for the flag
+ r=await call({action:'accRequest',phone:'0742220004',name:'Fb Second'});ok('second asks',r.ok,r);ok('first still in the slot',tree.current.rid===rid,tree);
+ tree.current.flag='sent';r=await call({action:'fbPoke'});ok('poke',r.ok,r);
  r=await call({action:'stuInbox',token:A});const q=r.requests.find(x=>x.rid===rid);ok('flag sent: marked sent in the app',q.status==='sent'&&q.by==='Firebase queue',q);
- ok('slot emptied, next waits',!tree.current,tree);
+ ok('the next key is in at once',tree.current&&tree.current.phone==='94742220004'&&tree.current.flag==='pending',tree);
+ tree.current.flag='failed';tree.current.reason='no WhatsApp on this number';await tick();
+ r=await call({action:'stuInbox',token:A});ok('failed: stays new with the reason',r.requests.find(x=>x.phone==='0742220004'&&x.status==='new').waErr==='no WhatsApp on this number',r.requests.filter(x=>x.phone==='0742220004'));
+ ok('slot emptied, nothing left',!tree.current,tree);
  // a forged slot (not handed out by the server) is thrown away and changes nothing
  tree.current={rid,claim:'forged',flag:'sent'};await tick();ok('forged slot removed',!tree.current||tree.current.rid!==rid,tree);
  r=await call({action:'changes',token:A,find:'Firebase queue'});ok('in the change log',r.rows.some(x=>x.who==='Firebase queue'&&x.op==='helper took key')&&r.rows.some(x=>x.who==='Firebase queue'&&/sent/.test(x.after)),r.rows.slice(0,4));
- r=await call({action:'waSave',token:A,cfg:{on:false}});await tick();ok('off: says so',/off/.test(tree.status.why),tree.status);
+ r=await call({action:'waSave',token:A,cfg:{on:false}});ok('off: says so',/off/.test(tree.status.why),tree.status);
  ok('never a wrong secret',badAuth===0,badAuth);}
  fbsrv.close();
  }
