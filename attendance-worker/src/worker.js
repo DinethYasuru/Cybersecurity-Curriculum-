@@ -1399,8 +1399,31 @@ export class Corner extends DurableObject {
      straight away when a student asks for a key (or the admin makes one), when the reader pokes the Worker
      (action fbPoke) after setting the flag, and once a minute in any case. A "sent" slot marks the request sent
      here, and the next key goes in at once: no hours or limits here, the reader decides how fast it sends.
-     Settings: FIREBASE_URL in wrangler.toml, the secret FIREBASE_SECRET in Cloudflare. */
-  fbSet() { return !!(String(this.env.FIREBASE_URL || '').startsWith('http') && String(this.env.FIREBASE_SECRET || '')); }
+     Settings: FIREBASE_URL in wrangler.toml; in Cloudflare the secret FIREBASE_SERVICE_ACCOUNT (or FIREBASE_SECRET). */
+  fbSet() { return !!(String(this.env.FIREBASE_URL || '').startsWith('http') && (this.fbAccount() || String(this.env.FIREBASE_SECRET || ''))); }
+  // the service account (its JSON key file, as the secret FIREBASE_SERVICE_ACCOUNT): the same sign-in the Admin SDK
+  // uses, which the Admin SDK can't do on Cloudflare itself. The older database secret (FIREBASE_SECRET) still works.
+  fbAccount() {
+    try { const a = JSON.parse(String(this.env.FIREBASE_SERVICE_ACCOUNT || '')); return a && a.client_email && a.private_key ? a : null; } catch (e) { return null; }
+  }
+  // "access_token=…" from a signed JWT, kept for 50 minutes; or "auth=…" with the database secret
+  async fbAuth() {
+    const a = this.fbAccount();
+    if (!a) return 'auth=' + encodeURIComponent(String(this.env.FIREBASE_SECRET));
+    if (this.fbTok && this.fbTok.exp > Date.now()) return this.fbTok.q;
+    const b64 = x => btoa(typeof x === 'string' ? x : String.fromCharCode(...new Uint8Array(x))).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const aud = a.token_uri || 'https://oauth2.googleapis.com/token', now = Math.floor(Date.now() / 1000);
+    const head = b64(JSON.stringify({ alg: 'RS256', typ: 'JWT' })) + '.' + b64(JSON.stringify({ iss: a.client_email, aud, iat: now, exp: now + 3600,
+      scope: 'https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email' }));
+    const der = Uint8Array.from(atob(String(a.private_key).replace(/-----[^-]+-----|\s/g, '')), c => c.charCodeAt(0));
+    const key = await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+    const jwt = head + '.' + b64(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(head)));
+    const r = await fetch(aud, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'grant_type=' + encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer') + '&assertion=' + jwt });
+    const t = await r.json().catch(() => ({}));
+    if (!r.ok || !t.access_token) throw new Error('Google sign-in for the service account failed (' + r.status + ')');
+    this.fbTok = { q: 'access_token=' + encodeURIComponent(t.access_token), exp: Date.now() + 50 * 60000 };
+    return this.fbTok.q;
+  }
   // one look at a time (two at once could empty a slot the other just filled); a call meanwhile looks again after
   async fbTick() {
     if (!this.fbSet()) return { ok: false, why: 'Firebase is not set up.' };
@@ -1413,9 +1436,11 @@ export class Corner extends DurableObject {
   }
   async fbLook() {
     const ctx = { role: 'helper', who: 'Firebase queue', ip: '', action: 'firebase' };
-    const base = String(this.env.FIREBASE_URL).replace(/\/+$/, '') + '/keyQueue/', sec = encodeURIComponent(String(this.env.FIREBASE_SECRET));
+    const base = String(this.env.FIREBASE_URL).replace(/\/+$/, '') + '/keyQueue/';
     const fb = async (method, p, body) => {
-      const r = await fetch(base + p + '.json?auth=' + sec, { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+      const r = await fetch(base + p + '.json?' + await this.fbAuth(), { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+      // a token Google stopped taking: a new one next time
+      if (r.status === 401) this.fbTok = null;
       if (!r.ok) throw new Error('Firebase said ' + r.status);
       return r.json();
     };

@@ -288,9 +288,16 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  section('Firebase key queue');
 {const A=(await call({action:'login',password:'pass12345'})).token;
  // a stand-in for the Firebase Realtime Database REST API (the Worker's .dev.vars point FIREBASE_URL here)
- const http=require('http');const tree={};let badAuth=0;
+ const http=require('http');const tree={};let badAuth=0,tokens=0;
+ let SA=null;try{const m=fs.readFileSync(__dirname+'/../.dev.vars','utf8').match(/FIREBASE_SERVICE_ACCOUNT='(.*)'/);if(m)SA=JSON.parse(m[1])}catch(e){}
  const fbsrv=http.createServer((q,s)=>{let b='';q.on('data',d=>b+=d);q.on('end',()=>{const u=new URL(q.url,'http://x');
-   if(u.searchParams.get('auth')!=='ci-firebase-secret'){badAuth++;s.writeHead(401);return s.end('null')}
+   // Google's token endpoint: the JWT must be signed by the service account's key, for the database scope
+   if(u.pathname==='/token'){const jwt=new URLSearchParams(b).get('assertion')||'',[h,c,g]=jwt.split('.');
+     const good=SA&&require('crypto').verify('RSA-SHA256',Buffer.from(h+'.'+c),require('crypto').createPublicKey(SA.private_key),Buffer.from(g||'','base64url'));
+     const cl=JSON.parse(Buffer.from(c||'','base64url').toString()||'{}');
+     if(!good||cl.iss!==SA.client_email||!/firebase\.database/.test(cl.scope)){badAuth++;s.writeHead(400);return s.end('{}')}
+     tokens++;s.writeHead(200,{'content-type':'application/json'});return s.end(JSON.stringify({access_token:'tok-'+tokens,expires_in:3600}))}
+   if(u.searchParams.get('auth')!=='ci-firebase-secret'&&!/^tok-\d+$/.test(u.searchParams.get('access_token')||'')){badAuth++;s.writeHead(401);return s.end('null')}
    const key=u.pathname.replace(/^\/keyQueue\//,'').replace(/\.json$/,'');
    if(q.method==='PUT')tree[key]=JSON.parse(b);if(q.method==='DELETE')delete tree[key];
    s.writeHead(200,{'content-type':'application/json'});s.end(JSON.stringify(q.method==='DELETE'?null:tree[key]===undefined?null:tree[key]))})});
@@ -320,7 +327,7 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  tree.current={rid,claim:'forged',flag:'sent'};await tick();ok('forged slot removed',!tree.current||tree.current.rid!==rid,tree);
  r=await call({action:'changes',token:A,find:'Firebase queue'});ok('in the change log',r.rows.some(x=>x.who==='Firebase queue'&&x.op==='helper took key')&&r.rows.some(x=>x.who==='Firebase queue'&&/sent/.test(x.after)),r.rows.slice(0,4));
  r=await call({action:'waSave',token:A,cfg:{on:false}});ok('off: says so',/off/.test(tree.status.why),tree.status);
- ok('never a wrong secret',badAuth===0,badAuth);}
+ ok('never a wrong secret or bad signature',badAuth===0,badAuth);if(SA)ok('one service account token, reused',tokens===1,tokens);}
  fbsrv.close();
  }
  console.log(f ? '\n' + f + ' FAILED' : '\nALL PASS'); process.exit(f ? 1 : 0);
