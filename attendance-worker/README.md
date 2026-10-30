@@ -167,3 +167,8 @@ Students in the cyber security class will try to break in, so this version was c
 ## Versions on the Overview (server version 29)
 
 The admin's **Overview** has a **Versions** card: the page's own version (`APP_VERSION` in `attendance.html`, with the time GitHub Pages published it) and the Worker's version with the time Cloudflare deployed it (the `CF_VERSION_METADATA` binding in `wrangler.toml`). It says **Up to date**, **Worker outdated** (deploy the newest build under Deployments) or **App outdated** (this device kept an older page: Reload). Change `APP_VERSION` with every page change, and keep `SERVER_LATEST` in the page equal to `SERVER_VERSION` (the tests check).
+
+## Class reminders and live slides codes (server 30)
+
+- **Next class and reminders.** Each class's next planned days (its weekly days, minus cancelled days, plus days added ahead under Class days) show in the student app. A student can turn on reminders in the app (web push). At 18:00 Sri Lanka time the Worker queues one notification per browser for every student enrolled in a class that meets tomorrow, and sends 25 a minute. The Corner makes its own VAPID keys, so there is nothing to set up. On iPhone, reminders only work after the student adds the app to the Home Screen (iOS 16.4 or newer).
+- **Live slides codes.** When a deck starts a live class (L), it asks the Worker for a 6-letter code (it lasts 3 hours and renews every half hour while live). Laptops type it on the home page or `join.html`. A facilitator can link the presenting laptop to their class (Live QR › Live slides on this laptop); then the class's signed-in students also get a **Join live** button. Wrong codes are limited per internet address. Sign out everywhere unlinks every laptop.

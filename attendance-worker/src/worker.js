@@ -48,6 +48,57 @@ function sameText(a, b) {
   return d === 0;
 }
 
+/* ---------- web push: the day-before class reminders (RFC 8291 encryption, RFC 8292 VAPID) ----------
+   The Corner makes its own VAPID key pair once (nothing to set up in Cloudflare). A notification goes only to
+   the push services of the big browsers, never to any other address a page could hand in. */
+const te = s => new TextEncoder().encode(s);
+const b64u = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64u = s => { s = String(s || '').replace(/-/g, '+').replace(/_/g, '/'); return Uint8Array.from(atob(s + '='.repeat((4 - s.length % 4) % 4)), c => c.charCodeAt(0)); };
+const cat = (...a) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let i = 0; for (const x of a) { o.set(x, i); i += x.length; } return o; };
+async function hmacB(key, data) { const k = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']); return new Uint8Array(await crypto.subtle.sign('HMAC', k, data)); }
+const PUSH_HOSTS = ['fcm.googleapis.com', 'android.googleapis.com', 'push.services.mozilla.com', 'notify.windows.com', 'push.apple.com'];
+function pushEndpointOk(ep, env) {
+  let u; try { u = new URL(String(ep || '')); } catch (e) { return false; }
+  if (String(ep).length > 600) return false;
+  // the local server checks use a stand-in push service (attendance-worker/test); Cloudflare never has this variable
+  const t = env && env.PUSH_TEST_URL ? String(env.PUSH_TEST_URL) : '';
+  if (t && String(ep).startsWith(t)) return true;
+  return u.protocol === 'https:' && !u.port && PUSH_HOSTS.some(h => u.hostname === h || u.hostname.endsWith('.' + h));
+}
+const pushKeysOk = sub => /^[A-Za-z0-9_-]{86,88}$/.test(String(sub.p256dh || '')) && /^[A-Za-z0-9_-]{21,24}$/.test(String(sub.auth || ''));
+async function pushEncrypt(sub, text) {
+  const ua = unb64u(sub.p256dh), auth = unb64u(sub.auth), EC = { name: 'ECDH', namedCurve: 'P-256' };
+  const kp = await crypto.subtle.generateKey(EC, true, ['deriveBits']);
+  const as = new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey));
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: await crypto.subtle.importKey('raw', ua, EC, false, []) }, kp.privateKey, 256));
+  const ikm = await hmacB(await hmacB(auth, shared), cat(te('WebPush: info\0'), ua, as, new Uint8Array([1])));
+  const salt = crypto.getRandomValues(new Uint8Array(16)), prk = await hmacB(salt, ikm);
+  const cek = (await hmacB(prk, te('Content-Encoding: aes128gcm\0\x01'))).slice(0, 16), nonce = (await hmacB(prk, te('Content-Encoding: nonce\0\x01'))).slice(0, 12);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['encrypt']), cat(te(text), new Uint8Array([2]))));
+  const head = new Uint8Array(21); head.set(salt); new DataView(head.buffer).setUint32(16, 4096); head[20] = 65;
+  return cat(head, as, ct);
+}
+async function vapidMake() {
+  const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  return { pub: b64u(await crypto.subtle.exportKey('raw', kp.publicKey)), jwk: await crypto.subtle.exportKey('jwk', kp.privateKey) };
+}
+// one notification; the answer's status says if the browser is gone (404, 410: forget it)
+async function pushSend(v, sub, payload) {
+  const h = b64u(te(JSON.stringify({ typ: 'JWT', alg: 'ES256' }))), c = b64u(te(JSON.stringify({ aud: new URL(sub.endpoint).origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: 'https://dinethyasuru.github.io/Cybersecurity-Curriculum-/' })));
+  const key = await crypto.subtle.importKey('jwk', v.jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, te(h + '.' + c));
+  const r = await fetch(sub.endpoint, { method: 'POST', body: await pushEncrypt(sub, JSON.stringify(payload)),
+    headers: { TTL: '43200', Urgency: 'normal', 'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream', Authorization: 'vapid t=' + h + '.' + c + '.' + b64u(sig) + ', k=' + v.pub } });
+  return r.status;
+}
+const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const niceDay = d => { const x = new Date(d + 'T00:00:00Z'); return WEEKDAY[x.getUTCDay()] + ' ' + x.getUTCDate() + ' ' + MONTH[x.getUTCMonth()]; };
+// reminders go out the evening before, Sri Lanka time; a few each minute (one request may call only so many others)
+const REMIND_AT = '18:00', REMIND_TZ = 330, PUSH_BATCH = 25;
+/* ---------- live slides: a short code for the live class, so a laptop (no camera for the QR) joins by typing it ---------- */
+const LIVE_DECK = /^Cyber_[A-Za-z0-9_]{1,60}\.html$/, LIVE_JOIN = /^[a-z2-9]{10}(\.[A-Za-z0-9_-]{40,120})?$/;
+const LIVE_HOURS = 3;
+
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'content-type', 'access-control-max-age': '86400' };
 const json = (o, status) => new Response(JSON.stringify(o), { status: status || 200, headers: Object.assign({ 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }, CORS) });
 
@@ -58,8 +109,10 @@ const json = (o, status) => new Response(JSON.stringify(o), { status: status || 
 const STUDENT = { status: 1, lookup: 1, register: 1, checkin: 1, me: 1, profile: 1, keyRequest: 1, keySignIn: 1, profileSave: 1 };
 // the student app: signing in (no account yet), then everything a signed-in student does
 const APP_OPEN = { accRequest: 1, accActivate: 1, accLogin: 1, accFirst: 1 };
-const APP = { app: 1, appFind: 1, appCheckin: 1, appExcuse: 1, appExcuseDrop: 1, appSave: 1, appLogout: 1, appHelp: 1 };
+const APP = { app: 1, appFind: 1, appCheckin: 1, appExcuse: 1, appExcuseDrop: 1, appSave: 1, appLogout: 1, appHelp: 1, appPush: 1, appPushTest: 1 };
 // the admin's (and coordinators') side of it: the requests inbox, keys, moving records to a new number, the on/off switch
+// the live slides code: a deck asks for one (anyone may, it only points at that deck), a page turns a code into the deck's join link
+const LIVE_OPEN = { liveOpen: 1, liveEnd: 1, liveFind: 1 };
 const STU_ADMIN = { stuInbox: 1, stuReq: 1, stuKey: 1, stuMove: 1, stuMoveCheck: 1, stuLoginSet: 1, phoneKeySet: 1, waSave: 1 };
 // the WhatsApp helper on the admin's laptop: its own key, and only these two steps (the next key to send, and "sent")
 const WA_HELPER = { waNext: 1, waDone: 1 };
@@ -101,7 +154,20 @@ export default {
   async scheduled(event, env) {
     const hub = env.CORNER.get(env.CORNER.idFromName('corner'));
     // every minute: the Firebase queue (sends nothing unless it is set up and turned on)
-    if (event.cron === '* * * * *') { await hub.fetch('https://hub/fbtick', { method: 'POST' }); return; }
+    if (event.cron === '* * * * *') {
+      try { await hub.fetch('https://hub/fbtick', { method: 'POST' }); } catch (e) {}
+      // class reminders: once a day (the evening before) each class says its next days, then a few notifications go each minute
+      const m = await (await hub.fetch('https://hub/remind', { method: 'POST', body: '{}' })).json();
+      if (m.plan) {
+        // only the classes where someone wants reminders (one request may call only so many others)
+        const days = [];
+        for (const c of (m.classes || []).slice(0, 40)) {
+          try { const st = await (await env.CLASS.get(env.CLASS.idFromName(doName(c.id))).fetch('https://class/', { method: 'POST', body: JSON.stringify({ action: 'status' }) })).json(); days.push({ k: c.id, name: c.name, upcoming: st.upcoming || [] }); } catch (e) {}
+        }
+        await hub.fetch('https://hub/remind', { method: 'POST', body: JSON.stringify({ plan: m.plan, classes: days }) });
+      }
+      return;
+    }
     const list = (await (await hub.fetch('https://hub/op', { method: 'POST', body: JSON.stringify({ op: 'classes' }) })).json()).classes || [{ id: 'cyber' }];
     for (const c of list) await env.CLASS.get(env.CLASS.idFromName(doName(c.id))).fetch('https://class/cron', { method: 'POST', headers: { 'x-cron': '1' } });
     await hub.fetch('https://hub/cron', { method: 'POST' });
@@ -190,10 +256,12 @@ async function serve(request, env, T) {
         const all = await mine(), en = all.slice(0, CORNER_STATS);
         const classes = await Promise.all(en.map(async e => {
           const r = await I(e.k, { op: 'record', sid: e.sid });
-          return { k: e.k, className: nameOf(e.k), id: e.sid, records: r.ok ? r.records : [], upcomingExcuses: r.ok ? r.upcomingExcuses : [], error: r.ok ? '' : r.message };
+          return { k: e.k, className: nameOf(e.k), id: e.sid, records: r.ok ? r.records : [], upcomingExcuses: r.ok ? r.upcomingExcuses : [], upcoming: r.ok ? r.upcoming || [] : [], error: r.ok ? '' : r.message };
         }));
         const x = await H('xreqMine', { phone });
-        return { ok: true, me, classes, more: all.length > en.length, requests: x.requests || [] };
+        // live slides running for one of their classes (a laptop linked to that class started it), and their reminders
+        const lv = await H('liveMine', { ks: all.map(e => e.k), phone, ep: req.ep });
+        return { ok: true, me, classes, more: all.length > en.length, requests: x.requests || [], live: (lv.live || []).map(l => Object.assign(l, { className: nameOf(l.k) })), push: lv.push };
       }
       if (a === 'appFind') {
         // the code says which class: their own classes open now first, then any class open now (a new class they join)
@@ -244,7 +312,13 @@ async function serve(request, env, T) {
         }
         return r;
       }
-      if (a === 'appLogout') return await H('accLogout', { token: req.token, all: !!req.all });
+      if (a === 'appLogout') {
+        // this browser stops getting reminders for the account (all phones, when they sign out everywhere)
+        await H('pushSet', { phone, on: false, sub: { endpoint: req.ep }, all: !!req.all });
+        return await H('accLogout', { token: req.token, all: !!req.all });
+      }
+      if (a === 'appPush') return await H('pushSet', { phone, on: req.on !== false, sub: req.sub && typeof req.sub === 'object' ? req.sub : {} });
+      if (a === 'appPushTest') return await H('pushTest', { phone, ep: req.ep });
       if (a === 'appHelp') return await H('areqHelp', { phone, other: req.other, note: req.note });
       return fail('action', 'Unknown step.');
     };
@@ -256,6 +330,10 @@ async function serve(request, env, T) {
     }
     // the Firebase reader: "I set the flag, look now" (anyone may ask; it only makes the Worker read the slot)
     if (a === 'fbPoke') return json(await H('fbPoke'));
+    if (LIVE_OPEN[a]) {
+      T.actor.role = 'public'; T.actor.who = a === 'liveOpen' ? 'live slides' : '';
+      return json(await H(a, { deck: req.deck, join: req.join, end: req.end, pk: req.pk, code: req.code, ip }));
+    }
     if (a === 'login') return json(await H('login', { req, ip }));
     if (a === 'logout') return json(await H('logout', { req }));
     if (a === 'maint') {
@@ -526,6 +604,8 @@ async function serve(request, env, T) {
     }
     let skipped = [];
     if (a === 'bulk' && Array.isArray(req.list)) req.list = req.list.filter(x => staffPhones.includes(cleanPh(x.phone)) ? (skipped.push(String(x.phone || '') + ', ' + String(x.name || '') + ' (a facilitator number)'), false) : true);
+    // this laptop presents the live slides for the class: its key makes the deck's live code show in the students' app
+    if (a === 'presentKey') return json(await H('presentKey', { k, by: staff.name, drop: req.drop }));
     // an excuse a student sent from the app: accepted, it goes into the class's excuses
     if (a === 'excuseReq') {
       const x = (await H('xreqGet', { rid: req.rid })).request;
@@ -577,12 +657,17 @@ const HUB_SQL = [
   'CREATE TABLE IF NOT EXISTS changes (seq INTEGER PRIMARY KEY, at INTEGER, kind TEXT, who TEXT, role TEXT, ip TEXT, action TEXT, place TEXT, target TEXT, op TEXT, before TEXT, after TEXT, kid TEXT, seal TEXT)',
   // restore points of the Corner itself (classes, people, accounts, roles), like each class's backups
   'CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, why TEXT, data TEXT)',
-  'CREATE TABLE IF NOT EXISTS backup_parts (bid INTEGER, n INTEGER, data TEXT, PRIMARY KEY (bid, n))'
+  'CREATE TABLE IF NOT EXISTS backup_parts (bid INTEGER, n INTEGER, data TEXT, PRIMARY KEY (bid, n))',
+  // the class reminders: each browser that said yes (its push address and keys) and the notifications waiting to go
+  'CREATE TABLE IF NOT EXISTS push (endpoint TEXT PRIMARY KEY, phone TEXT, p256dh TEXT, auth TEXT, at INTEGER, sent INTEGER)',
+  'CREATE TABLE IF NOT EXISTS pushq (n INTEGER PRIMARY KEY AUTOINCREMENT, endpoint TEXT, payload TEXT, at INTEGER)',
+  // live slides codes: which deck and live room a code opens, the class it shows for (from a linked laptop), until when
+  'CREATE TABLE IF NOT EXISTS live (code TEXT PRIMARY KEY, room TEXT, deck TEXT, j TEXT, k TEXT, by TEXT, at INTEGER, exp INTEGER, endh TEXT)'
 ];
 const HUB_TABLES = ['props', 'classes', 'people', 'enrol', 'staff', 'roles', 'accounts', 'areq', 'xreq'];
 // a restore keeps today's sign-ins and the log's key: only the data goes back
 // (and the WhatsApp helper's key and switch: a restore must not bring back a key the admin replaced)
-const RESTORE_KEEP_PROPS = { epoch: 1, aep: 1, inited: 1, chgKey: 1, backup: 1, dangerBak: 1, bkAt: 1, waHash: 1, wa: 1 };
+const RESTORE_KEEP_PROPS = { epoch: 1, aep: 1, inited: 1, chgKey: 1, backup: 1, dangerBak: 1, bkAt: 1, waHash: 1, wa: 1, vapid: 1, remindDay: 1 };
 // a restore point is stored in pieces: one SQLite value holds at most 2 MB
 function bkSave(sql, tx, why, text, kept) {
   const at = Date.now(), PART = 500000;
@@ -702,12 +787,13 @@ const okPhoto = p => typeof p === 'string' && p.length <= 40000 && /^data:image\
    any other way breaks the chain, and the admin's Change log page says where. */
 const CHG_VER = 1;
 // tables that change all the time and mean nothing (caches, backups, the log's own rows)
-const CHG_SKIP = /^(kv|chg_buf|chg_mute|chg_meta|changes|backups|backup_parts|audit|_cf_.*|sqlite_.*|__.*)$/;
+// (push addresses are a browser's keys; reminders and live codes come and go, and their steps are logged as steps)
+const CHG_SKIP = /^(kv|chg_buf|chg_mute|chg_meta|changes|backups|backup_parts|audit|push|pushq|live|_cf_.*|sqlite_.*|__.*)$/;
 // props that are bookkeeping, not settings
-const CHG_PROP_SKIP = "k NOT IN ('roomNet','backup','dangerBak','sver','idNext','inited','chgKey','bkAt') AND k NOT LIKE 'ver:%' AND k NOT LIKE 'sched:%' AND k NOT LIKE 'rp:%'";
+const CHG_PROP_SKIP = "k NOT IN ('roomNet','backup','dangerBak','sver','idNext','inited','chgKey','bkAt','remindDay') AND k NOT LIKE 'ver:%' AND k NOT LIKE 'sched:%' AND k NOT LIKE 'rp:%'";
 // what is never written into the log as it is: password hashes, keys, codes and pictures
 const CHG_SECRET_COLS = { salt: 1, hash: 1, code: 1 };
-const CHG_SECRET_PROPS = { adminHash: 1, adminSalt: 1, qrKey: 1, stuSecret: 1, trusted: 1, waHash: 1 };
+const CHG_SECRET_PROPS = { adminHash: 1, adminSalt: 1, qrKey: 1, stuSecret: 1, trusted: 1, waHash: 1, vapid: 1 };
 const CHG_PIC_COLS = { photo: 1, logo: 1 };
 // how a row is named in the log
 const CHG_ID = {
@@ -1522,9 +1608,151 @@ export class Corner extends DurableObject {
     } finally { this.chgFlush(ctx); }
   }
 
+  /* ----- class reminders (web push) ----- */
+  async vapid() {
+    const get = () => { try { const v = JSON.parse(this.prop('vapid') || 'null'); return v && v.pub && v.jwk ? v : null; } catch (e) { return null; } };
+    const had = get(); if (had) return had;
+    const made = await vapidMake();
+    // two first requests at once: the one saved first wins, so every browser subscribes to the same key
+    const won = get(); if (won) return won;
+    this.prop('vapid', JSON.stringify(made));
+    return made;
+  }
+  pushSet(q) {
+    const phone = cleanPh(q.phone), sub = q.sub && typeof q.sub === 'object' ? q.sub : {}, ep = String(sub.endpoint || '');
+    if (!phone) return fail('input', 'Sign in again.');
+    if (!q.on) {
+      const n = q.all ? this.sql.exec('DELETE FROM push WHERE phone = ?', phone).rowsWritten : ep ? this.sql.exec('DELETE FROM push WHERE endpoint = ? AND phone = ?', ep, phone).rowsWritten : 0;
+      return { ok: true, on: false, n };
+    }
+    const keys = sub.keys && typeof sub.keys === 'object' ? sub.keys : {};
+    if (!pushEndpointOk(ep, this.env) || !pushKeysOk(keys)) return fail('input', 'This browser’s notifications can’t be used. Try Chrome, Edge, Firefox or Safari.');
+    if (this.over('pushset:' + phone, 20, 3600)) return fail('slow', 'Too many tries. Try again in an hour.');
+    this.sql.exec('INSERT INTO push (endpoint, phone, p256dh, auth, at, sent) VALUES (?, ?, ?, ?, ?, 0) ON CONFLICT(endpoint) DO UPDATE SET phone = excluded.phone, p256dh = excluded.p256dh, auth = excluded.auth, at = excluded.at',
+      ep, phone, String(keys.p256dh), String(keys.auth), Date.now());
+    // a few browsers per person: the oldest goes
+    this.sql.exec('DELETE FROM push WHERE phone = ? AND endpoint NOT IN (SELECT endpoint FROM push WHERE phone = ? ORDER BY at DESC LIMIT 5)', phone, phone);
+    return { ok: true, on: true };
+  }
+  async pushTest(q) {
+    const phone = cleanPh(q.phone), sub = this.one('SELECT * FROM push WHERE endpoint = ? AND phone = ?', String(q.ep || ''), phone);
+    if (!sub) return fail('input', 'Turn on reminders in this browser first.');
+    if (this.over('pushtest:' + phone, 5, 3600)) return fail('slow', 'Enough tests for now. Try again in an hour.');
+    let st = 0;
+    try { st = await pushSend(await this.vapid(), sub, { t: 'Reminders are on', b: 'You get a message the evening before each class.', u: 'attendance.html', g: 'test' }); } catch (e) {}
+    if (st === 404 || st === 410) { this.sql.exec('DELETE FROM push WHERE endpoint = ?', sub.endpoint); return fail('gone', 'This browser stopped taking notifications. Turn reminders on again.'); }
+    return st >= 200 && st < 300 ? { ok: true } : fail('push', 'The browser’s notification service did not take it (' + (st || 'no answer') + '). Try again later.');
+  }
+  // a few waiting notifications go out (taken off the list first, so two minutes at once never send one twice)
+  async pushTick() {
+    const rows = this.all('SELECT n, endpoint, payload, at FROM pushq ORDER BY n LIMIT ?', PUSH_BATCH);
+    if (!rows.length) return 0;
+    this.sql.exec('DELETE FROM pushq WHERE n <= ?', rows[rows.length - 1].n);
+    const v = await this.vapid();
+    let sent = 0;
+    for (const r of rows) {
+      const sub = Date.now() - r.at < 12 * 3600000 ? this.one('SELECT * FROM push WHERE endpoint = ?', r.endpoint) : null;
+      if (!sub) continue;
+      let st = 0; try { st = await pushSend(v, sub, JSON.parse(r.payload)); } catch (e) {}
+      if (st === 404 || st === 410) this.sql.exec('DELETE FROM push WHERE endpoint = ?', r.endpoint);
+      else if (st >= 200 && st < 300) { sent++; this.sql.exec('UPDATE push SET sent = ? WHERE endpoint = ?', Date.now(), r.endpoint); }
+    }
+    return sent;
+  }
+  // every minute: send what waits; once a day after REMIND_AT (Sri Lanka time) the Worker brings each class's next days (q.classes),
+  // and every student enrolled in a class that meets tomorrow gets one notification on each browser that said yes
+  async remind(q) {
+    const now = Date.now(), t = new Date(now + REMIND_TZ * 60000).toISOString(), today = t.slice(0, 10), hm = t.slice(11, 16);
+    if (q.plan) {
+      if (q.plan !== today || this.prop('remindDay') === today) return { ok: true, queued: 0 };
+      this.prop('remindDay', today);
+      const tomorrow = new Date(now + REMIND_TZ * 60000 + 86400000).toISOString().slice(0, 10), what = [];
+      let n = 0;
+      this.ctx.storage.transactionSync(() => {
+        for (const c of (Array.isArray(q.classes) ? q.classes : [])) {
+          const d = (Array.isArray(c.upcoming) ? c.upcoming : []).find(x => x && x.date === tomorrow);
+          if (!d || !this.one("SELECT id FROM classes WHERE id = ? AND active != 'no'", String(c.k))) continue;
+          const payload = JSON.stringify({ t: 'Class tomorrow: ' + String(c.name || '').slice(0, 60), b: niceDay(d.date) + ', ' + d.start + ' to ' + d.end + '.' + (d.note ? ' ' + String(d.note).slice(0, 120) : ''), u: 'attendance.html', g: 'class-' + c.k + '-' + d.date });
+          const to = this.all("SELECT DISTINCT p.endpoint FROM push p JOIN enrol e ON e.phone = p.phone WHERE e.k = ? AND e.active != 'no'", String(c.k));
+          to.forEach(r => this.sql.exec('INSERT INTO pushq (endpoint, payload, at) VALUES (?, ?, ?)', r.endpoint, payload, now));
+          n += to.length; what.push(c.name + ' (' + to.length + ')');
+        }
+      });
+      if (what.length) this.chgAdd({ role: 'system', who: 'Class reminders' }, 'change', [{ target: 'class reminders', op: 'step', after: { day: tomorrow, classes: what.join(', '), notifications: n } }]);
+      return { ok: true, queued: n, sent: await this.pushTick() };
+    }
+    const sent = await this.pushTick();
+    const at = /^\d\d:\d\d$/.test(this.prop('remindAt') || '') ? this.prop('remindAt') : REMIND_AT;
+    const plan = hm >= at && this.prop('remindDay') !== today && this.one('SELECT 1 AS x FROM push LIMIT 1') ? today : '';
+    const classes = plan ? this.all("SELECT DISTINCT c.id, c.name FROM push p JOIN enrol e ON e.phone = p.phone JOIN classes c ON c.id = e.k WHERE e.active != 'no' AND c.active != 'no'") : [];
+    return { ok: true, plan, classes, sent };
+  }
+  /* ----- live slides codes ----- */
+  liveCode() { const ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', b = crypto.getRandomValues(new Uint8Array(6)); return Array.from(b, x => ABC[x & 31]).join(''); }
+  liveOpen(q, ctx) {
+    const deck = String(q.deck || ''), j = String(q.join || ''), now = Date.now(), ip = String(q.ip || '');
+    if (!LIVE_DECK.test(deck) || !LIVE_JOIN.test(j)) return fail('input', 'That is not a live class link.');
+    if (this.over('lvo:' + ip, 30, 3600)) return fail('slow', 'Too many live classes from here. Try again in an hour.');
+    this.sql.exec('DELETE FROM live WHERE exp < ?', now);
+    const room = j.split('.')[0], exp = now + LIVE_HOURS * 3600000;
+    // a laptop linked to a class (Live QR › Live slides): the class's students see this live class in their app
+    let pk = null;
+    if (/^[a-f0-9]{32}$/.test(String(q.pk || ''))) { try { pk = JSON.parse(this.kvGet('pk:' + SHA.hex(String(q.pk))) || 'null'); } catch (e) {} }
+    const cls = pk ? this.one("SELECT id, name FROM classes WHERE id = ? AND active != 'no'", String(pk.k)) : null;
+    const out = code => ({ ok: true, code, end: undefined, exp, k: cls ? cls.id : '', className: cls ? cls.name : '', linked: !!cls, pkBad: !!q.pk && !cls });
+    // the same live class again (the deck reloaded, or its half-hourly refresh): the same code, kept a while longer
+    const end = /^[a-f0-9]{32}$/.test(String(q.end || '')) ? String(q.end) : '';
+    const had = end ? this.one('SELECT code, k FROM live WHERE room = ? AND endh = ?', room, SHA.hex('lvend:' + end)) : null;
+    if (had) {
+      this.sql.exec('UPDATE live SET exp = ?, deck = ?, j = ?, k = ?, by = ? WHERE code = ?', exp, deck, j, cls ? cls.id : '', cls ? String(pk.by || '') : '', had.code);
+      if (cls && had.k !== cls.id) this.chgAdd(ctx, 'change', [{ place: cls.name, target: 'live slides', op: 'start', after: { code: had.code, deck, by: pk.by } }]);
+      return Object.assign(out(had.code), { end });
+    }
+    if (this.one('SELECT COUNT(*) AS n FROM live').n >= 300 || this.over('lvo', 300, 3600)) return fail('slow', 'Too many live classes right now. Try again later.');
+    let code = '';
+    for (let i = 0; i < 20 && !code; i++) { const c = this.liveCode(); if (!this.one('SELECT 1 AS x FROM live WHERE code = ?', c)) code = c; }
+    const fresh = randHex(16);
+    this.sql.exec('INSERT INTO live (code, room, deck, j, k, by, at, exp, endh) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', code, room, deck, j, cls ? cls.id : '', cls ? String(pk.by || '') : '', now, exp, SHA.hex('lvend:' + fresh));
+    if (cls) this.chgAdd(ctx, 'change', [{ place: cls.name, target: 'live slides', op: 'start', after: { code, deck, by: pk.by } }]);
+    return Object.assign(out(code), { end: fresh });
+  }
+  liveEnd(q) {
+    const end = /^[a-f0-9]{32}$/.test(String(q.end || '')) ? String(q.end) : '';
+    return { ok: true, n: end ? this.sql.exec('DELETE FROM live WHERE code = ? AND endh = ?', String(q.code || '').toUpperCase(), SHA.hex('lvend:' + end)).rowsWritten : 0 };
+  }
+  // a typed code: right ones are never limited (a whole classroom shares one internet address), wrong ones are
+  liveFind(q) {
+    const code = String(q.code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''), ip = String(q.ip || '');
+    if (Number(this.kvGet('lvf:' + ip) || 0) >= 40) return fail('slow', 'Too many wrong codes. Wait 10 minutes.');
+    const r = code.length === 6 ? this.one('SELECT deck, j, exp FROM live WHERE code = ?', code) : null;
+    if (!r || r.exp < Date.now()) { this.over('lvf:' + ip, 40, 600); return fail('code', 'That code is not right, or the live class has ended. Check the code on the screen.'); }
+    return { ok: true, deck: r.deck, join: r.j };
+  }
+  async liveMine(q) {
+    const ks = (Array.isArray(q.ks) ? q.ks : []).map(String).slice(0, 90), phone = cleanPh(q.phone), ep = String(q.ep || '');
+    const live = ks.length ? this.all(`SELECT code, deck, j, k FROM live WHERE exp > ? AND k IN (${ks.map(() => '?').join(', ')}) ORDER BY at DESC`, Date.now(), ...ks).map(r => ({ code: r.code, deck: r.deck, join: r.j, k: r.k })).filter((l, i, a) => a.findIndex(x => x.k === l.k) === i) : [];
+    const v = await this.vapid();
+    return { live, push: { key: v.pub, mine: !!(ep && this.one('SELECT 1 AS x FROM push WHERE endpoint = ? AND phone = ?', ep, phone)), at: REMIND_AT } };
+  }
+  // a facilitator links this laptop to their class for 180 days (the key stays in the laptop's browser; the deck reads it)
+  presentKey(q, ctx) {
+    const cls = this.one('SELECT id, name FROM classes WHERE id = ?', String(q.k || ''));
+    if (!cls) return fail('input', 'That class is gone.');
+    if (q.drop) {
+      const n = this.sql.exec('DELETE FROM kv WHERE k = ?', 'pk:' + SHA.hex(String(q.drop))).rowsWritten;
+      if (n) this.chgAdd(ctx, 'change', [{ place: cls.name, target: 'live slides laptop', op: 'unlinked', after: { by: q.by } }]);
+      return { ok: true };
+    }
+    const key = randHex(16);
+    this.kvPut('pk:' + SHA.hex(key), JSON.stringify({ k: cls.id, by: String(q.by || ''), at: Date.now() }), 180 * 86400);
+    this.chgAdd(ctx, 'change', [{ place: cls.name, target: 'live slides laptop', op: 'linked', after: { by: q.by, days: 180 } }]);
+    return { ok: true, key, k: cls.id, className: cls.name, until: Date.now() + 180 * 86400000 };
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
     if (url.pathname === '/fbtick') return json(await this.fbTick());
+    if (url.pathname === '/remind') { const c = { role: 'system', who: 'Class reminders' }; try { return json(await this.remind(await request.json())); } finally { this.chgFlush(c); } }
     if (url.pathname === '/cron') {
       this.sql.exec('DELETE FROM kv WHERE exp < ?', Date.now());
       // a restore point every night, always
@@ -1539,7 +1767,7 @@ export class Corner extends DurableObject {
     if (q.op === 'fbPoke') { if (this.over('fbpoke', 60, 60)) return json(fail('slow', 'Too many. The slot is looked at every minute anyway.')); await this.fbTick(); return json({ ok: true }); }
     // whatever the step changed goes into the change log, with who asked for it
     let res;
-    try { res = this.route(q, ctx); } finally { this.chgFlush(ctx); }
+    try { res = q.op === 'pushTest' || q.op === 'liveMine' ? json(await this[q.op](q, ctx)) : this.route(q, ctx); } finally { this.chgFlush(ctx); }
     // a new key, or a changed switch: the Firebase slot gets it straight away
     if (FB_NOW[q.op] && this.fbSet()) { try { await this.fbTick(); } catch (e) {} }
     return res;
@@ -1652,6 +1880,15 @@ export class Corner extends DurableObject {
         if (t && q.all) this.sql.exec('UPDATE accounts SET pv = pv + 1 WHERE phone = ?', t.phone);
         return json({ ok: true });
       }
+      case 'pushSet': {
+        const r = this.pushSet(q);
+        if (r.ok && (r.on || r.n)) this.chgAdd(Object.assign({}, ctx, { role: 'student' }), 'change', [{ target: 'class reminders', op: r.on ? 'on' : 'off', after: { phone: cleanPh(q.phone), browsers: r.on ? 1 : r.n } }]);
+        return json(r);
+      }
+      case 'liveOpen': return json(this.liveOpen(q, ctx));
+      case 'liveEnd': return json(this.liveEnd(q));
+      case 'liveFind': return json(this.liveFind(q));
+      case 'presentKey': return json(this.presentKey(q, ctx));
       case 'enrolFull': return json({ enrol: this.all("SELECT k, sid, name FROM enrol WHERE phone = ? AND active != 'no'", cleanPh(q.phone)) });
       case 'areqList': return json({ ok: true, requests: this.areqList(), on: this.stuLogin(), phoneKey: this.phoneKey() });
       case 'waState': return json({ wa: this.waState() });
@@ -1751,7 +1988,7 @@ export class Corner extends DurableObject {
       case 'signOutAll': {
         // everyone signs in again, every trusted browser is forgotten; this admin's sign-in is renewed
         this.prop('epoch', Number(this.epoch()) + 1);
-        this.sql.exec("DELETE FROM kv WHERE k LIKE 'tok:%' OR k LIKE 'trust:%' OR k LIKE 'loginfail%'");
+        this.sql.exec("DELETE FROM kv WHERE k LIKE 'tok:%' OR k LIKE 'trust:%' OR k LIKE 'loginfail%' OR k LIKE 'pk:%'");
         if (/^[a-f0-9]{16,64}$/.test(String(req.token || ''))) this.kvPut('tok:' + req.token, JSON.stringify({ sid: '', ep: this.epoch(), s8: '', aep: this.prop('aep') || '1' }), 21600);
         return json({ ok: true });
       }
@@ -1760,7 +1997,7 @@ export class Corner extends DurableObject {
         if (req.op === 'setPassword') { const salt = randHex(20); this.prop('adminSalt', salt); this.prop('adminHash', hashPw(String(req.password || ''), salt)); this.prop('epoch', Number(this.epoch()) + 1); }
         if (req.op === 'unlock') this.sql.exec("DELETE FROM kv WHERE k LIKE 'loginfail%' OR k LIKE 'maintfail%' OR k LIKE 'sfail:%'");
         // sign out everywhere: every token, every trusted browser
-        if (req.op === 'reset') { this.prop('epoch', Number(this.epoch()) + 1); this.sql.exec("DELETE FROM kv WHERE k LIKE 'loginfail%' OR k LIKE 'trust:%' OR k LIKE 'tok:%'"); }
+        if (req.op === 'reset') { this.prop('epoch', Number(this.epoch()) + 1); this.sql.exec("DELETE FROM kv WHERE k LIKE 'loginfail%' OR k LIKE 'trust:%' OR k LIKE 'tok:%' OR k LIKE 'pk:%'"); }
         return json({ ok: true });
     }
     return json(fail('action', 'Unknown step.'));

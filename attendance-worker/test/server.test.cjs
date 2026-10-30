@@ -388,5 +388,94 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  ok('never a wrong secret or bad signature',badAuth===0,badAuth);if(SA)ok('one service account token, reused',tokens===1,tokens);}
  fbsrv.close();
  }
+ section('Next class, class reminders, live slides codes');
+{const A=(await call({action:'login',password:'pass12345'})).token;const crypto=require('crypto'),http=require('http');
+ const b64u=b=>Buffer.from(b).toString('base64url');
+ const tick=async()=>{await fetch(W+'__scheduled?cron='+encodeURIComponent('* * * * *'));await new Promise(z=>setTimeout(z,400))};
+ // a stand-in push service: it reads each notification the way a browser does (RFC 8291) and checks the VAPID signature
+ const got=[];let vapidBad=0,gone=false;
+ const psrv=http.createServer((q,s)=>{const ch=[];q.on('data',d=>ch.push(d));q.on('end',()=>{const id=q.url.split('/').pop(),sub=SUBS[id],body=Buffer.concat(ch);
+   try{const m=String(q.headers.authorization||'').match(/^vapid t=([^,]+), k=(.+)$/),[h,c,sg]=m[1].split('.'),k=Buffer.from(m[2],'base64url');
+     const key=crypto.createPublicKey({key:{kty:'EC',crv:'P-256',x:b64u(k.subarray(1,33)),y:b64u(k.subarray(33,65))},format:'jwk'});
+     if(!crypto.verify('sha256',Buffer.from(h+'.'+c),{key,dsaEncoding:'ieee-p1363'},Buffer.from(sg,'base64url'))||JSON.parse(Buffer.from(c,'base64url')).aud!=='http://127.0.0.1:8798')vapidBad++;
+     const salt=body.subarray(0,16),as=body.subarray(21,86),ct=body.subarray(86);
+     const H=(k,d)=>crypto.createHmac('sha256',k).update(d).digest();
+     const shared=sub.ecdh.computeSecret(as),ikm=H(H(sub.auth,shared),Buffer.concat([Buffer.from('WebPush: info\0'),sub.pub,as,Buffer.from([1])])),prk=H(salt,ikm);
+     const cek=H(prk,Buffer.from('Content-Encoding: aes128gcm\0\x01')).subarray(0,16),nonce=H(prk,Buffer.from('Content-Encoding: nonce\0\x01')).subarray(0,12);
+     const d=crypto.createDecipheriv('aes-128-gcm',cek,nonce);d.setAuthTag(ct.subarray(ct.length-16));const pt=Buffer.concat([d.update(ct.subarray(0,ct.length-16)),d.final()]);
+     got.push({id,msg:JSON.parse(pt.subarray(0,pt.length-1).toString()),pad:pt[pt.length-1],enc:q.headers['content-encoding']});
+   }catch(e){got.push({id,err:String(e)})}
+   s.writeHead(gone&&id==='b'?410:201);s.end()})});
+ await new Promise(z=>psrv.listen(8798,'127.0.0.1',z));
+ const SUBS={};const mkSub=id=>{const e=crypto.createECDH('prime256v1');e.generateKeys();const x={ecdh:e,pub:e.getPublicKey(),auth:crypto.randomBytes(16)};SUBS[id]=x;
+   return {endpoint:'http://127.0.0.1:8798/push/'+id,keys:{p256dh:b64u(x.pub),auth:b64u(x.auth)}}};
+ // a class that meets every day, a student in it with an app account, and one who isn't in it
+ const k=(await call({action:'classSave',token:A,name:'Reminder Class'})).class.id;
+ const base=(await call({action:'data',token:A,k})).settings;
+ let r=await call({action:'settings',token:A,k,settings:Object.assign({},base,{days:[0,1,2,3,4,5,6],start:'23:58',end:'23:59'})});ok('class meets every day',r.ok,r);
+ const tmw=new Date(Date.now()+330*60000+86400000).toISOString().slice(0,10),far=new Date(Date.now()+330*60000+5*86400000).toISOString().slice(0,10);
+ r=await call({action:'day',token:A,k,date:far,status:'cancelled',note:'Poya'});ok('a cancelled day',r.ok,r);
+ r=await call({action:'status',k});ok('status lists the next days, without the cancelled one',Array.isArray(r.upcoming)&&r.upcoming.length===3&&r.upcoming.some(d=>d.date===tmw)&&!r.upcoming.some(d=>d.date===far),r.upcoming);
+ await call({action:'phoneKeySet',token:A,on:true});
+ await call({action:'student',token:A,k,name:'Remi Fernando',phone:'0723330001'});
+ r=await call({action:'accFirst',phone:'0723330001',password:'river-stone-4'});const S=r.token;ok('student signed in',!!S,r);
+ await call({action:'student',token:A,k:'cyber',name:'Outside Person',phone:'0723330002'});
+ r=await call({action:'accFirst',phone:'0723330002',password:'river-stone-4'});const O=r.token;ok('student of another class signed in',!!O,r);
+ r=await call({action:'app',token:S});const cl=r.classes.find(c=>c.k===k);
+ ok('app shows the next class',cl&&cl.upcoming.length>=1&&cl.upcoming.some(d=>d.date===tmw),cl);
+ ok('app gives the reminder key',r.push&&/^[A-Za-z0-9_-]{87}$/.test(r.push.key)&&r.push.mine===false,r.push);
+ const sa=mkSub('a'),sb=mkSub('b'),so=mkSub('o');
+ r=await call({action:'appPush',token:S,sub:{endpoint:'https://evil.example.com/x',keys:sa.keys}});ok('any other address refused',!r.ok,r);
+ r=await call({action:'appPush',token:S,sub:{endpoint:sa.endpoint,keys:{p256dh:'x',auth:'y'}}});ok('bad keys refused',!r.ok,r);
+ r=await call({action:'appPush',sub:sa});ok('needs sign-in',!r.ok&&r.reason==='signin',r);
+ r=await call({action:'appPush',token:S,sub:sa});ok('reminders on (browser a)',r.ok&&r.on,r);
+ r=await call({action:'appPush',token:S,sub:sb});ok('reminders on (browser b)',r.ok&&r.on,r);
+ r=await call({action:'appPush',token:O,sub:so});ok('other class student turns them on too',r.ok,r);
+ r=await call({action:'app',token:S,ep:sa.endpoint});ok('app knows this browser is on',r.push.mine===true,r.push);
+ r=await call({action:'appPushTest',token:S,ep:sa.endpoint});ok('test notification sent',r.ok,r);
+ await new Promise(z=>setTimeout(z,200));
+ ok('test arrives, decrypts, VAPID signed',got.length===1&&got[0].id==='a'&&got[0].msg.t==='Reminders are on'&&got[0].pad===2&&got[0].enc==='aes128gcm'&&vapidBad===0,{got,vapidBad});
+ r=await call({action:'appPushTest',token:O,ep:sa.endpoint});ok('cannot test someone else’s browser',!r.ok,r);
+ // the evening before: due at REMIND_AT; the test moves it to now through the Danger zone
+ got.length=0;gone=true;
+ r=await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'sql',sql:"INSERT INTO props (k, v) VALUES ('remindAt', '00:00') ON CONFLICT(k) DO UPDATE SET v = '00:00'"}});
+ if(r.reason==='wait'){await new Promise(z=>setTimeout(z,2500));r=await call({action:'danger',token:A,password:'pass12345',op:'db',db:'corner',q:{op:'sql',sql:"INSERT INTO props (k, v) VALUES ('remindAt', '00:00') ON CONFLICT(k) DO UPDATE SET v = '00:00'"}})}
+ ok('reminder time set for the test',r.ok,r);
+ await tick();await tick();
+ const mine=got.filter(x=>x.msg&&x.msg.g==='class-'+k+'-'+tmw);
+ ok('enrolled student gets tomorrow’s reminder on both browsers',mine.length===2&&mine.every(x=>/^Class tomorrow: Reminder Class$/.test(x.msg.t)&&/23:58 to 23:59/.test(x.msg.b)),got);
+ ok('other class student gets none',!got.some(x=>x.id==='o'),got);
+ ok('nothing failed to decrypt',!got.some(x=>x.err),got.filter(x=>x.err));
+ const before=got.length;await tick();ok('only once a day',got.length===before,got.length);
+ r=await call({action:'app',token:S,ep:sb.endpoint});ok('a gone browser (410) is forgotten',r.push.mine===false,r.push);
+ r=await call({action:'changes',token:A,find:'class reminders'});ok('reminders in the change log',r.rows.some(x=>x.target==='class reminders'&&x.op==='step')&&!JSON.stringify(r.rows).includes(sa.keys.auth),r.rows&&r.rows.slice(0,3));
+ r=await call({action:'appLogout',token:S,ep:sa.endpoint});ok('sign out',r.ok,r);
+ r=await call({action:'accLogin',phone:'0723330001',password:'river-stone-4'});const S2=r.token;
+ r=await call({action:'app',token:S2,ep:sa.endpoint});ok('signing out stops this browser’s reminders',r.push.mine===false,r.push);
+ // live slides codes
+ const pub='B'+'x'.repeat(86),join='abcdefgh23.'+pub;
+ r=await call({action:'liveOpen',deck:'../evil.html',join});ok('only a deck in this site',!r.ok,r);
+ r=await call({action:'liveOpen',deck:'Cyber_Session_4_Passwords.html',join:'<script>'});ok('only a live room link',!r.ok,r);
+ r=await call({action:'liveOpen',deck:'Cyber_Session_4_Passwords.html',join});ok('a code for the live class',r.ok&&/^[A-HJ-NP-Z2-9]{6}$/.test(r.code)&&/^[a-f0-9]{32}$/.test(r.end)&&!r.linked,r);const L1=r;
+ r=await call({action:'liveOpen',deck:'Cyber_Session_4_Passwords.html',join,end:L1.end});ok('the deck again: same code',r.ok&&r.code===L1.code,r);
+ r=await call({action:'liveOpen',deck:'Cyber_Session_4_Passwords.html',join});ok('someone else with the same link: another code',r.ok&&r.code!==L1.code,r);
+ r=await call({action:'liveFind',code:L1.code.toLowerCase().slice(0,3)+' '+L1.code.slice(3)});ok('typed code finds the deck',r.ok&&r.deck==='Cyber_Session_4_Passwords.html'&&r.join===join,r);
+ r=await call({action:'app',token:S2});ok('not linked: no Join live button',r.live.length===0,r.live);
+ // a facilitator links this laptop to the class: the next live class shows in its students' app
+ r=await call({action:'presentKey',token:A,k});ok('laptop linked',r.ok&&/^[a-f0-9]{32}$/.test(r.key)&&r.className==='Reminder Class',r);const PK=r.key;
+ r=await call({action:'liveOpen',deck:'Cyber_Session_4_Passwords.html',join,end:L1.end,pk:PK});ok('linked live class',r.ok&&r.code===L1.code&&r.linked&&r.k===k,r);
+ r=await call({action:'app',token:S2});ok('student sees Join live',r.live.length===1&&r.live[0].code===L1.code&&r.live[0].join===join&&r.live[0].className==='Reminder Class',r.live);
+ r=await call({action:'app',token:O});ok('outsider does not',r.live.length===0,r.live);
+ r=await call({action:'liveOpen',deck:'Cyber_Session_4_Passwords.html',join:'zzzzzzzz22',pk:'f'.repeat(32)});ok('a made-up laptop key links nothing',r.ok&&!r.linked&&r.pkBad,r);
+ r=await call({action:'liveEnd',code:L1.code,end:'0'.repeat(32)});ok('ending needs the deck’s key',r.n===0,r);
+ r=await call({action:'liveEnd',code:L1.code,end:L1.end});ok('ended',r.n===1,r);
+ r=await call({action:'liveFind',code:L1.code});ok('code gone after the end',!r.ok&&r.reason==='code',r);
+ r=await call({action:'app',token:S2});ok('Join live gone',r.live.length===0,r.live);
+ r=await call({action:'presentKey',token:A,k,drop:PK});ok('unlinked',r.ok,r);
+ r=await call({action:'liveOpen',deck:'Cyber_Session_4_Passwords.html',join:'yyyyyyyy22',pk:PK});ok('unlinked key links nothing',r.ok&&!r.linked,r);
+ for(let i=0;i<41;i++)r=await callFrom('10.9.9.9',{action:'liveFind',code:'AAAAA'+'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[i%32]});ok('wrong codes are limited per address',r.reason==='slow',r);
+ r=await callFrom('10.9.9.8',{action:'liveFind',code:'AAAAAA'});ok('other addresses still try',r.reason==='code',r);
+ await call({action:'phoneKeySet',token:A,on:false});
+ psrv.close();}
  console.log(f ? '\n' + f + ' FAILED' : '\nALL PASS'); process.exit(f ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
