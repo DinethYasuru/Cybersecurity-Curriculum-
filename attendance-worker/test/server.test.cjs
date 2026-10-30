@@ -233,6 +233,22 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  }
 
 
+ section('Admin and facilitator with the same password');
+{const A=(await call({action:'login',password:'pass12345'})).token;
+ await call({action:'staffSave',token:A,k:'cyber',name:'Same Password',phone:'0712223344',role:'instructor',password:'start123'});
+ let F=(await call({action:'login',phone:'0712223344',password:'start123'})).token;
+ let r=await call({action:'myAccount',token:F,name:'Same Password',password:'pass12345',oldPassword:'start123'});ok('facilitator picks the admin password',r.ok,r);
+ r=await call({action:'login',as:'admin',password:'pass12345'});ok('admin sign-in is the admin',r.ok&&r.corner.admin&&!r.me,r);
+ r=await call({action:'login',as:'admin',phone:'0712223344',password:'pass12345'});ok('admin sign-in with a stray number is still the admin',r.ok&&r.corner.admin&&!r.me,r);
+ r=await call({action:'login',as:'staff',phone:'0712223344',password:'pass12345'});ok('facilitator sign-in is the facilitator',r.ok&&!r.corner.admin&&r.me&&r.me.phone==='0712223344',r);
+ r=await call({action:'data',token:r.token,k:'cyber'});ok('facilitator gets no admin rights',r.ok&&!r.corner.admin,r.corner);
+ r=await call({action:'login',as:'staff',password:'pass12345'});ok('facilitator sign-in without a number is refused',!r.ok&&!r.token,r);
+ r=await call({action:'login',phone:'0712223344',password:'pass12345'});ok('older page: number means facilitator',r.ok&&!r.corner.admin&&r.me,r);
+ r=await call({action:'login',password:'pass12345'});ok('older page: no number means admin',r.ok&&r.corner.admin&&!r.me,r);
+ F=(await call({action:'login',as:'staff',phone:'0712223344',password:'pass12345'})).token;
+ r=await call({action:'staffSave',token:A,sid:(await call({action:'data',token:F,k:'cyber'})).me.id,remove:true,k:'cyber'});
+ }
+
  section('Security: lockouts, passwords, change log, restore points');
  {
  const A=(await call({action:'login',password:'pass12345'})).token;

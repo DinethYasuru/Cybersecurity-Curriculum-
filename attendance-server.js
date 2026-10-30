@@ -509,7 +509,10 @@ function AttendanceCore(rawEnv) {
   function staffOut(r) { return r ? { id: r.id, name: r.name, phone: r.phone, role: r.role === 'owner' ? 'owner' : 'instructor', active: r.active !== 'no', added: r.added } : null; }
   function login(req, now) {
     var s = settings(), trust = trustOk(req.trust, now), failKey = trust ? 'loginfail:trusted' : 'loginfail';
+    // the page says which sign-in this is, so an admin sign-in never becomes a facilitator one (same password or not)
+    if (req.as === 'admin') req = { password: req.password, trust: req.trust };
     var lp = cleanPhone(req.phone), who = null;
+    if (req.as === 'staff' && !lp) return fail('input', 'Type your mobile number, or choose Sign in as admin.');
     if (req.phone) {
       if (Number(env.cacheGet(failKey) || 0) >= (trust ? 10 : 20)) return fail('locked', 'Too many wrong passwords. Wait 15 minutes, or unlock sign-in (Google Sheet: Attendance menu; Cloudflare: Setup › Cloudflare server tools).');
       who = staffByPhone(lp);
