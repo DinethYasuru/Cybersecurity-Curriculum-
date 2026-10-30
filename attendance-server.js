@@ -30,7 +30,7 @@
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 29;
+var SERVER_VERSION = 30;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -147,6 +147,19 @@ function AttendanceCore(rawEnv) {
       if (startMs > now) return startMs;
     }
     return 0;
+  }
+  // the next class days (at most n, within 60 days): the weekly days that are not cancelled, and any day the
+  // facilitator added ahead of time under Class days (with its note). Today counts until the class window ends.
+  function upcoming(now, s, n) {
+    var t = local(now, s), out = [], held = {}, cut = {};
+    env.read('days').forEach(function (r) { if (r.date >= t.date) { if (r.status === 'cancelled') cut[r.date] = 1; else held[r.date] = r.note || ''; } });
+    if (env.getProp('closedDay') === t.date || t.time >= s.end) cut[t.date] = 1;
+    for (var i = 0; i < 60 && out.length < n; i++) {
+      var d = local(now + i * 86400000, s);
+      if (cut[d.date]) continue;
+      if (s.days.indexOf(d.day) >= 0 || held.hasOwnProperty(d.date)) out.push({ date: d.date, start: s.start, end: s.end, note: held[d.date] || '' });
+    }
+    return out;
   }
   function codeFor(key, slot) {
     var b = env.hmac(key, 'att:' + slot), out = '';
@@ -307,7 +320,7 @@ function AttendanceCore(rawEnv) {
     var s = settings(), t = local(now, s);
     var o = openDay(now);
     return { ok: true, version: SERVER_VERSION, now: now, today: t.date, time: t.time, open: isOpen(now, s), todayDone: todayDone(now, s),
-      extraUntil: extraWindow(now), nextOpen: nextOpen(now, s), openDay: o ? { date: o.date, until: o.until } : null,
+      extraUntil: extraWindow(now), nextOpen: nextOpen(now, s), upcoming: upcoming(now, s, 3), openDay: o ? { date: o.date, until: o.until } : null,
       window: { days: s.days, start: s.start, end: s.end, tzName: s.tzName, tzOffset: s.tzOffset },
       requireCode: s.requireCode, selfRegister: s.selfRegister, selfEdit: s.selfEdit, configured: !!env.getProp('adminHash'), idExample: formatId(s, Number(s.idStart) || 1) };
   }
@@ -392,7 +405,7 @@ function AttendanceCore(rawEnv) {
     env.read('excuses').forEach(function (r) { if (r.id === id) exc[r.date] = r.reason || 'excused'; });
     return { ok: true, id: id, name: st.name, phone: st.phone, records: days.map(function (d) {
       return { date: d, status: att[d] ? 'present' : exc[d] ? 'excused' : 'absent', time: att[d] || '' };
-    }), upcomingExcuses: Object.keys(exc).filter(function (d) { return d > today; }).sort() };
+    }), upcomingExcuses: Object.keys(exc).filter(function (d) { return d > today; }).sort(), upcoming: upcoming(now, s, 3) };
   }
 
   /* ----- the student's own profile ----- */

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Join the live class</title>
+<meta name="description" content="American Corner Matara: type the code from the classroom screen to follow the live slides on a laptop.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://*.workers.dev; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600;700&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#002868;--red:#BF0A30;--ink:#0b1630;--muted:#5a6478;--line:#e3e7ee;--ease:cubic-bezier(.22,1,.36,1)}
+*{box-sizing:border-box;margin:0}
+html{-webkit-text-size-adjust:100%}
+body{background:#fff;color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;overflow-x:hidden;display:grid;place-items:center;padding:24px 16px}
+.stripes{position:fixed;top:-12vmin;left:-12vmin;width:46vmin;height:46vmin;transform:rotate(-45deg);display:grid;gap:2.2vmin;align-content:center;pointer-events:none}
+.stripes i{display:block;height:2.2vmin;background:var(--red);transform-origin:left;animation:grow 1.4s var(--ease) both}
+.stripes i:nth-child(2){animation-delay:.12s}.stripes i:nth-child(3){animation-delay:.24s}.stripes i:nth-child(4){animation-delay:.36s}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+main{position:relative;width:min(100%,560px);animation:up .8s var(--ease) both}
+.kicker{font-family:'Outfit';font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--red);font-size:.95rem}
+h1{font-family:'Outfit';font-weight:700;color:var(--navy);font-size:clamp(2.4rem,9vw,4rem);line-height:1;margin:.3em 0 .3em;letter-spacing:-.02em}
+h1 span{color:var(--red)}
+p{color:var(--muted);font-size:1.1rem;line-height:1.45}
+form{display:flex;gap:12px;margin:28px 0 14px}
+input{flex:1;min-width:0;font:700 clamp(1.8rem,7vw,2.6rem) 'Outfit';letter-spacing:.2em;text-transform:uppercase;text-align:center;padding:.35em .4em;border:2px solid var(--line);border-radius:16px;color:var(--navy);background:#fff}
+input:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 4px rgba(0,40,104,.12)}
+button{font:600 1.25rem 'Outfit';padding:0 1.4em;border:0;border-radius:16px;background:var(--navy);color:#fff;cursor:pointer;transition:background .2s}
+button:hover{background:var(--red)}button:disabled{opacity:.6;cursor:wait}
+#msg{min-height:1.6em;font-weight:600}#msg.err{color:var(--red)}
+.back{display:inline-block;margin-top:28px;color:var(--navy);font-weight:600}
+@media (max-width:420px){form{flex-direction:column}button{padding:.7em}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="stripes" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<main>
+  <div class="kicker">American Corner Matara</div>
+  <h1>Join the <span>live class</span></h1>
+  <p>Type the code under the QR on the classroom screen. Your screen follows the slides.</p>
+  <form id="f" novalidate><input id="c" name="c" maxlength="7" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE" aria-label="Live class code" autofocus><button id="go">Join</button></form>
+  <div id="msg" role="status"></div>
+  <a class="back" href="index.html">All sessions</a>
+</main>
+<script>
+/* The deck asks the attendance server for this short code when the live class starts (press L in the deck).
+   The code turns into the deck's own join link; it ends with the class. */
+const SERVER_URL='https://cyber-attendance.dinethyasuru.workers.dev';
+const $=s=>document.querySelector(s),msg=(t,err)=>{$('#msg').textContent=t;$('#msg').className=err?'err':''};
+async function join(raw){
+  const code=String(raw||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(code.length!==6){msg('Type the 6-letter code from the screen.',true);$('#c').focus();return}
+  $('#go').disabled=true;msg('Finding the class…');
+  try{
+    const r=await (await fetch(SERVER_URL,{method:'POST',body:JSON.stringify({action:'liveFind',code})})).json();
+    if(r.ok&&/^Cyber_[A-Za-z0-9_]{1,60}\.html$/.test(r.deck)&&/^[a-z2-9]{10}(\.[A-Za-z0-9_-]{40,120})?$/.test(r.join)){msg('Opening the slides…');location.replace(r.deck+'?join='+r.join);return}
+    msg(r.message||'That code did not work.',true);
+  }catch(e){msg('Could not reach the class server. Check the internet and try again.',true)}
+  $('#go').disabled=false;
+}
+$('#f').onsubmit=e=>{e.preventDefault();join($('#c').value)};
+const q=new URLSearchParams(location.search).get('c');
+if(q){$('#c').value=q;history.replaceState(null,'',location.pathname);join(q)}
+</script>
+</body>
+</html>

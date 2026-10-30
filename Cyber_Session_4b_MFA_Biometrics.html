@@ -1305,6 +1305,10 @@ html.framed #tryB{font-size:.85rem}
 #lvQr{width:clamp(200px,26vw,380px);aspect-ratio:1;display:grid;place-items:center;border:1.5px solid var(--line);border-radius:18px;padding:12px;background:#fff}
 #lvQr svg{width:100%;height:100%;display:block}
 #lvQr small{font-size:.9rem;color:var(--mute);text-align:center}
+.lvcode{display:flex;flex-wrap:wrap;align-items:center;gap:.3em .8em;margin:.8em 0 0;font-size:clamp(.95rem,1.3vw,1.2rem);color:var(--mute)}
+.lvcode b{color:var(--c-blue);font-weight:600;overflow-wrap:anywhere}
+.lvcode strong{font:700 clamp(1.8rem,3.4vw,3rem)/1 var(--display);letter-spacing:.14em;color:var(--c-red);white-space:nowrap}
+.lvcode em{flex-basis:100%;font-style:normal;font-size:.85em}
 .lvi{display:grid;gap:clamp(10px,1.4vw,18px);min-width:0}
 .lvi h2{margin:0;font:300 clamp(2rem,4vw,3.6rem)/1 var(--display);letter-spacing:-.03em}
 .lvi h2 b{font-weight:600;color:var(--c-red)}
@@ -3587,6 +3591,8 @@ const LV_RELAYS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/
 const LV_PUBLIC='https://dinethyasuru.github.io/Cybersecurity-Curriculum-/Cyber_Session_4b_MFA_Biometrics.html';
 const LV_MQTT='https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js';
 const LV_QR='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+// the attendance server gives the live class a short code, so a laptop (no camera for the QR) joins by typing it
+const LV_HUB='https://cyber-attendance.dinethyasuru.workers.dev';
 const LV_Q=new URLSearchParams(location.search);
 const LV_TEST=(LV_Q.get('lvb')||'').split(',').filter(Boolean);
 const LIVE={roster:new Map(),rt:0,name:'',use:{},uId:'',uT:0,pres:false,stu:false,room:'',key:null,vkey:null,pub:'',seq:0,last:0,u:false,sid:'',cl:[],seen:new Map(),got:false,ended:false,locked:true,me:Math.random().toString(36).slice(2,10),qt:0,hb:0,tried:new Set()};
@@ -3632,6 +3638,32 @@ async function lvKeys(fresh){
   }catch(e){priv=null;LIVE.pub='';}
   ls('s4b-live',JSON.stringify({room:LIVE.room,priv,pub:LIVE.pub}));
 }
+/* the short code: same live room, same code (kept 3 hours, renewed every half hour while live). A laptop
+   linked to a class in the attendance app (Live QR › Live slides) also puts a Join live button in its students' app. */
+async function lvShort(){
+  if(!LIVE.pres)return;
+  let sv={},pk='';try{sv=JSON.parse(ls('s4b-code')||'{}')||{};pk=(JSON.parse(ls('acm-present')||'null')||{}).key||'';}catch(e){}
+  // a new class link: the old code ends
+  if(sv.code&&sv.room!==LIVE.room){lvShortEnd();sv={};}
+  try{
+    const r=await (await fetch(LV_HUB,{method:'POST',body:JSON.stringify({action:'liveOpen',deck:LV_PUBLIC.split('/').pop(),join:LIVE.room+(LIVE.pub?'.'+LIVE.pub:''),end:sv.room===LIVE.room?sv.end:'',pk})})).json();
+    if(r.ok&&LIVE.pres){LIVE.code=r.code;LIVE.codeCls=r.className||'';ls('s4b-code',JSON.stringify({room:LIVE.room,end:r.end,code:r.code}));}
+  }catch(e){}
+  lvCodeUI();
+}
+function lvShortEnd(){
+  let sv={};try{sv=JSON.parse(ls('s4b-code')||'{}')||{};}catch(e){}
+  if(sv.code&&sv.end)try{fetch(LV_HUB,{method:'POST',body:JSON.stringify({action:'liveEnd',code:sv.code,end:sv.end}),keepalive:true}).catch(()=>{});}catch(e){}
+  ls('s4b-code',null);LIVE.code='';lvCodeUI();
+}
+function lvCodeUI(){
+  const el=$('#lvCode');if(!el)return;
+  el.hidden=!LIVE.code;if(!LIVE.code)return;
+  const site=/^https?:$/.test(location.protocol)?location.host+location.pathname.replace(/[^/]*$/,''):LV_PUBLIC.replace(/^https:\/\//,'').replace(/[^/]*$/,'');
+  el.innerHTML='<span>On a laptop? Go to <b></b> and type</span><strong></strong>'+(LIVE.codeCls?'<em></em>':'');
+  $('b',el).textContent=site.replace(/\/$/,'');$('strong',el).textContent=LIVE.code.slice(0,3)+' '+LIVE.code.slice(3);
+  if(LIVE.codeCls)$('em',el).textContent='Signed-in students of '+LIVE.codeCls+' also see a Join live button in their app.';
+}
 function lvJoinUrl(){
   const base=/^https?:$/.test(location.protocol)?location.origin+location.pathname:LV_PUBLIC;
   let u=base+'?join='+LIVE.room+(LIVE.pub?'.'+LIVE.pub:'');
@@ -3648,6 +3680,7 @@ async function lvStart(fresh){
   try{await lvConnect(['hi','use'],lvHello,c=>{if(c)lvSendNow(c);lvUI();});}
   catch(e){toast('Live class needs internet. The deck still works offline.');}
   clearInterval(LIVE.hb);LIVE.hb=setInterval(()=>{lvSendNow();lvUI();},8000);
+  lvShort();clearInterval(LIVE.ct);LIVE.ct=setInterval(lvShort,30*60000);
   lvUI();
 }
 function lvHello(t,p){
@@ -3721,6 +3754,7 @@ function lvEnd(){
   LIVE.ended=true;LIVE.u=false;
   lvSendNow().then(()=>setTimeout(()=>{lvDrop();LIVE.pres=false;clearInterval(LIVE.hb);lvUI();if(LIVE.roster.size)lvDownload();},2500));
   ls('s4b-live-on',null);
+  clearInterval(LIVE.ct);lvShortEnd();
   lvPanel(false);toast('Class ended. Saving the class file…');
 }
 /* a slide students can play: it has controls of its own (not the logos, the Begin
@@ -3783,10 +3817,10 @@ async function lvPanel(open){
   if(p)return;
   if(!LIVE.pres)await lvStart(false);
   p=document.createElement('div');p.id='lvPanel';
-  p.innerHTML='<div class="lvc"><button class="lvx" aria-label="Close">&times;</button><div id="lvQr"><small>Loading QR…</small></div><div class="lvi"><h2>Join the <b>class.</b></h2><p>Scan with your phone. Your screen follows mine.</p><div class="lvlink" id="lvLink"></div><div class="lvn"><b id="lvN">0</b><span>joined</span></div><div class="lvroster" id="lvRoster"></div><div class="lvst" id="lvSt"><i></i><span></span></div><div class="lvbtns"><button class="nb main" id="lvUp">Unleash this slide (U)</button><button class="nb" id="lvCopy">Copy link</button><button class="nb" id="lvDl">Download class file</button><button class="nb" id="lvNew">New class link</button><button class="nb" id="lvStop">End class</button></div></div></div>';
+  p.innerHTML='<div class="lvc"><button class="lvx" aria-label="Close">&times;</button><div id="lvQr"><small>Loading QR…</small></div><div class="lvi"><h2>Join the <b>class.</b></h2><p>Scan with your phone. Your screen follows mine.</p><div class="lvlink" id="lvLink"></div><div class="lvcode" id="lvCode" hidden></div><div class="lvn"><b id="lvN">0</b><span>joined</span></div><div class="lvroster" id="lvRoster"></div><div class="lvst" id="lvSt"><i></i><span></span></div><div class="lvbtns"><button class="nb main" id="lvUp">Unleash this slide (U)</button><button class="nb" id="lvCopy">Copy link</button><button class="nb" id="lvDl">Download class file</button><button class="nb" id="lvNew">New class link</button><button class="nb" id="lvStop">End class</button></div></div></div>';
   document.body.appendChild(p);
   const url=lvJoinUrl();
-  $('#lvLink',p).textContent=url;
+  $('#lvLink',p).textContent=url;lvCodeUI();
   $('.lvx',p).onclick=()=>lvPanel(false);
   p.addEventListener('click',e=>{if(e.target===p)lvPanel(false);});
   $('#lvUp',p).onclick=lvToggleU;
