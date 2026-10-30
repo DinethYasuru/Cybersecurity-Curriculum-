@@ -57,14 +57,14 @@ const json = (o, status) => new Response(JSON.stringify(o), { status: status || 
    The Cyber Security class keeps its original database (named 'class'). */
 const STUDENT = { status: 1, lookup: 1, register: 1, checkin: 1, me: 1, profile: 1, keyRequest: 1, keySignIn: 1, profileSave: 1 };
 // the student app: signing in (no account yet), then everything a signed-in student does
-const APP_OPEN = { accRequest: 1, accActivate: 1, accLogin: 1 };
+const APP_OPEN = { accRequest: 1, accActivate: 1, accLogin: 1, accFirst: 1 };
 const APP = { app: 1, appFind: 1, appCheckin: 1, appExcuse: 1, appExcuseDrop: 1, appSave: 1, appLogout: 1, appHelp: 1 };
 // the admin's (and coordinators') side of it: the requests inbox, keys, moving records to a new number, the on/off switch
-const STU_ADMIN = { stuInbox: 1, stuReq: 1, stuKey: 1, stuMove: 1, stuMoveCheck: 1, stuLoginSet: 1, waSave: 1 };
+const STU_ADMIN = { stuInbox: 1, stuReq: 1, stuKey: 1, stuMove: 1, stuMoveCheck: 1, stuLoginSet: 1, phoneKeySet: 1, waSave: 1 };
 // the WhatsApp helper on the admin's laptop: its own key, and only these two steps (the next key to send, and "sent")
 const WA_HELPER = { waNext: 1, waDone: 1 };
 // steps after which the Firebase key queue looks at its slot at once
-const FB_NOW = { accRequest: 1, areqIssue: 1, areqSet: 1, waSave: 1 };
+const FB_NOW = { accRequest: 1, accFirst: 1, areqIssue: 1, areqSet: 1, waSave: 1 };
 const HUB_ADMIN = { corner: 1, classSave: 1, classDelete: 1, people: 1, staffSave: 1, myAccount: 1, adminPassword: 1, branchSave: 1 };
 // what a coordinator account may do inside a class: look, never change (and never get the QR key)
 const COORD_READ = { data: 1, today: 1, photos: 1, export: 1 };
@@ -136,7 +136,7 @@ async function serve(request, env, T) {
     };
     const saveSched = async k => { const sc = await I(k, { op: 'sched' }); if (sc.ok) await H('schedSave', { k, sched: sc.sched }); };
     const ip = JSON.parse(net).ip;
-    const loadClasses = async () => { const r = await H('classes'); CLASS_CACHE = { at: Date.now(), list: r.classes, branch: r.branch || BRANCH_DEFAULT, stuLogin: r.stuLogin !== false }; return CLASS_CACHE; };
+    const loadClasses = async () => { const r = await H('classes'); CLASS_CACHE = { at: Date.now(), list: r.classes, branch: r.branch || BRANCH_DEFAULT, stuLogin: r.stuLogin !== false, phoneKey: !!r.phoneKey }; return CLASS_CACHE; };
     let fresh = !(CLASS_CACHE && Date.now() - CLASS_CACHE.at < CLASS_TTL);
     let cc = fresh ? await loadClasses() : CLASS_CACHE;
     let classes = cc.list;
@@ -144,6 +144,8 @@ async function serve(request, env, T) {
     const branch = cc.branch;
     // students sign in to the app before they check in (the admin can turn this off in Branch)
     let accounts = cc.stuLogin !== false;
+    // the admin's switch: a number with no account yet may sign in the first time with the number itself (no WhatsApp key)
+    let phoneKey = accounts && !!cc.phoneKey;
     // something changed the class list (or the branch): the next request in this copy reads it again
     const dropClasses = () => { CLASS_CACHE = null; };
     const known = k => pub.some(c => c.id === k);
@@ -151,7 +153,7 @@ async function serve(request, env, T) {
 
     if (request.method === 'GET') {
       const r = await C(pub[0] ? pub[0].id : 'cyber', { action: 'status' });
-      return json(Object.assign(r, { multi: true, branch, accounts, classes: pub.map(c => ({ id: c.id, name: c.name })) }));
+      return json(Object.assign(r, { multi: true, branch, accounts, phoneKey, classes: pub.map(c => ({ id: c.id, name: c.name })) }));
     }
     const body = await request.text();
     if (body.length > MAX_IMPORT) return json({ ok: false, reason: 'input', message: 'Request too big.' });
@@ -315,14 +317,14 @@ async function serve(request, env, T) {
           const r = await C(k || opened[0] || (pub[0] ? pub[0].id : 'cyber'), { action: 'status' });
           // several open: a code is asked for only if one of them wants it
           if (!k && opened.length > 1) r.requireCode = st.some(x => x.s.open && x.s.requireCode);
-          return json(Object.assign(r, { multi: true, branch, accounts, k: k || '', className: k ? nameOf(k) : '', classes: pub.map(c => ({ id: c.id, name: c.name, open: opened.includes(c.id) })), pick: !k && opened.length > 1 }));
+          return json(Object.assign(r, { multi: true, branch, accounts, phoneKey, k: k || '', className: k ? nameOf(k) : '', classes: pub.map(c => ({ id: c.id, name: c.name, open: opened.includes(c.id) })), pick: !k && opened.length > 1 }));
         }
         if (!k && a !== 'me') {
           if (opened.length > 1) return json({ ok: false, reason: 'pick', message: 'Pick your class first.', classes: pub.filter(c => opened.includes(c.id)).map(c => ({ id: c.id, name: c.name })) });
           k = pub[0] ? pub[0].id : 'cyber';
         }
       }
-      if (a === 'status') { const r = await C(k, req); return json(Object.assign(r, { multi: true, branch, accounts, k, className: nameOf(k), classes: pub.map(c => ({ id: c.id, name: c.name })) })); }
+      if (a === 'status') { const r = await C(k, req); return json(Object.assign(r, { multi: true, branch, accounts, phoneKey, k, className: nameOf(k), classes: pub.map(c => ({ id: c.id, name: c.name })) })); }
       // My attendance across every class the person attends
       if (a === 'me' && req.all) {
         const en = (await H('enrolOf', { phone: req.phone })).enrol || [];
@@ -457,6 +459,7 @@ async function serve(request, env, T) {
       }
       if (!who.admin) return json(fail('input', 'Only the admin can do this.'));
       if (a === 'stuLoginSet') { const r = await H('stuLoginSet', { on: !!req.on }); dropClasses(); return json(r); }
+      if (a === 'phoneKeySet') { const r = await H('phoneKeySet', { on: req.on, known: req.known }); dropClasses(); return json(r); }
       if (a === 'waSave') return json(await H('waSave', { cfg: req.cfg, newKey: req.newKey === true, revoke: req.revoke === true }));
       // a student's records move to their new number: in each class the old number's student gets the new number,
       // and where the new number already had its own student (they registered again) the two become one
@@ -1164,6 +1167,32 @@ export class Corner extends DurableObject {
     });
     return { ok: true, token: this.stuTok(phone, pv), trust: this.stuTrust(phone), me: this.accOut(this.one('SELECT * FROM accounts WHERE phone = ?', phone)) };
   }
+  /* the admin's switch for the first sign-in: the mobile number the student gave is the key, no WhatsApp message.
+     Off unless the admin turns it on; the WhatsApp key above still works either way (and is how a student gets
+     back a number someone else took). Only a number with no app account yet, never a facilitator's, and unless
+     the admin says otherwise only a number on a class list. The answer is the same for every number it refuses. */
+  phoneKey() { let c = {}; try { c = JSON.parse(this.prop('phoneKey') || '{}'); } catch (e) {} return { on: !!c.on, known: c.known !== false }; }
+  accFirst(q) {
+    const c = this.phoneKey(), phone = cleanPh(q.phone), pw = String(q.password || ''), now = Date.now();
+    if (!c.on || !this.stuLogin()) return fail('off', 'First sign-in with your number is not on. Tap Ask for a key.');
+    if (!phone) return fail('phone', 'Type your mobile number, like 0771234567.');
+    // per number, per internet address, and for everyone together (a flood of guessed numbers stops at the last)
+    if (this.over('apf:' + phone, 5, 900) || this.over('apfi:' + String(q.ip || ''), 20, 900) || this.over('apf:all', 300, 3600)) return fail('slow', 'Too many tries. Wait 15 minutes.');
+    const no = fail('number', 'This number can’t use first sign-in. Signed in before? Use your password. If not, tap Ask for a key.');
+    if (this.one('SELECT id FROM staff WHERE phone = ?', phone) || this.one('SELECT phone FROM accounts WHERE phone = ?', phone)) return no;
+    const person = this.one('SELECT name FROM people WHERE phone = ?', phone), listed = this.one("SELECT name FROM enrol WHERE phone = ? AND active != 'no'", phone);
+    if (c.known && !person && !listed) return no;
+    const name = person && person.name ? person.name : listed && listed.name ? listed.name : cleanNm(q.name);
+    if (!okName(name)) return fail('name', 'Type your name with letters only.');
+    const weak = pwProblem(pw, phone); if (weak) return fail('password', weak);
+    const salt = randHex(16);
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec('INSERT INTO accounts VALUES (?, ?, ?, ?, ?, ?, ?, ?)', phone, name, salt, hashPw(pw, salt), 1, '', now, now);
+      // a key waiting to go out on WhatsApp isn't needed now (the helper and the Firebase queue skip used requests)
+      this.sql.exec("UPDATE areq SET status = 'used', updated = ? WHERE kind = 'signin' AND phone = ? AND status IN ('new', 'sent')", now, phone);
+    });
+    return { ok: true, token: this.stuTok(phone, 1), trust: this.stuTrust(phone), me: this.accOut(this.one('SELECT * FROM accounts WHERE phone = ?', phone)) };
+  }
   // a phone that signed in before gets its own count of wrong passwords, so a classmate typing wrong passwords
   // for someone else's number can't lock that student out of their own phone
   stuTrust(phone) { const t = randHex(16); this.kvPut('strust:' + t, phone, STU_DAYS * 86400); return t; }
@@ -1511,7 +1540,7 @@ export class Corner extends DurableObject {
     switch (q.op) {
       case 'inited': return json({ inited: !!this.prop('inited') });
       case 'init': return json(this.init(q.seed));
-      case 'classes': return json({ classes: this.all('SELECT * FROM classes ORDER BY ord, name'), branch: this.branch(), stuLogin: this.stuLogin() });
+      case 'classes': return json({ classes: this.all('SELECT * FROM classes ORDER BY ord, name'), branch: this.branch(), stuLogin: this.stuLogin(), phoneKey: this.phoneKey().on });
       // each class's hours, kept here so a student's first screen asks only the classes that may be open now
       case 'schedSave': if (q.sched && typeof q.sched === 'object') this.prop('sched:' + q.k, JSON.stringify(q.sched)); return json({ ok: true });
       case 'openGuess': {
@@ -1579,11 +1608,24 @@ export class Corner extends DurableObject {
       // the student app
       case 'stuLogin': return json({ on: this.stuLogin() });
       case 'stuLoginSet': this.prop('stuLogin', q.on ? '1' : '0'); return json({ ok: true, on: this.stuLogin() });
+      case 'phoneKeySet': {
+        const c = this.phoneKey();
+        if (q.on != null) c.on = !!q.on;
+        if (q.known != null) c.known = !!q.known;
+        this.prop('phoneKey', JSON.stringify(c));
+        return json({ ok: true, phoneKey: this.phoneKey() });
+      }
       case 'accRequest': return json(this.accRequest(q));
       case 'accActivate': {
         const r = this.accActivate(q), c = Object.assign({}, ctx, { who: cleanPh(q.phone) || String(q.phone || '').slice(0, 20), role: 'student' });
         if (r.ok) this.chgAdd(c, 'signin', [{ target: 'student app', op: 'key used', after: { phone: r.me.phone, name: r.me.name } }]);
         else if (r.reason === 'key' || r.reason === 'slow') this.alert(c, 'student app key', { phone: cleanPh(q.phone), result: r.reason === 'slow' ? 'too many tries' : 'wrong key' });
+        return json(r);
+      }
+      case 'accFirst': {
+        const r = this.accFirst(q), c = Object.assign({}, ctx, { who: cleanPh(q.phone) || String(q.phone || '').slice(0, 20), role: 'student' });
+        if (r.ok) this.chgAdd(c, 'signin', [{ target: 'student app', op: 'first sign-in with number', after: { phone: r.me.phone, name: r.me.name } }]);
+        else if (r.reason === 'number' || r.reason === 'slow') this.alert(c, 'student app first sign-in', { phone: cleanPh(q.phone), result: r.reason === 'slow' ? 'too many tries' : 'number not allowed' });
         return json(r);
       }
       case 'accLogin': {
@@ -1602,7 +1644,7 @@ export class Corner extends DurableObject {
         return json({ ok: true });
       }
       case 'enrolFull': return json({ enrol: this.all("SELECT k, sid, name FROM enrol WHERE phone = ? AND active != 'no'", cleanPh(q.phone)) });
-      case 'areqList': return json({ ok: true, requests: this.areqList(), on: this.stuLogin() });
+      case 'areqList': return json({ ok: true, requests: this.areqList(), on: this.stuLogin(), phoneKey: this.phoneKey() });
       case 'waState': return json({ wa: this.waState() });
       case 'waSave': return json(this.waSave(q));
       case 'waNext': return json(this.waNext(q, ctx));
