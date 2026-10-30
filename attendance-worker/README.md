@@ -163,3 +163,7 @@ Students in the cyber security class will try to break in, so this version was c
 - New student passwords need 8 characters with letters, not only numbers, not the mobile number and not a common password.
 - A student can save their profile at most 30 times an hour.
 - A link or QR that points the page to another server (`?s=`) shows a red warning to students, and asks before any password (student or staff) goes there.
+
+## Versions on the Overview (server version 29)
+
+The admin's **Overview** has a **Versions** card: the page's own version (`APP_VERSION` in `attendance.html`, with the time GitHub Pages published it) and the Worker's version with the time Cloudflare deployed it (the `CF_VERSION_METADATA` binding in `wrangler.toml`). It says **Up to date**, **Worker outdated** (deploy the newest build under Deployments) or **App outdated** (this device kept an older page: Reload). Change `APP_VERSION` with every page change, and keep `SERVER_LATEST` in the page equal to `SERVER_VERSION` (the tests check).

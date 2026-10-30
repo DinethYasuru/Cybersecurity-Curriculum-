@@ -11,7 +11,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import server from '../../attendance-server.js';
 
-const { AttendanceCore, TABLES } = server;
+const { AttendanceCore, TABLES, SERVER_VERSION } = server;
 const BACKUPS_KEPT = 30;
 const MAX_BODY = 300000, MAX_IMPORT = 25000000;  // copying data in carries photos, so it may be bigger
 
@@ -163,6 +163,11 @@ async function serve(request, env, T) {
     if (body.length > MAX_BODY && !(req.action === 'maint' && req.op === 'import')) return json({ ok: false, reason: 'input', message: 'Request too big.' });
     const a = String(req.action || '');
     T.actor.action = a.slice(0, 40);
+    // which server code runs and when Cloudflare deployed it (the admin's Overview compares it with the page)
+    if (a === 'about') {
+      const m = env.CF_VERSION_METADATA || {};
+      return json({ ok: true, version: SERVER_VERSION, deploy: { id: String(m.id || ''), tag: String(m.tag || ''), at: String(m.timestamp || '') } });
+    }
     if (req.phone && typeof req.phone === 'string') T.actor.who = cleanPh(req.phone) || req.phone.slice(0, 20);
     const rawK = String(req.k || '');
     // a class made in the last minute (by another copy of the Worker): read the list again before saying it's gone
