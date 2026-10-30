@@ -90,7 +90,7 @@ layer.append(cvH,cvI);
 const xH=cvH.getContext('2d'),xI=cvI.getContext('2d');
 let dpr=1,W=0,H=0;
 function size(){
-  dpr=Math.min(2,window.devicePixelRatio||1);W=innerWidth;H=innerHeight;
+  dpr=window.__LITE?1:Math.min(2,window.devicePixelRatio||1);W=innerWidth;H=innerHeight;
   [cvH,cvI].forEach(c=>{c.width=Math.round(W*dpr);c.height=Math.round(H*dpr);});
   clampZoom();applyZoom();draw();
 }

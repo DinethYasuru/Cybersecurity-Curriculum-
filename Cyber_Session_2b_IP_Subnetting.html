@@ -1377,6 +1377,53 @@ html.framed .bar{padding:.4rem max(14px,2vw) calc(.45rem + env(safe-area-inset-b
 .lvroster:empty::before{content:'Names appear here as students join.';color:var(--mute);font-size:.9rem}
 .btn.backs{background:#002868;color:#fff;display:inline-flex;align-items:center;gap:.5em;text-decoration:none;margin-top:clamp(.6rem,2vh,1.6rem);font-size:clamp(1.1rem,2vw,1.9rem)}.backs:hover{transform:translateY(-2px)}.backs svg{width:1.1em;height:1.1em}
 </style>
+<script>
+/* Phones get a lighter build (html.lite): same look, a fraction of the memory. iOS Safari kills a
+   page that holds too much ("A problem repeatedly occurred on ..."), and big blur filters, backdrop
+   blur and retina canvases cost the most there. If this tab's last visit ended without a normal
+   exit (a crash), html.safe calms it down further for the rest of the tab's life. ?full turns
+   both off, ?lite turns lite on. */
+(function(){
+  var d=document.documentElement,q=location.search,ss=null,lite=false,safe=false;
+  try{ss=window.sessionStorage;}catch(e){}
+  if(window.self===window.top&&ss)try{
+    var t=+ss.getItem('acm-alive')||0;
+    if(t&&Date.now()-t<6e5)ss.setItem('acm-safe','1');
+    var beat=function(){try{ss.setItem('acm-alive',String(Date.now()));}catch(e){}};
+    beat();setInterval(beat,4000);
+    addEventListener('pagehide',function(){try{ss.removeItem('acm-alive');}catch(e){}});
+    addEventListener('pageshow',function(e){if(e.persisted)beat();});
+  }catch(e){}
+  try{lite=matchMedia('(pointer:coarse)').matches;}catch(e){}
+  try{if(window.self!==window.top&&window.parent.__SHELL)lite=true;}catch(e){}
+  if(/[?&]lite\b/.test(q))lite=true;
+  try{safe=!!(ss&&ss.getItem('acm-safe'));}catch(e){}
+  if(/[?&]full\b/.test(q)){lite=safe=false;try{ss&&ss.removeItem('acm-safe');}catch(e){}}
+  if(safe)lite=true;
+  if(lite)d.classList.add('lite');
+  if(safe)d.classList.add('safe');
+  window.__LITE=lite;
+})();
+</script>
+<style>
+html.lite .wash{filter:none;animation:none;scale:1.35}
+html.lite .wash.a{background:radial-gradient(closest-side,rgba(0,40,104,.07),rgba(0,40,104,0))}
+html.lite .wash.b{background:radial-gradient(closest-side,rgba(191,10,48,.11),rgba(191,10,48,0))}
+html.lite .glow{display:none}
+html.lite .b,html.lite .b.in{filter:none}
+html.lite .slide.active.f{animation-name:inRl}
+html.lite .slide.active.bk{animation-name:inLl}
+html.lite .slide.out.o-f{animation-name:outFl}
+html.lite .slide.out.o-b{animation-name:outBl}
+@keyframes inRl{from{opacity:0;transform:translateX(90px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes inLl{from{opacity:0;transform:translateX(-90px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes outFl{to{opacity:0;transform:translateX(-90px) scale(.97)}}
+@keyframes outBl{to{opacity:0;transform:translateX(90px) scale(.97)}}
+html.lite *{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+html.lite #lvPanel,html.lite #lvWait,html.lite #lvName{background:rgba(251,252,254,.97)}
+html.safe .wash,html.safe .spot,html.safe .dots{display:none}
+html.safe *,html.safe *::before,html.safe *::after{animation-duration:1ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:1ms!important;transition-delay:0s!important}
+</style>
 </head>
 <body data-total="180">
 <div id="app">
@@ -2170,7 +2217,7 @@ const $$=(s,r)=>[...(r||document).querySelectorAll(s)];
 const slides=$$('.slide');
 let cur=0;
 function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(e){return null;}}
-const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches||document.documentElement.classList.contains('safe');
 
 /* ---- freeze clock: one switch pauses every countdown (presenter, break, lab, games) and live students ---- */
 const FZ={on:false,at:0,p:0,fx:[]};
@@ -2331,7 +2378,7 @@ function wbuild(v,big){
   return out;
 }
 function wsize_canvas(){
-  const cv=WC.cv,dpr=Math.min(2,window.devicePixelRatio||1);
+  const cv=WC.cv,dpr=window.__LITE?1:Math.min(2,window.devicePixelRatio||1);
   WC.dpr=dpr;cv.width=Math.round(cv.clientWidth*dpr);cv.height=Math.round(cv.clientHeight*dpr);
 }
 function wsmooth(ctx){
@@ -3986,7 +4033,7 @@ layer.append(cvH,cvI);
 const xH=cvH.getContext('2d'),xI=cvI.getContext('2d');
 let dpr=1,W=0,H=0;
 function size(){
-  dpr=Math.min(2,window.devicePixelRatio||1);W=innerWidth;H=innerHeight;
+  dpr=window.__LITE?1:Math.min(2,window.devicePixelRatio||1);W=innerWidth;H=innerHeight;
   [cvH,cvI].forEach(c=>{c.width=Math.round(W*dpr);c.height=Math.round(H*dpr);});
   clampZoom();applyZoom();draw();
 }
