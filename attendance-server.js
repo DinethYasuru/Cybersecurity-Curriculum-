@@ -30,7 +30,7 @@
 */
 
 // bump when the page needs new server actions; the page warns when Apps Script runs an older copy
-var SERVER_VERSION = 28;
+var SERVER_VERSION = 29;
 
 var DEFAULT_SETTINGS = {
   days: [6],            // 0 Sun ... 6 Sat
@@ -1143,4 +1143,4 @@ function createTabs() {
   Object.keys(TABLES).forEach(function (t) { env.read(t); });
 }
 
-if (typeof module !== 'undefined') module.exports = { AttendanceCore: AttendanceCore, DEFAULT_SETTINGS: DEFAULT_SETTINGS, TABLES: TABLES };
+if (typeof module !== 'undefined') module.exports = { SERVER_VERSION: SERVER_VERSION, AttendanceCore: AttendanceCore, DEFAULT_SETTINGS: DEFAULT_SETTINGS, TABLES: TABLES };

@@ -10,6 +10,9 @@ let f = 0; const ok = (n, v, x) => { console.log(v ? 'PASS' : 'FAIL', n, v ? '' 
 const section = n => console.log('\n## ' + n);
 (async () => {
  await call({ action: 'maint', key: KEY, op: 'setPassword', password: 'pass12345' });
+ section('Versions');
+ { const sv=+fs.readFileSync(__dirname+'/../../attendance-server.js','utf8').match(/var SERVER_VERSION = (\d+)/)[1],pv=+fs.readFileSync(__dirname+'/../../attendance.html','utf8').match(/const SERVER_LATEST=(\d+)/)[1];
+   ok('page SERVER_LATEST equals SERVER_VERSION',sv===pv,{sv,pv});const ab=await call({action:'about'});ok('about shows version and deploy',ab.ok&&ab.version===sv&&ab.deploy&&typeof ab.deploy.at==='string',ab); }
  section('Branch, open classes, coordinator download, sign out everywhere, Danger zone wait');
 const A=(await call({action:'login',password:'pass12345'})).token;ok('admin login',!!A);
  let g=await (await fetch(W)).json();ok('branch default',g.branch&&g.branch.name==='American Corner Matara',g.branch);

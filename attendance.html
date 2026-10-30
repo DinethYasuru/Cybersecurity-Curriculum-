@@ -1735,6 +1735,10 @@ async function adminCall(body){
 }
 // the page expects this server version; older Apps Script copies lack newer actions (like opening a past day)
 const SERVER_NEEDS=9;
+// this page's own version: change it with every change to attendance.html (the date; .2, .3 for more changes that day)
+const APP_VERSION='2026.10.30';
+// the server version this page was made with: keep it equal to SERVER_VERSION in attendance-server.js (the tests check)
+const SERVER_LATEST=29;
 const oldServer=()=>!isDemo()&&DATA&&DATA.status&&(DATA.status.version||0)<SERVER_NEEDS;
 function oldServerHTML(){return `<div class="msg err mb" id="oldSrv"><b>Update the server code.</b> Your Google Apps Script still runs an older copy, so opening past days and other newer features will fail. In the Sheet open <b>Extensions › Apps Script</b>, replace everything in <code>Code.gs</code> with the new code and save. Then <b>Deploy › Manage deployments</b>, click the pencil, set <b>Version: New version</b> and <b>Deploy</b>. Do not make a new deployment, or the link changes. <button class="btn small" id="oldSrvCopy">Copy new server code</button></div>`}
 // a starter account (made by the coordinator) sets itself up before anything else
@@ -2656,14 +2660,14 @@ async function paneCorner(box){
   if(!r.ok){box.innerHTML='<div class="msg err">'+esc(r.message)+'</div>';return}
   const cls=r.classes,nC=r.staff.filter(x=>x.coord).length,nF=r.staff.length-nC;
   const withStats=cls.filter(c=>c.active&&c.present!=null),nAct=cls.filter(c=>c.active).length;
-  box.innerHTML=`${nAct>withStats.length?`<p class="hint mb">Today's numbers for ${withStats.length} of ${nAct} classes. Open a class to see the rest.</p>`:''}<div class="kpis">${withStats.map(c=>`<button class="kpi ccls" data-go="${esc(c.id)}" style="--cc:${esc(c.color||'#002868')}"><span class="ccn">${esc(c.name)}${c.room?'<small>'+esc(c.room)+'</small>':''}</span><b>${c.present}</b><span>${c.status&&c.status.open?'<span class="chip p">Open now</span>':'<span class="chip g">Closed</span>'}${c.alerts?' <span class="chip a">'+c.alerts+' to check</span>':''}</span></button>`).join('')}</div>
+  box.innerHTML=`${isAdmin()?'<div id="verTop"></div>':''}${nAct>withStats.length?`<p class="hint mb">Today's numbers for ${withStats.length} of ${nAct} classes. Open a class to see the rest.</p>`:''}<div class="kpis">${withStats.map(c=>`<button class="kpi ccls" data-go="${esc(c.id)}" style="--cc:${esc(c.color||'#002868')}"><span class="ccn">${esc(c.name)}${c.room?'<small>'+esc(c.room)+'</small>':''}</span><b>${c.present}</b><span>${c.status&&c.status.open?'<span class="chip p">Open now</span>':'<span class="chip g">Closed</span>'}${c.alerts?' <span class="chip a">'+c.alerts+' to check</span>':''}</span></button>`).join('')}</div>
    <div class="pane split wideleft">
     <div class="stack">
      <div class="card"><div class="card-h"><h3>Classes</h3><span class="chip g">${cls.length}</span></div>${cls.length>8?`<div class="toolbar"><div class="search">${ICON.search}<input id="clFind" placeholder="Search classes" aria-label="Search classes"></div><span class="count" id="clN"></span></div>`:''}<div class="team" id="clBody"></div></div>
      <div class="card"><div class="card-h"><h3>Users</h3></div><p class="hint mb">${nC} coordinator${nC===1?'':'s'}, ${nF} facilitator${nF===1?'':'s'} and ${r.people.length} student${r.people.length===1?'':'s'}. Make accounts, change classes and roles, reset or delete them on the Users page.</p><button class="btn" id="toUsers">${ICON.users}Open Users</button></div>
     </div>
-    <div class="stack"><div class="card" id="cfCard"></div></div></div>`;
-  $('#toUsers').onclick=()=>goTab('users');
+    <div class="stack">${isAdmin()?'<div class="card" id="verCard"></div>':''}<div class="card" id="cfCard"></div></div></div>`;
+  $('#toUsers').onclick=()=>goTab('users');paintVersions($('#verCard'));
   const go=b=>b.onclick=()=>{TAB='home';sess.set('att-tab',TAB);switchClass(b.dataset.go).then(()=>{paintNav();renderPane()})};
   // a long class list shows the first 50 matches
   const drawC=()=>{const q=($('#clFind')?$('#clFind').value:'').trim().toLowerCase(),list=cls.filter(c=>!q||c.name.toLowerCase().includes(q)||(c.room||'').toLowerCase().includes(q));
@@ -2685,6 +2689,40 @@ async function paneCorner(box){
       const x=await staffCall(body);if(!x.ok){$('#cfMsg').innerHTML='<div class="msg err">'+esc(x.message)+'</div>';return}
       toast(c?'Saved':x.class.name+' added');await refreshCorner();paneCorner(box)}};
   form(null);drawC();if($('#clFind'))$('#clFind').oninput=drawC;
+}
+/* ---------- Versions (admin's Overview): is this page and the server the newest? ----------
+   The page reads the newest attendance.html from the site (past any cached copy) and asks the server which version
+   it runs and when Cloudflare deployed it. App outdated: this device shows an older page. Worker outdated: the
+   server code wasn't deployed after the last change. */
+async function paintVersions(el){
+  if(!el)return;
+  const when=t=>{const d=new Date(t);return t&&!isNaN(d)?d.toLocaleString([],{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):''};
+  el.innerHTML='<div class="card-h"><h3>Versions</h3><span class="chip g">Checking</span></div>';
+  const page=location.href.split('#')[0],cloud=isCloud(SID);
+  const [ab,nw]=await Promise.all([isDemo()?null:api({action:'about'},15000).catch(()=>null),
+    fetch(page,{cache:'reload'}).then(async r=>r.ok?{t:await r.text(),lm:r.headers.get('last-modified')}:null).catch(()=>null)]);
+  if(!el.isConnected)return;
+  const newApp=nw&&(nw.t.match(/const APP_VERSION='([^']+)'/)||[])[1],newSrv=Number(nw&&(nw.t.match(/const SERVER_LATEST=(\d+)/)||[])[1])||0;
+  // GitHub Pages sends the page's publish time; a newer one means this device kept an older copy
+  const lmNew=nw&&nw.lm?Date.parse(nw.lm):NaN,lmMine=Date.parse(document.lastModified);
+  const appOld=!!(newApp&&newApp!==APP_VERSION)||(!isNaN(lmNew)&&!isNaN(lmMine)&&lmNew>lmMine+60000);
+  const srv=Number(ab&&ab.ok&&ab.version||(DATA&&DATA.status&&DATA.status.version)||0),want=Math.max(SERVER_LATEST,newSrv);
+  const srvOld=!isDemo()&&srv<want,pageBehind=!appOld&&srv>SERVER_LATEST,dep=ab&&ab.ok&&ab.deploy||null;
+  const st=appOld||pageBehind?['App outdated','a']:srvOld?[(cloud?'Worker':'Server')+' outdated','a']:nw?['Up to date','p']:['Server up to date','p'];
+  const srvName=cloud?'Worker (server)':isDemo()?'Server (demo)':'Server (Google Apps Script)';
+  el.innerHTML=`<div class="card-h"><h3>Versions</h3><span class="chip ${st[1]}">${st[0]}</span></div>
+   <div class="dates">
+    <div class="dl"><span>App (this page)<small class="apx-r">${esc(when(document.lastModified)?'Published '+when(document.lastModified):'')}</small></span><b>${esc(APP_VERSION)}${appOld&&newApp&&newApp!==APP_VERSION?' → '+esc(newApp):''}</b></div>
+    <div class="dl"><span>${srvName}<small class="apx-r">${dep&&dep.at?'Deployed '+esc(when(dep.at))+(dep.id?' · '+esc(dep.id.slice(0,8)):''):cloud&&!isDemo()?'Deploy time shows from server version 29':''}</small></span><b>${srv?esc(srv):'?'}${srvOld?' → '+want:''}</b></div>
+   </div>
+   ${appOld?`<div class="msg err">This device shows an older copy of the page${newApp&&newApp!==APP_VERSION?' (newest is '+esc(newApp)+')':''}. Reload to get the newest.</div><button class="btn" id="verReload" type="button">Reload the page</button>`
+    :pageBehind?`<div class="msg err">The server runs version ${esc(srv)}, newer than this page knows (${SERVER_LATEST}). The new page may still be publishing. Reload in a few minutes.</div><button class="btn ghost" id="verReload" type="button">Reload the page</button>`
+    :srvOld?`<div class="msg err">The page needs server version ${want}, the server runs ${srv?esc(srv):'an old one'}. ${cloud?'In Cloudflare open <b>Workers &amp; Pages › cyber-attendance › Deployments</b> and deploy the newest build, then come back here.':'In the Sheet open <b>Extensions › Apps Script</b>, paste the new server code (Setup › Copy server code), then <b>Deploy › Manage deployments</b> › the Web app › pencil › <b>New version</b>.'}</div>`
+    :`<p class="hint mt">${nw?'This page is the newest, and the server runs the version it expects.':'The server runs the version this page expects. The newest page could not be checked (offline?).'}</p>`}`;
+  const rb=$('#verReload');if(rb)rb.onclick=()=>location.reload();
+  // a long class list pushes the card down: say it at the top of the Overview too
+  const top=$('#verTop');if(top)top.innerHTML=st[1]==='a'?`<div class="msg err mb"><b>${st[0]}.</b> <button class="linkbtn" type="button" id="verGo">See Versions</button></div>`:'';
+  if($('#verGo'))$('#verGo').onclick=()=>el.scrollIntoView({behavior:'smooth',block:'center'});
 }
 /* ---------- Users: every coordinator, facilitator and student at the Corner (admin and coordinators) ----------
    The admin makes, resets and deletes coordinators; the admin and coordinators do the same for facilitators and

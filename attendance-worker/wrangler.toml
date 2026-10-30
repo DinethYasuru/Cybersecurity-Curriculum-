@@ -7,6 +7,10 @@ compatibility_date = "2025-09-01"
 workers_dev = true
 preview_urls = false
 
+# the deployment's id and time, shown with the server version on the admin's Overview
+[version_metadata]
+binding = "CF_VERSION_METADATA"
+
 # one Durable Object per class (its own SQLite database; requests run one at a time), and one for the
 # whole American Corner: the class list, people, instructors and their roles
 [[durable_objects.bindings]]
