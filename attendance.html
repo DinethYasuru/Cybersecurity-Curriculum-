@@ -1478,8 +1478,10 @@ function appSignIn(msg,phone){
     <div class="field"><label for="apPw">Password</label><input id="apPw" class="big" type="password" autocomplete="current-password"></div>
     ${keepBox()}<div id="apMsg">${errBox(msg)}</div><button class="btn wide big">Sign in</button></form>
     <div class="or"><span>new here, or forgot your password?</span></div>
+    ${STATUS&&STATUS.phoneKey?'<button type="button" class="btn wide big" id="apFirst" style="margin-bottom:10px">First time? Use your number</button>':''}
     <div class="row"><button type="button" class="btn ghost grow" id="apAsk">Ask for a key</button><button type="button" class="btn ghost grow" id="apHave">I have a key</button></div>`;
   $('#apAsk').onclick=()=>appAsk(null,$('#apPhone').value);$('#apHave').onclick=()=>appKey(cleanPhone($('#apPhone').value));
+  const fb=$('#apFirst');if(fb)fb.onclick=()=>appFirst(cleanPhone($('#apPhone').value));
   $('#apIn').onsubmit=async e=>{e.preventDefault();const phone=cleanPhone($('#apPhone').value),pw=$('#apPw').value,keep=$('#apKeep').checked;
     if(!phone)return appSignIn('Type your mobile number, like 0771234567.',$('#apPhone').value);
     if(!pw)return appSignIn('Type your password.',phone);
@@ -1531,6 +1533,32 @@ function appKey(phone,code,msg){
     if(!r.ok){b.disabled=false;b.textContent='Save and sign in';return bad(r.message)}
     if(r.trust)store.set(SK('att-app-trust'),r.trust);
     store.set(SK('att-app-phone'),p);appSave({token:r.token,phone:r.me.phone,name:r.me.name,photo:r.me.photo},keep);toast('Welcome! You are signed in.');startApp()};
+}
+/* first sign-in with the number (when the admin turns it on): the mobile number the student gave is the key,
+   no WhatsApp message. The server allows it only for a number with no account yet. */
+function appFirst(phone,msg,needName){
+  $('#stCard').innerHTML=`<div class="card-h"><h2>First sign-in</h2><span class="chip g">With your number</span></div>
+    <p class="lead">Type the mobile number you gave for classes, then choose a password only you know.</p>
+    <form id="apFirstF" novalidate autocomplete="on"><div class="field"><label for="apPhone">Mobile number</label><input id="apPhone" name="username" class="big" type="tel" inputmode="tel" autocomplete="username" maxlength="16" placeholder="07X XXX XXXX" value="${esc(showPhone(phone||''))}"><div class="hint">Use your own number, not a friend’s.</div></div>
+    <div class="field"${needName?'':' hidden'} id="apNameF"><label for="apName">Your name</label><input id="apName" autocomplete="name" maxlength="60" placeholder="First and last name"></div>
+    <div class="field"><label for="apPw">New password</label><input id="apPw" class="big" type="password" autocomplete="new-password" minlength="8"><div class="hint">At least 8 characters, with letters. Not your mobile number.</div></div>
+    <div class="field"><label for="apPw2">Type it again</label><input id="apPw2" class="big" type="password" autocomplete="new-password"></div>
+    ${keepBox()}<div id="apMsg">${errBox(msg)}</div><button class="btn wide big">Save and sign in</button></form>
+    <p class="hint mt" style="text-align:center"><button class="linkbtn" id="apBack">Back to sign in</button> · <button class="linkbtn" id="apAsk">Ask for a key instead</button></p>`;
+  $('#apBack').onclick=()=>appSignIn(null,cleanPhone($('#apPhone').value));$('#apAsk').onclick=()=>appAsk(null,$('#apPhone').value);
+  $('#apFirstF').onsubmit=async e=>{e.preventDefault();const p=cleanPhone($('#apPhone').value),pw=$('#apPw').value,keep=$('#apKeep').checked,name=$('#apName').value.trim().replace(/\s+/g,' ');
+    const bad=m=>{$('#apMsg').innerHTML=errBox(m)};
+    if(!p)return bad('Type your mobile number, like 0771234567.');
+    if(!$('#apNameF').hidden&&!/^[\p{L}\p{M} .'-]{2,60}$/u.test(name))return bad('Type your name with letters only.');
+    if(pw.length<8)return bad('Choose a password with at least 8 characters.');
+    if(pw!==$('#apPw2').value)return bad('The two passwords are not the same.');
+    const b=e.submitter||$('#apFirstF .btn');b.disabled=true;b.textContent='Saving…';
+    if(!await foreignOk()){b.disabled=false;b.textContent='Save and sign in';return}
+    const r=await stuApi({action:'accFirst',phone:p,password:pw,name},false);
+    if(!r.ok){b.disabled=false;b.textContent='Save and sign in';if(r.reason==='name'){$('#apNameF').hidden=false;$('#apName').focus()}return bad(r.message)}
+    if(r.trust)store.set(SK('att-app-trust'),r.trust);
+    store.set(SK('att-app-phone'),p);appSave({token:r.token,phone:r.me.phone,name:r.me.name,photo:r.me.photo},keep);toast('Welcome! You are signed in.');startApp()};
+  if(!('ontouchstart' in window))setTimeout(()=>($('#apPhone').value?$('#apPw'):$('#apPhone')).focus(),60);
 }
 /* check in: the code finds the class, the student confirms, done */
 const SCAN_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/></svg>';
@@ -1961,7 +1989,7 @@ function appKeyMessage(r){return `Hi ${String(r.name||'').split(' ')[0]}, your k
 const appWa=r=>'https://wa.me/94'+String(r.phone||'').replace(/^0/,'')+'?text='+encodeURIComponent(appKeyMessage(r));
 function stuBadge(){const n=DATA&&DATA.corner?DATA.corner.stuReq||0:0;document.querySelectorAll('.sbadge').forEach(e=>e.remove());
   if(n)document.querySelectorAll('[data-k="stureq"]').forEach(e=>e.insertAdjacentHTML('beforeend',`<span class="nbadge sbadge">${n}</span>`))}
-async function loadStuReq(){const r=await adminCall({action:'stuInbox',k:''});if(r.ok){SR.list=r.requests;SR.on=r.on;SR.wa=r.wa||null;if(DATA&&DATA.corner)DATA.corner.stuReq=r.requests.filter(x=>x.status==='new'&&x.live).length;stuBadge()}return r}
+async function loadStuReq(){const r=await adminCall({action:'stuInbox',k:''});if(r.ok){SR.list=r.requests;SR.on=r.on;SR.pk=r.phoneKey||null;SR.wa=r.wa||null;if(DATA&&DATA.corner)DATA.corner.stuReq=r.requests.filter(x=>x.status==='new'&&x.live).length;stuBadge()}return r}
 function whoLine(w){if(!w)return '';return w.classes.length?`On the list as <b>${esc(w.name)}</b> in ${w.classes.map(c=>esc(c.name)+' ('+esc(c.sid)+')').join(', ')}`:'Not on any class list'}
 function paneStuReq(box){
   if(!SR.list){box.innerHTML='<div class="skel" style="height:260px"></div>';loadStuReq().then(r=>{if(TAB!=='stureq')return;if(!r.ok){box.innerHTML='<div class="msg err">'+esc(r.message)+'</div>';return}paneStuReq(box)});return}
@@ -1978,7 +2006,7 @@ function paneStuReq(box){
         ${r.note?`<span class="srwho">“${esc(r.note)}”</span>`:''}<span class="srwho">Old number: ${r.was?whoLine(r.was):'not a number we know'} · New number: ${whoLine(r.who)}</span></div></div>
       <div class="inb-r">${chip(r)}${r.live?`${isAdmin()&&r.was&&r.was.classes.length?`<button class="btn small" data-smove="${esc(r.rid)}">Move records</button>`:''}<button class="btn small ghost" data-sdone="${esc(r.rid)}">Mark done</button><button class="btn small ghost" data-sdis="${esc(r.rid)}">Dismiss</button>`:''}</div></div>`;
   box.innerHTML=`<div class="pane">
-    ${isAdmin()?`<div class="msg mb srsw"><label class="chk"><input type="checkbox" id="srOn"${SR.on!==false?' checked':''}> Students sign in to the app before they check in</label><span class="hint">${SR.on!==false?'On: check-in needs an app account.':'Off: students check in with their number, as before.'}</span></div>${SR.wa?waCard(SR.wa):''}`:''}
+    ${isAdmin()?`<div class="msg mb srsw"><label class="chk"><input type="checkbox" id="srOn"${SR.on!==false?' checked':''}> Students sign in to the app before they check in</label><span class="hint">${SR.on!==false?'On: check-in needs an app account.':'Off: students check in with their number, as before.'}</span></div>${SR.pk&&SR.on!==false?pkCard(SR.pk):''}${SR.wa?waCard(SR.wa):''}`:''}
     <div class="toolbar"><div class="seg" role="tablist"><button class="${SR.f==='signin'?'on':''}" data-f="signin">Sign-in keys (${sign.length})</button><button class="${SR.f==='help'?'on':''}" data-f="help">Records missing (${help.length})</button><button class="${SR.f==='all'?'on':''}" data-f="all">All, last 30 days (${all.length})</button></div></div>
     ${SR.f==='signin'?`<p class="hint mb">A student asks for a key on the check-in page. Check it is really them, then send the key on WhatsApp. The link in the message opens the app with the key filled in. It works once, within 7 days.</p>
       <details class="srform"><summary class="btn ghost small">Give a key without a request</summary><form id="srKey" class="row mt" novalidate><input id="srKP" type="tel" inputmode="tel" maxlength="16" placeholder="Mobile number"><input id="srKN" maxlength="60" placeholder="Name (if not on a class list)"><button class="btn">Make key</button></form></details>`:''}
@@ -2015,12 +2043,24 @@ function paneStuReq(box){
   const on=$('#srOn');if(on)on.onchange=async()=>{const want=on.checked;
     if(!want&&!await ask({title:'Let students check in without the app?',text:'They check in with their number again, with no password.',ok:'Turn off',danger:true})){on.checked=true;return}
     const r=await adminCall({action:'stuLoginSet',k:'',on:want});if(!r.ok){on.checked=!want;return toast(r.message,true)}SR.on=r.on;toast(r.on?'Students now sign in to check in.':'Students check in with their number.');redraw()};
+  const pk=$('#srPk'),pkk=$('#srPkKnown');
+  const pkSave=async(x,el)=>{const r=await adminCall(Object.assign({action:'phoneKeySet',k:''},x));if(!r.ok){el.checked=!el.checked;return toast(r.message,true)}SR.pk=r.phoneKey;toast(x.on===true?'New students can now sign in the first time with their number.':x.on===false?'New students need a WhatsApp key again.':'Saved.');redraw()};
+  if(pk)pk.onchange=async()=>{const want=pk.checked;
+    if(want&&!await ask({title:'Let new students sign in with their number?',text:'A student with no app account types the mobile number they gave and chooses a password, with no WhatsApp key. Anyone who knows that number could do it first, so tell students to sign in on the first day. WhatsApp keys still work, and a key from you takes the number back.',ok:'Turn on'})){pk.checked=false;return}
+    pkSave({on:want},pk)};
+  if(pkk)pkk.onchange=()=>pkSave({known:pkk.checked},pkk);
   waWire(redraw);
   const kf=$('#srKey');if(kf)kf.onsubmit=async e=>{e.preventDefault();const phone=cleanPhone($('#srKP').value);if(!phone)return toast('Type a mobile number like 0771234567.',true);
     const r=await adminCall({action:'stuKey',k:'',phone,name:$('#srKN').value});if(!r.ok)return toast(r.message,true);toast('Key made. Send it now.');await loadStuReq();redraw()};
   const mf=$('#srMove');if(mf)mf.onsubmit=e=>{e.preventDefault();const f=cleanPhone($('#srMF').value),t=cleanPhone($('#srMT').value);if(!f||!t)return toast('Type both numbers.',true);move(f,t,'')};
 }
 
+/* first sign-in with the mobile number (admin only): no WhatsApp key for a number with no app account yet */
+function pkCard(c){
+  return `<div class="msg mb srsw"><label class="chk"><input type="checkbox" id="srPk"${c.on?' checked':''}> New students sign in the first time with their mobile number</label>
+    <span class="hint">${c.on?'On: a number with no app account yet uses the number as its key and chooses a password. WhatsApp keys still work.':'Off: every new student needs a key sent on WhatsApp.'}</span>
+    ${c.on?`<label class="chk"><input type="checkbox" id="srPkKnown"${c.known?' checked':''}> Only numbers on a class list</label><span class="hint">${c.known?'Other numbers still ask for a key.':'Any number can make an account. Turn this back on unless you need it.'}</span>`:''}</div>`;
+}
 /* the WhatsApp helper (admin only): a program on the admin's laptop sends the sign-in keys from WhatsApp Web.
    The server keeps the limits; the page sets them, makes the helper's key and shows when it last checked in. */
 function waBase(){const u=new URL('attendance.html',location.href);u.search='';u.hash='';if(isCloud(SID))u.searchParams.set('s',SID);return u.toString()}

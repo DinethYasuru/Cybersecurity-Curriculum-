@@ -181,6 +181,42 @@ const A=(await call({action:'login',password:'pass12345'})).token;ok('admin logi
  for(const k of [c1,c2])await call({action:'extra',token:A,k,minutes:0});
  }
 
+ section('First sign-in with the mobile number (admin switch)');
+{const A=(await call({action:'login',password:'pass12345'})).token;
+ const Cx=(await call({action:'login',phone:'0716666666',password:'coordpass1'})).token;
+ let r=await call({action:'stuInbox',token:A});ok('off by default, class lists only',r.phoneKey&&r.phoneKey.on===false&&r.phoneKey.known===true,r.phoneKey);
+ r=await call({action:'status'});ok('status: off',r.phoneKey===false,r);
+ await call({action:'student',token:A,k:'cyber',name:'Nadeesha Perera',phone:'0778880001'});
+ r=await call({action:'accFirst',phone:'0778880001',password:'green-leaf-7'});ok('refused while off',!r.ok&&r.reason==='off',r);
+ r=await call({action:'phoneKeySet',token:Cx,on:true});ok('coordinator cannot turn it on',!r.ok,r);
+ r=await call({action:'phoneKeySet',token:A,on:true});ok('admin turns it on',r.ok&&r.phoneKey.on&&r.phoneKey.known,r);
+ r=await call({action:'status'});ok('status: on',r.phoneKey===true,r);
+ // a WhatsApp key already waiting for this number: used up by the first sign-in
+ const wk=(await call({action:'stuKey',token:A,phone:'0778880001'})).request;
+ r=await call({action:'accFirst',phone:'0778880001',password:'12345678'});ok('weak password refused',!r.ok&&r.reason==='password',r);
+ r=await call({action:'accFirst',phone:'0778880001',password:'green-leaf-7'});ok('number on a class list signs in',r.ok&&r.token&&r.trust&&r.me.name==='Nadeesha Perera',r);const P=r.token;
+ r=await call({action:'app',token:P});ok('signed in home',r.ok&&r.classes.length===1,r);
+ r=await call({action:'stuInbox',token:A});ok('waiting WhatsApp key is used up',r.requests.find(x=>x.rid===wk.rid).status==='used',r);
+ r=await call({action:'accFirst',phone:'0778880001',password:'other-pass-9'});const m1=r.message;ok('only once: account exists',!r.ok&&r.reason==='number',r);
+ r=await call({action:'accLogin',phone:'0778880001',password:'green-leaf-7'});ok('then the password',r.ok,r);
+ r=await call({action:'accFirst',phone:'0778880999',password:'green-leaf-7'});ok('number not on a class list refused, same answer',!r.ok&&r.reason==='number'&&r.message===m1,r);
+ r=await call({action:'accFirst',phone:'0716666666',password:'green-leaf-7'});ok('facilitator number refused',!r.ok&&r.reason==='number',r);
+ // the WhatsApp key still works and takes the number back (someone else signed in first)
+ const k2=(await call({action:'stuKey',token:A,phone:'0778880001'})).request.code;
+ r=await call({action:'accActivate',phone:'0778880001',code:k2,password:'real-owner-3'});ok('WhatsApp key still works',r.ok,r);
+ r=await call({action:'app',token:P});ok('the first sign-in is signed out',r.reason==='signin',r);
+ // any number, with a name, when the admin allows it
+ r=await call({action:'phoneKeySet',token:A,known:false});ok('any number allowed',r.ok&&r.phoneKey.on&&!r.phoneKey.known,r);
+ r=await call({action:'accFirst',phone:'0778880999',password:'green-leaf-7'});ok('not on a list: asks for a name',!r.ok&&r.reason==='name',r);
+ r=await call({action:'accFirst',phone:'0778880999',password:'green-leaf-7',name:'Kasun Fernando'});ok('signs in with a name',r.ok&&r.me.name==='Kasun Fernando',r);
+ // tries are limited per number and per address
+ for(let i=0;i<7;i++)r=await callFrom('10.5.5.5',{action:'accFirst',phone:'0778880002',password:'x'});ok('per number limit',r.reason==='slow',r);
+ for(let i=0;i<22;i++)r=await callFrom('10.5.5.6',{action:'accFirst',phone:'07788810'+String(i).padStart(2,'0'),password:'x'});ok('per address limit',r.reason==='slow',r);
+ r=await call({action:'changes',token:A,find:'first sign-in'});ok('in the change log',r.ok&&r.rows.length>0,r);
+ r=await call({action:'phoneKeySet',token:A,on:false,known:true});ok('admin turns it off',r.ok&&!r.phoneKey.on,r);
+ r=await call({action:'accFirst',phone:'0778880003',password:'green-leaf-7'});ok('off again',r.reason==='off',r);
+ }
+
  section('Main password');
 {const A=(await call({action:'login',password:'pass12345'})).token,B=(await call({action:'login',password:'pass12345'})).token;
  await call({action:'staffSave',token:A,k:'cyber',name:'Owner Person',phone:'0711111111',role:'owner',password:'owner123'});let F=(await call({action:'login',phone:'0711111111',password:'owner123'})).token;await call({action:'myAccount',token:F,name:'Owner Person',password:'owner1234',oldPassword:'owner123'});F=(await call({action:'login',phone:'0711111111',password:'owner1234'})).token;
