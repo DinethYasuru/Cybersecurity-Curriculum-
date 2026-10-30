@@ -862,6 +862,15 @@ dialog{max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto
   .work{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
   dialog.dlg{margin:auto;border-radius:20px;max-height:calc(100dvh - 16px)}
 }
+/* Phones: no live blur. iOS Safari ends a page that holds too much memory ("A problem repeatedly
+   occurred on ..."), and backdrop blur over a scrolling page and big blurred glows cost the most. */
+@media (pointer:coarse){
+  *,*::before,*::after,dialog::backdrop{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+  html:not([data-theme=dark]) .topbar{background:rgba(255,255,255,.97)}
+  .hero::before,.hero::after{filter:none}
+  .hero::before{background:radial-gradient(closest-side,rgba(0,40,104,.12),rgba(0,40,104,0))}
+  .hero::after{background:radial-gradient(closest-side,rgba(191,10,48,.08),rgba(191,10,48,0))}
+}
 </style>
 </head>
 <body>
@@ -1812,7 +1821,7 @@ async function adminCall(body){
 // the page expects this server version; older Apps Script copies lack newer actions (like opening a past day)
 const SERVER_NEEDS=9;
 // this page's own version: change it with every change to attendance.html (the date; .2, .3 for more changes that day)
-const APP_VERSION='2026.10.30.2';
+const APP_VERSION='2026.10.30.3';
 // the server version this page was made with: keep it equal to SERVER_VERSION in attendance-server.js (the tests check)
 const SERVER_LATEST=29;
 const oldServer=()=>!isDemo()&&DATA&&DATA.status&&(DATA.status.version||0)<SERVER_NEEDS;
