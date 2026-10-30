@@ -852,6 +852,7 @@ html[data-theme=dark] .tb-logos img{border-radius:50%}
         <p class="hint mb" id="loginP">Facilitators and coordinators sign in with their own number.</p>
         <form id="loginForm" autocomplete="on">
           <div class="field" id="lphoneF"><label for="lphone">Mobile number</label><input id="lphone" name="username" type="tel" inputmode="tel" maxlength="16" autocomplete="username" placeholder="07X XXX XXXX"></div>
+          <input id="ladmin" name="username" type="text" autocomplete="username" value="admin" hidden disabled>
           <div class="field"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required minlength="6"></div>
           <button class="btn wide big" id="loginBtn">Sign in</button>
         </form>
@@ -1774,16 +1775,18 @@ function renderFirst(){
 const DZ={pw:'',at:0,db:'corner',rpDb:'corner',table:'',offset:0,find:'',classes:[],audit:[]};
 function logoutLocal(){DZ.pw='';CL.rows=[];CL.stale=true;CL.check=null;STARTER='';SETUP_ME=null;PHOTOS=null;photosAt=0;TOKEN=null;QRKEY=null;sess.del('att-token');sess.del('att-qrkey');DATA=null;stopLive();showAdmin()}
 // the admin signs in with the main password only: a mode to pick, not an empty box to remember
-function loginMode(admin){$('#lphoneF').hidden=admin;$('#loginT').textContent=admin?'Admin sign in':'Staff sign in';
+// admin mode switches the number box off (a disabled box is never autofilled or sent) and gives the password
+// manager its own "admin" entry, so a facilitator's saved number and password are never offered for the admin
+function loginMode(admin){$('#lphoneF').hidden=admin;$('#lphone').disabled=admin;$('#ladmin').disabled=!admin;$('#loginT').textContent=admin?'Admin sign in':'Staff sign in';
   $('#loginP').textContent=admin?'The main password. It opens every class and every setting.':'Facilitators and coordinators sign in with their own number.';
   $('#adminMode').textContent=admin?'Sign in with your number instead':'Sign in as admin';if(admin)$('#lphone').value='';else if(!$('#lphone').value)$('#lphone').value=store.get('att-lphone')||'';store.set('att-admin-mode',admin?'1':'')}
 $('#adminMode').onclick=()=>{loginMode($('#lphoneF').hidden?false:true);(($('#lphoneF').hidden||$('#lphone').value)?$('#pw'):$('#lphone')).focus()};
 $('#loginForm').onsubmit=async e=>{
   e.preventDefault();const btn=$('#loginBtn');btn.disabled=true;btn.textContent='Checking…';$('#loginMsg').innerHTML='';
   const t0=Date.now();
-  try{const lp=$('#lphone').value.trim(),body={action:'login',password:$('#pw').value,trust:store.get('att-trust')||''};
-    if(!lp&&!$('#lphoneF').hidden&&isCloud(SID)&&!isDemo()){$('#loginMsg').innerHTML='<div class="msg err">Type your mobile number, or choose Sign in as admin.</div>';btn.disabled=false;btn.textContent='Sign in';return}
-    if(lp){body.phone=cleanPhone(lp);if(!body.phone){$('#loginMsg').innerHTML='<div class="msg err">Type a mobile number like 0771234567, or leave it empty.</div>';btn.disabled=false;btn.textContent='Sign in';return}store.set('att-lphone',lp)}else store.del('att-lphone');
+  try{const admin=$('#lphoneF').hidden,lp=admin?'':$('#lphone').value.trim(),body={action:'login',as:admin?'admin':lp?'staff':undefined,password:$('#pw').value,trust:store.get('att-trust')||''};
+    if(!lp&&!admin&&isCloud(SID)&&!isDemo()){$('#loginMsg').innerHTML='<div class="msg err">Type your mobile number, or choose Sign in as admin.</div>';btn.disabled=false;btn.textContent='Sign in';return}
+    if(lp){body.phone=cleanPhone(lp);if(!body.phone){$('#loginMsg').innerHTML='<div class="msg err">Type a mobile number like 0771234567, or leave it empty.</div>';btn.disabled=false;btn.textContent='Sign in';return}store.set('att-lphone',lp)}else if(!admin)store.del('att-lphone');
     // a link can carry another server (?s=); never send the password there without asking
     if(FOREIGN&&!sess.get('att-foreign-ok')){btn.disabled=false;btn.textContent='Sign in';if(!await foreignOk())return;btn.disabled=true;btn.textContent='Checking…'}
     const r=await api(body);logRead('login',Date.now()-t0,r.ok?null:r.message);

@@ -884,6 +884,10 @@ export class Corner extends DurableObject {
   trustOk(t) { return /^[a-f0-9]{32}$/.test(String(t || '')) && !!this.kvGet('trust:' + t); }
   login(req, ip) {
     const now = Date.now(), trust = this.trustOk(req.trust);
+    // the page says which sign-in this is (as: 'admin' or 'staff'), so a number the browser filled in by itself
+    // can never turn an admin sign-in into a facilitator one, even when both use the same password
+    if (req.as === 'admin') req = Object.assign({}, req, { phone: '' });
+    else if (req.as === 'staff' && !cleanPh(req.phone)) return fail('input', 'Type your mobile number, or choose Sign in as admin.');
     const fk = 'loginfail:' + (req.phone ? cleanPh(req.phone) || 'x' : 'main') + (trust ? ':t' : ''), ik = 'loginfail:ip:' + String(ip || '');
     const fails = Number(this.kvGet(fk) || 0), ipFails = Number(this.kvGet(ik) || 0);
     if (fails >= (trust ? 10 : 20) || (!trust && ipFails >= 50)) return fail('locked', 'Too many wrong passwords. Wait 15 minutes, or unlock sign-in in Setup › Cloudflare server tools.');
@@ -1668,7 +1672,7 @@ export class Corner extends DurableObject {
       case 'xreqSet': this.sql.exec('UPDATE xreq SET status = ?, updated = ?, by = ? WHERE rid = ?', q.status, Date.now(), q.by || '', String(q.rid || '')); return json({ ok: true, request: this.one('SELECT * FROM xreq WHERE rid = ?', String(q.rid || '')) });
       case 'xreqDrop': return json({ ok: true, n: this.sql.exec("DELETE FROM xreq WHERE rid = ? AND phone = ? AND status = 'new'", String(q.rid || ''), q.phone).rowsWritten });
       case 'login': {
-        const r = this.login(req, q.ip), main = !req.phone;
+        const r = this.login(req, q.ip), main = req.as === 'admin' || !req.phone;
         const c = Object.assign({}, ctx, { who: r.ok ? (r.me ? r.me.name + ' · ' + r.me.phone : 'Admin') : main ? 'main password' : cleanPh(req.phone) || String(req.phone || '').slice(0, 20),
           role: r.ok ? (r.corner.admin ? 'admin' : r.corner.coordinator ? 'coordinator' : 'facilitator') : 'public' });
         if (r.ok) this.chgAdd(c, 'signin', [{ target: main ? 'admin sign-in' : 'staff sign-in', op: 'signin', after: { browser: req.trust && r.trust === req.trust ? 'trusted' : 'new' } }]);
