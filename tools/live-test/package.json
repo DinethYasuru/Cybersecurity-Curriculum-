@@ -1,0 +1,7 @@
+{
+  "name": "acm-live-test",
+  "private": true,
+  "description": "Browser test for the live slides (phone sleep, rejoin, duplicate names). Needs Playwright with Chromium.",
+  "scripts": { "test": "node live.test.cjs" },
+  "devDependencies": { "aedes": "^0.51.0", "mqtt": "5.10.1", "ws": "^8.18.0" }
+}

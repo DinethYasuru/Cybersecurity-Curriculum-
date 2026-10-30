@@ -1317,6 +1317,7 @@ html.framed #tryB{font-size:.85rem}
 .lvn{display:flex;align-items:baseline;gap:.4em;font-family:var(--display)}
 .lvn b{font-weight:600;font-size:clamp(2.6rem,5vw,4.6rem);line-height:1;color:var(--c-blue);font-variant-numeric:tabular-nums}
 .lvn span{font-size:clamp(1.1rem,1.8vw,1.6rem);color:var(--text)}
+#lvAway{color:var(--mute);font-size:clamp(.9rem,1.3vw,1.15rem)}
 .lvst{font-size:clamp(.85rem,1.1vw,1rem);color:var(--mute);display:flex;align-items:center;gap:.5em}
 .lvst i{width:.6em;height:.6em;border-radius:50%;background:var(--line)}
 .lvst.ok i{background:var(--c-blue)}.lvst.bad i{background:var(--c-red)}
@@ -3577,7 +3578,7 @@ const LV_QR='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
 const LV_HUB='https://cyber-attendance.dinethyasuru.workers.dev';
 const LV_Q=new URLSearchParams(location.search);
 const LV_TEST=(LV_Q.get('lvb')||'').split(',').filter(Boolean);
-const LIVE={roster:new Map(),rt:0,name:'',use:{},uId:'',uT:0,pres:false,stu:false,room:'',key:null,vkey:null,pub:'',seq:0,last:0,u:false,sid:'',cl:[],seen:new Map(),got:false,ended:false,locked:true,me:Math.random().toString(36).slice(2,10),qt:0,hb:0,tried:new Set()};
+const LIVE={roster:new Map(),rt:0,name:'',use:{},uId:'',uT:0,pres:false,stu:false,room:'',key:null,vkey:null,pub:'',seq:0,last:0,u:false,sid:'',cl:[],seen:new Map(),got:false,ended:false,locked:true,me:Math.random().toString(36).slice(2,10),qt:0,hb:0,tried:new Set(),conn:null,hid:0};
 const EC={name:'ECDSA',namedCurve:'P-256'},SIG={name:'ECDSA',hash:'SHA-256'};
 const SUB=typeof crypto!=='undefined'&&crypto.subtle;
 const b64e=buf=>btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -3589,7 +3590,9 @@ function lvLoad(src,ready){
 }
 function lvUp(){return LIVE.cl.filter(c=>c.connected).length;}
 async function lvConnect(subs,onMsg,onUp){
+  LIVE.conn=[subs,onMsg,onUp];const gen=LIVE.gen=(LIVE.gen||0)+1;
   await lvLoad(LV_MQTT,()=>window.mqtt);
+  if(gen!==LIVE.gen)return;
   const relays=LV_TEST.length?LV_TEST:LV_RELAYS;
   LIVE.cl=relays.map(u=>{
     const c=mqtt.connect(u,{clientId:'acm'+LIVE.me+Math.random().toString(36).slice(2,6),clean:true,connectTimeout:8000,reconnectPeriod:4000,keepalive:30});
@@ -3601,6 +3604,30 @@ async function lvConnect(subs,onMsg,onUp){
   });
 }
 function lvDrop(){LIVE.cl.forEach(c=>{try{c.end(true);}catch(e){}});LIVE.cl=[];}
+/* a phone screen turning off freezes the page and leaves its sockets dead (often without a close event).
+   When the page is back (visible again, restored from the back/forward cache, online again, or timers
+   that were frozen start again) reconnect at once and say hello, so nobody has to scan the QR again. */
+function lvResume(force){
+  if(!LIVE.conn||!(LIVE.stu||LIVE.pres))return;
+  if(force||lvUp()<LIVE.cl.length){const [s,m,u]=LIVE.conn;lvDrop();lvConnect(s,m,u).catch(()=>{});}
+  else if(LIVE.stu)lvHi();else lvSendNow();
+  if(LIVE.stu)lvChip();else lvUI();
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){LIVE.hid=Date.now();return;}
+  lvResume(LIVE.hid>0&&Date.now()-LIVE.hid>5000);LIVE.hid=0;
+});
+addEventListener('pageshow',e=>{if(e.persisted)lvResume(true);});
+addEventListener('online',()=>lvResume(true));
+(()=>{let t=Date.now();setInterval(()=>{const n=Date.now();if(n-t>15000)lvResume(true);t=n;},4000);})();
+/* one id per phone, kept across reloads and rejoins, so the teacher sees each student once */
+function lvDevId(){
+  let id='';try{id=sessionStorage.getItem('acm-live-id')||'';}catch(e){}
+  if(!/^[a-z0-9]{8,24}$/.test(id))id=ls('acm-live-id')||'';
+  if(!/^[a-z0-9]{8,24}$/.test(id))id=(Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,8)).replace(/[^a-z0-9]/g,'');
+  ls('acm-live-id',id);try{sessionStorage.setItem('acm-live-id',id);}catch(e){}
+  return id;
+}
 
 /* ---------- presenter ---------- */
 async function lvKeys(fresh){
@@ -3670,10 +3697,13 @@ function lvHello(t,p){
   let o=null;try{o=JSON.parse(p);}catch(e){}
   if(!o||typeof o!=='object'){if(!hi)return;o={i:String(p)};}
   const id=String(o.i||'').replace(/[^a-z0-9]/gi,'').slice(0,24);if(!id)return;
-  if(!LIVE.roster.has(id)&&LIVE.roster.size>=300)return;
+  const nm=typeof o.n==='string'?o.n.replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,24):'';
+  let r=LIVE.roster.get(id);
+  if(!r&&nm){const old=lvSame(id,nm);if(old){r=LIVE.roster.get(old);LIVE.roster.delete(old);LIVE.seen.delete(old);}}
+  if(!r&&LIVE.roster.size>=300)return;
   const fresh=!LIVE.seen.has(id);LIVE.seen.set(id,Date.now());
-  const r=LIVE.roster.get(id)||{n:'',a:Date.now(),z:0,g:{}};
-  if(typeof o.n==='string'&&o.n.trim())r.n=o.n.replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,24);
+  r=r||{n:'',a:Date.now(),z:0,g:{}};
+  if(nm)r.n=nm;
   r.z=Date.now();
   if(!hi&&o.g&&typeof o.g==='object')Object.keys(o.g).slice(0,60).forEach(k=>{
     if(!slides.some(s=>s.dataset.id===k))return;
@@ -3684,11 +3714,26 @@ function lvHello(t,p){
   clearTimeout(LIVE.rt);LIVE.rt=setTimeout(()=>ls('s2b-roster-'+LIVE.room,JSON.stringify([...LIVE.roster])),1500);
   if(fresh)lvUI();else lvRosterUI();
 }
+/* the row of a student with this name who has gone quiet (no hello for 16 s; phones say hello every 12 s).
+   Two students with the same name who are both online keep their own rows. */
+function lvSame(id,nm){
+  const now=Date.now(),k=nm.toLowerCase();
+  for(const [o,r] of LIVE.roster)if(o!==id&&r.n&&r.n.toLowerCase()===k&&now-Math.max(r.z||0,LIVE.seen.get(o)||0)>16000)return o;
+  return '';
+}
+// names gone quiet in the last 10 minutes (screen off, walking back in range), not counting a name that is online again
+function lvAway(){
+  const now=Date.now(),on=new Set();
+  LIVE.roster.forEach(r=>{if(r.n&&now-r.z<32000)on.add(r.n.toLowerCase());});
+  let n=0;LIVE.roster.forEach(r=>{const k=r.n&&r.n.toLowerCase();if(k&&now-r.z>=32000&&now-r.z<600000&&!on.has(k)){on.add(k);n++;}});
+  return n;
+}
 function lvRosterUI(){
   const box=$('#lvRoster');if(!box)return;
   const now=Date.now(),rs=[...LIVE.roster.values()].filter(r=>r.n).sort((a,b)=>a.n.localeCompare(b.n));
   box.textContent='';
-  rs.forEach(r=>{const s=document.createElement('span');s.textContent=r.n;if(now-r.z>32000)s.className='away';box.appendChild(s);});
+  const by=new Map();rs.forEach(r=>{const k=r.n.toLowerCase(),o=by.get(k);if(!o||(now-o.z>32000&&r.z>o.z))by.set(k,r);});
+  by.forEach(r=>{const s=document.createElement('span');s.textContent=r.n;if(now-r.z>32000){s.className='away';s.title='Reconnecting (screen off?)';}box.appendChild(s);});
 }
 function lvStamp(t){const d=new Date(t),z=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+' '+z(d.getHours())+':'+z(d.getMinutes());}
 function lvProps(){
@@ -3786,6 +3831,7 @@ function lvUI(){
   const p=$('#lvPanel');
   if(p){
     $('#lvN',p).textContent=lvCount();
+    const aw=lvAway();$('#lvAway',p).textContent=aw?'· '+aw+' reconnecting':'';
     lvRosterUI();
     const up=lvUp(),st=$('#lvSt',p),all=LIVE.cl.length;
     st.className='lvst '+(up?'ok':'bad');
@@ -3799,7 +3845,7 @@ async function lvPanel(open){
   if(p)return;
   if(!LIVE.pres)await lvStart(false);
   p=document.createElement('div');p.id='lvPanel';
-  p.innerHTML='<div class="lvc"><button class="lvx" aria-label="Close">&times;</button><div id="lvQr"><small>Loading QR…</small></div><div class="lvi"><h2>Join the <b>class.</b></h2><p>Scan with your phone. Your screen follows mine.</p><div class="lvlink" id="lvLink"></div><div class="lvcode" id="lvCode" hidden></div><div class="lvn"><b id="lvN">0</b><span>joined</span></div><div class="lvroster" id="lvRoster"></div><div class="lvst" id="lvSt"><i></i><span></span></div><div class="lvbtns"><button class="nb main" id="lvUp">Unleash this slide (U)</button><button class="nb" id="lvCopy">Copy link</button><button class="nb" id="lvDl">Download class file</button><button class="nb" id="lvNew">New class link</button><button class="nb" id="lvStop">End class</button></div></div></div>';
+  p.innerHTML='<div class="lvc"><button class="lvx" aria-label="Close">&times;</button><div id="lvQr"><small>Loading QR…</small></div><div class="lvi"><h2>Join the <b>class.</b></h2><p>Scan with your phone. Your screen follows mine.</p><div class="lvlink" id="lvLink"></div><div class="lvcode" id="lvCode" hidden></div><div class="lvn"><b id="lvN">0</b><span>online</span><span id="lvAway"></span></div><div class="lvroster" id="lvRoster"></div><div class="lvst" id="lvSt"><i></i><span></span></div><div class="lvbtns"><button class="nb main" id="lvUp">Unleash this slide (U)</button><button class="nb" id="lvCopy">Copy link</button><button class="nb" id="lvDl">Download class file</button><button class="nb" id="lvNew">New class link</button><button class="nb" id="lvStop">End class</button></div></div></div>';
   document.body.appendChild(p);
   const url=lvJoinUrl();
   $('#lvLink',p).textContent=url;lvCodeUI();
@@ -3827,7 +3873,7 @@ function lvFlash(txt,lock){
 function lvStudent(){
   const j=(LV_Q.get('join')||'').split('.');
   LIVE.room=(j[0]||'').replace(/[^a-z0-9]/g,'');if(!LIVE.room)return;
-  LIVE.stu=true;LIVE.pub=j[1]||'';
+  LIVE.stu=true;LIVE.pub=j[1]||'';LIVE.me=lvDevId();
   document.body.classList.add('stu');
   $('#stage').classList.add('nosw');
   DG.passed=true;
@@ -3836,7 +3882,8 @@ function lvStudent(){
   w.innerHTML='<div><h2>You\'re <b>in.</b></h2><p id="lvWaitP">Waiting for the teacher to start…</p><div class="lvdots"><i></i><i></i><i></i></div></div>';
   document.body.appendChild(w);
   LIVE.name=(ls('s2b-name')||'').slice(0,24);
-  lvAskName();
+  if(!LIVE.name||ls('s2b-in')!==LIVE.room)lvAskName();
+  chip.onclick=lvAskName;chip.title='Change your name';
   $('#stage').addEventListener('pointerdown',()=>{if(!LIVE.locked&&LIVE.uId)lvUse(LIVE.uId).t++;},true);
   lvLock(true);
   addEventListener('keydown',e=>{
@@ -3864,7 +3911,7 @@ function lvAskName(){
     e.preventDefault();
     const v=i.value.replace(/[\u0000-\u001f\u007f]/g,'').replace(/\s+/g,' ').trim().slice(0,24);
     if(!v){w.classList.remove('shake');void w.offsetWidth;w.classList.add('shake');return;}
-    LIVE.name=v;ls('s2b-name',v);w.remove();lvHi();lvReport();lvChip();
+    LIVE.name=v;ls('s2b-name',v);ls('s2b-in',LIVE.room);w.remove();lvHi();lvReport();lvChip();
   };
 }
 function lvHi(only){
