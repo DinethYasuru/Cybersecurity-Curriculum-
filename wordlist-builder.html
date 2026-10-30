@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wordlist Builder — Cyber Security Class</title>
+<meta name="description" content="American Corner Matara: a teaching tool that shows how a dictionary (wordlist) is built from personal details, so students understand why predictable passwords fail. Runs entirely in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#002868;--red:#BF0A30;--ink:#0b1630;--muted:#5a6478;--line:#e3e7ee;--bg:#ffffff;--card:#ffffff;--soft:#f6f8fc;--ease:cubic-bezier(.22,1,.36,1)}
+*{box-sizing:border-box;margin:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
+a{color:var(--navy)}
+.deco{position:absolute;top:0;left:0;right:0;height:420px;pointer-events:none;z-index:0;overflow:hidden}
+.stripes{position:absolute;top:-12vmin;left:-12vmin;width:42vmin;height:42vmin;transform:rotate(-45deg);display:grid;gap:2.2vmin;align-content:center;opacity:.9}
+.stripes i{display:block;height:2.2vmin;background:var(--red);transform-origin:left;animation:grow 1.4s var(--ease) both}
+.stripes i:nth-child(2){animation-delay:.12s}.stripes i:nth-child(3){animation-delay:.24s}.stripes i:nth-child(4){animation-delay:.36s}
+.stars{position:absolute;bottom:-10vmin;right:-10vmin;width:34vmin;height:34vmin;opacity:.07;animation:fade 1.2s ease both}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+main{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:clamp(20px,4vw,48px) 16px 72px}
+.brand{display:flex;justify-content:flex-end;align-items:center;gap:clamp(10px,2vw,22px);animation:fade .8s ease both}
+.brand svg,.brand img{height:clamp(34px,5vw,56px);width:auto;display:block}
+.brand img{border-radius:6px}
+.brand svg{box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.back{display:inline-flex;align-items:center;gap:7px;font-family:'Outfit';font-weight:600;text-decoration:none;color:var(--navy);margin-top:18px;font-size:1rem}
+.back svg{width:18px;height:18px}
+header{margin:clamp(20px,5vw,42px) 0 clamp(22px,4vw,34px);animation:up .9s var(--ease) both}
+.kicker{font-family:'Outfit';font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--red);font-size:clamp(.82rem,1.4vw,1.02rem)}
+h1{font-family:'Outfit';font-weight:700;color:var(--navy);font-size:clamp(2.2rem,6.5vw,4.4rem);line-height:1.02;margin:.25em 0 .22em;letter-spacing:-.02em}
+h1 span{color:var(--red)}
+.sub{font-size:clamp(1.02rem,2vw,1.3rem);color:var(--muted);max-width:60ch}
+/* teaching note */
+.note{display:flex;gap:14px;align-items:flex-start;background:var(--soft);border:1px solid var(--line);border-left:6px solid var(--navy);border-radius:14px;padding:clamp(16px,2.4vw,22px);margin:0 0 clamp(24px,4vw,34px);animation:up .9s var(--ease) .1s both}
+.note svg{flex:none;width:28px;height:28px;color:var(--navy);margin-top:2px}
+.note h2{font-family:'Outfit';font-weight:700;color:var(--navy);font-size:1.12rem;margin:0 0 4px}
+.note p{color:var(--ink);font-size:1rem;line-height:1.5}
+.note p+p{margin-top:7px;color:var(--muted)}
+/* layout */
+.wrap{display:grid;grid-template-columns:1fr;gap:clamp(18px,2.4vw,26px);align-items:start}
+@media(min-width:900px){.wrap{grid-template-columns:1fr minmax(300px,380px)}}
+.panel{border:1px solid var(--line);border-radius:18px;background:var(--card);padding:clamp(18px,2.6vw,28px);animation:up .8s var(--ease) .15s both}
+.panel h2{font-family:'Outfit';font-weight:700;color:var(--navy);font-size:1.3rem;margin:0 0 4px}
+.panel .hint{color:var(--muted);font-size:.95rem;margin:0 0 16px;line-height:1.45}
+fieldset{border:0;padding:0;margin:0 0 22px}
+fieldset:last-of-type{margin-bottom:0}
+legend{font-family:'Outfit';font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--red);font-size:.78rem;margin-bottom:11px;padding:0}
+label.fld{display:block;font-family:'Outfit';font-weight:600;color:var(--navy);font-size:.98rem;margin-bottom:7px}
+textarea{width:100%;min-height:128px;resize:vertical;font:400 1.02rem/1.5 'DM Sans',system-ui,sans-serif;color:var(--ink);background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(0,40,104,.12)}
+.chips{display:flex;flex-wrap:wrap;gap:9px}
+.chk{position:relative;display:inline-flex}
+.chk input{position:absolute;opacity:0;width:0;height:0}
+.chk span{display:inline-flex;align-items:center;gap:7px;cursor:pointer;user-select:none;font:600 .95rem 'Outfit';color:var(--muted);background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:.44em .92em;transition:all .2s var(--ease)}
+.chk span::before{content:"";width:15px;height:15px;border-radius:5px;border:2px solid var(--line);flex:none;transition:all .2s var(--ease)}
+.chk input:checked+span{color:var(--navy);border-color:var(--navy);background:rgba(0,40,104,.06)}
+.chk input:checked+span::before{background:var(--navy);border-color:var(--navy);box-shadow:inset 0 0 0 2px #fff}
+.chk input:focus-visible+span{box-shadow:0 0 0 3px rgba(0,40,104,.18)}
+.row{display:flex;flex-wrap:wrap;gap:12px}
+.row .f{flex:1;min-width:120px}
+input[type=text],input[type=number],select{width:100%;font:400 1rem 'DM Sans',system-ui,sans-serif;color:var(--ink);background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:.55em .7em}
+.subhelp{color:var(--muted);font-size:.86rem;margin-top:6px;line-height:1.4}
+/* result panel */
+.result{position:sticky;top:18px}
+.count{font-family:'Outfit';font-weight:700;color:var(--navy);font-size:clamp(2.6rem,6vw,3.6rem);line-height:1;letter-spacing:-.02em}
+.count small{display:block;font-family:'DM Sans';font-weight:600;font-size:.92rem;letter-spacing:0;color:var(--muted);margin-top:6px;text-transform:none}
+.cap{font-size:.88rem;color:var(--muted);margin-top:10px;min-height:1.2em;line-height:1.4}
+.cap.warn{color:var(--red);font-weight:600}
+.btns{display:flex;flex-direction:column;gap:11px;margin-top:20px}
+button{font:600 1.08rem 'Outfit';border:0;border-radius:12px;padding:.78em 1em;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:9px;transition:transform .2s var(--ease),box-shadow .2s var(--ease),opacity .2s}
+button svg{width:20px;height:20px}
+.gen{background:var(--navy);color:#fff}
+.gen:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,40,104,.22)}
+.dl{background:var(--red);color:#fff}
+.dl:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(191,10,48,.22)}
+button:disabled{opacity:.42;cursor:not-allowed;transform:none;box-shadow:none}
+.preview{margin-top:18px;border-top:1px solid var(--line);padding-top:16px}
+.preview .lbl{font-family:'Outfit';font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--red);font-size:.75rem;margin-bottom:9px}
+.preview ul{list-style:none;font:400 .98rem/1.7 ui-monospace,'SF Mono',Menlo,Consolas,monospace;color:var(--ink);word-break:break-all;background:var(--soft);border-radius:10px;padding:12px 14px;max-height:230px;overflow:auto}
+.preview li{border-bottom:1px dashed var(--line);padding:1px 0}
+.preview li:last-child{border:0}
+.empty{color:var(--muted);font-style:italic}
+footer{margin-top:clamp(40px,7vw,64px);padding-top:22px;border-top:1px solid var(--line);color:var(--muted);font-size:.92rem;line-height:1.6}
+footer strong{color:var(--navy);font-family:'Outfit'}
+</style>
+</head>
+<body>
+<div class="deco" aria-hidden="true"><div class="stripes"><i></i><i></i><i></i><i></i></div>
+  <svg class="stars" viewBox="0 0 100 100"><defs><g id="st"><polygon points="50,6 61,38 95,38 67,58 78,92 50,72 22,92 33,58 5,38 39,38" fill="#002868"/></g></defs><use href="#st"/></svg></div>
+<main>
+  <div class="brand" id="brand"></div>
+  <a class="back" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>All sessions</a>
+  <header>
+    <div class="kicker">Session 4 · Passwords &amp; Accounts</div>
+    <h1>Wordlist <span>Builder</span></h1>
+    <p class="sub">See how a "dictionary" of likely passwords is built from a few personal details. The point is to understand why guessable passwords fall, so you can choose ones that don't.</p>
+  </header>
+
+  <div class="note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    <div>
+      <h2>This is a teaching tool</h2>
+      <p>Attackers don't guess passwords one by one. They build a <strong>wordlist</strong> from things they can find out about you — your name, your town, your birth year, your pet — then add the small tweaks people think are clever (<em>Password → P4ssw0rd!</em>). This page shows exactly how short that list is. That is the lesson: if a tweak is obvious to you, it is already on the list.</p>
+      <p>Everything runs in your browser. Nothing you type is sent anywhere, saved, or used to attack any real account. Use it only on details you invent for class, or your own.</p>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="panel">
+      <h2>Build the list</h2>
+      <p class="hint">Fill in a few "base" words the way an attacker would gather them, turn on the tweaks, and press Generate.</p>
+
+      <fieldset>
+        <legend>Base words</legend>
+        <label class="fld" for="base">Names, places, dates, hobbies — one per line</label>
+        <textarea id="base" placeholder="dineth&#10;matara&#10;liverpool&#10;2008&#10;rex"></textarea>
+        <p class="subhelp">These stand in for what someone could learn from social media or a quick chat. Spaces are removed.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Capitalisation</legend>
+        <div class="chips">
+          <label class="chk"><input type="checkbox" id="c-lower" checked><span>lowercase</span></label>
+          <label class="chk"><input type="checkbox" id="c-cap"><span>Capitalised</span></label>
+          <label class="chk"><input type="checkbox" id="c-upper"><span>UPPERCASE</span></label>
+          <label class="chk"><input type="checkbox" id="c-toggle"><span>tOGGLE case</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Leetspeak swaps</legend>
+        <div class="chips" id="leet"></div>
+        <p class="subhelp">Each tweak you turn on roughly doubles the list. That is the whole idea — the extra size is tiny next to one truly random passphrase.</p>
+        <div class="chips" style="margin-top:12px">
+          <label class="chk"><input type="checkbox" id="leet-combos"><span>Try every combination of swaps</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Add to the front or end</legend>
+        <div class="chips" style="margin-bottom:12px">
+          <label class="chk"><input type="checkbox" id="a-suffix" checked><span>Common endings ! @ # 123 ...</span></label>
+          <label class="chk"><input type="checkbox" id="a-prefix"><span>Also put them at the front</span></label>
+        </div>
+        <label class="fld" for="suffixes">Endings to try — comma separated</label>
+        <input type="text" id="suffixes" value="!, 1, 12, 123, 123!, @, #, ., 007, 2024, 2025">
+        <div class="row" style="margin-top:14px">
+          <div class="f">
+            <label class="fld" for="y-on">Years</label>
+            <label class="chk" style="margin-bottom:8px"><input type="checkbox" id="y-on"><span>Append a year range</span></label>
+          </div>
+        </div>
+        <div class="row">
+          <div class="f"><label class="fld" for="y-from">From</label><input type="number" id="y-from" value="1995" min="1900" max="2100"></div>
+          <div class="f"><label class="fld" for="y-to">To</label><input type="number" id="y-to" value="2026" min="1900" max="2100"></div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <div class="f">
+            <label class="fld" for="n-on">Number runs</label>
+            <select id="n-on">
+              <option value="0">Off</option>
+              <option value="1">Append 0–9</option>
+              <option value="2" selected>Append 00–99</option>
+              <option value="3">Append 000–999</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Combine &amp; filter</legend>
+        <div class="chips" style="margin-bottom:14px">
+          <label class="chk"><input type="checkbox" id="combine"><span>Join pairs of base words</span></label>
+          <label class="chk"><input type="checkbox" id="dedupe" checked><span>Remove duplicates</span></label>
+        </div>
+        <div class="row">
+          <div class="f"><label class="fld" for="min">Min length</label><input type="number" id="min" value="4" min="0" max="128"></div>
+          <div class="f"><label class="fld" for="max">Max length</label><input type="number" id="max" value="20" min="1" max="128"></div>
+          <div class="f"><label class="fld" for="cap">Stop at</label><input type="number" id="cap" value="100000" min="1" max="5000000"></div>
+        </div>
+        <p class="subhelp">"Stop at" is a safety limit so your browser never freezes. A real attack list can be billions long.</p>
+      </fieldset>
+    </div>
+
+    <div class="panel result">
+      <div class="count" id="count">0<small id="countlbl">entries — press Generate</small></div>
+      <div class="cap" id="capmsg"></div>
+      <div class="btns">
+        <button class="gen" id="genbtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5L13 3z"/></svg>Generate</button>
+        <button class="dl" id="dlbtn" type="button" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M5 21h14"/></svg>Download .txt</button>
+      </div>
+      <div class="preview">
+        <div class="lbl">First results</div>
+        <ul id="preview"><li class="empty">Your list will appear here.</li></ul>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <strong>The takeaway for class.</strong> Every option above is something an attacker already assumes you did. A name plus a birthday plus "!" is not a strong password — it is a predictable one, and predictable is exactly what a wordlist catches. What beats all of this is length and randomness: a long passphrase of unrelated words, or a password manager that makes a different random one for every account. See <a href="Cyber_Session_4_Passwords.html">Session 4 · Passwords &amp; Accounts</a> for the full lesson.
+  </footer>
+</main>
+
+<script>
+/* ---- brand (US flag + seals), same as the home page ---- */
+(function(){
+  const W=1.9,H=1,cw=.76,ch=.5385;
+  let s='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="United States flag">';
+  for(let i=0;i<13;i++)s+='<rect x="0" y="'+(i/13)+'" width="'+W+'" height="'+(1/13+.001)+'" fill="'+(i%2?'#ffffff':'#bf0a30')+'"/>';
+  s+='<rect width="'+cw+'" height="'+ch+'" fill="#002868"/>';
+  const star=(cx,cy,r)=>{let p=[];for(let k=0;k<10;k++){const a=-Math.PI/2+k*Math.PI/5,rr=k%2?r*.382:r;p.push((cx+rr*Math.cos(a)).toFixed(4)+','+(cy+rr*Math.sin(a)).toFixed(4));}return '<polygon points="'+p.join(' ')+'" fill="#fff"/>';};
+  for(let row=0;row<9;row++)for(let j=0;j<11;j++){if((row%2===0&&j%2===0)||(row%2===1&&j%2===1))s+=star(.063*(j+1),.054*(row+1),.0308);}
+  s+='</svg>';
+  document.getElementById('brand').innerHTML=s;
+})();
+
+/* ---- leet toggles ---- */
+const LEET=[['a','4'],['e','3'],['i','1'],['o','0'],['s','5'],['t','7'],['l','1'],['g','9'],['b','8'],['z','2']];
+document.getElementById('leet').innerHTML=LEET.map((p,i)=>
+  '<label class="chk"><input type="checkbox" class="leetbox" data-i="'+i+'"'+(i<5?' checked':'')+'><span>'+p[0]+' → '+p[1]+'</span></label>').join('');
+
+/* ---- helpers ---- */
+const $=id=>document.getElementById(id);
+const toggleCase=w=>w.split('').map(c=>c===c.toLowerCase()?c.toUpperCase():c.toLowerCase()).join('');
+const cap=w=>w?w[0].toUpperCase()+w.slice(1).toLowerCase():w;
+
+function caseForms(w){
+  const out=new Set();
+  if($('c-lower').checked)out.add(w.toLowerCase());
+  if($('c-cap').checked)out.add(cap(w));
+  if($('c-upper').checked)out.add(w.toUpperCase());
+  if($('c-toggle').checked)out.add(toggleCase(w));
+  if(!out.size)out.add(w);           // never drop a word entirely
+  return [...out];
+}
+
+/* leet variants of one word */
+function leetForms(w){
+  const subs=[...document.querySelectorAll('.leetbox')].filter(b=>b.checked).map(b=>LEET[+b.dataset.i]);
+  if(!subs.length)return [w];
+  if($('leet-combos').checked){
+    // every on/off combination of the enabled swaps
+    let forms=[w];
+    for(const [from,to] of subs){
+      const re=new RegExp(from,'gi'), next=[];
+      for(const f of forms){ next.push(f); if(re.test(f))next.push(f.replace(re,to)); re.lastIndex=0; }
+      forms=next;
+      if(forms.length>20000)break;   // local guard
+    }
+    return [...new Set(forms)];
+  }
+  // single fully-swapped variant alongside the plain word
+  let swapped=w;
+  for(const [from,to] of subs)swapped=swapped.replace(new RegExp(from,'gi'),to);
+  return swapped===w?[w]:[w,swapped];
+}
+
+function affixes(){
+  const pre=[''], post=[''];
+  if($('a-suffix').checked){
+    $('suffixes').value.split(',').map(s=>s.trim()).filter(Boolean).forEach(s=>{post.push(s); if($('a-prefix').checked)pre.push(s);});
+  }
+  if($('y-on').checked){
+    let a=+$('y-from').value||0, b=+$('y-to').value||0; if(a>b)[a,b]=[b,a];
+    b=Math.min(b,a+300);
+    for(let y=a;y<=b;y++)post.push(String(y));
+  }
+  const nd=+$('n-on').value;
+  if(nd>0){const lim=Math.pow(10,nd); for(let i=0;i<lim;i++)post.push(String(i).padStart(nd,'0'));}
+  return {pre:[...new Set(pre)],post:[...new Set(post)]};
+}
+
+/* ---- generate ---- */
+let LAST=[];
+function generate(){
+  const raw=$('base').value.split(/\r?\n/).map(s=>s.replace(/\s+/g,'')).filter(Boolean);
+  const words=[...new Set(raw)];
+  if($('combine').checked){
+    const extra=[];
+    for(let i=0;i<words.length;i++)for(let j=0;j<words.length;j++)if(i!==j){extra.push(words[i]+words[j]); if(extra.length>4000)break;}
+    words.push(...extra);
+  }
+  const min=+$('min').value||0, max=+$('max').value||128;
+  const CAP=Math.max(1,Math.min(+$('cap').value||100000,5000000));
+  const dedupe=$('dedupe').checked;
+  const {pre,post}=affixes();
+  const out=dedupe?new Set():[];
+  const add=dedupe?v=>out.add(v):v=>out.push(v);
+  const size=()=>dedupe?out.size:out.length;
+  let hit=false;
+
+  outer:
+  for(const w of words){
+    for(const cw of caseForms(w)){
+      for(const lw of leetForms(cw)){
+        for(const p of pre){
+          for(const s of post){
+            const v=p+lw+s;
+            if(v.length>=min&&v.length<=max){ add(v); if(size()>=CAP){hit=true;break outer;} }
+          }
+        }
+      }
+    }
+  }
+  LAST=dedupe?[...out]:out;
+  render(hit,CAP);
+}
+
+function render(hit,CAP){
+  const n=LAST.length;
+  $('count').childNodes[0].nodeValue=n.toLocaleString();
+  $('countlbl').textContent=n===1?'password candidate':'password candidates';
+  const cm=$('capmsg');
+  if(hit){cm.className='cap warn';cm.textContent='Reached the '+CAP.toLocaleString()+' cap — a real attacker simply keeps going.';}
+  else if(!n){cm.className='cap';cm.textContent='Add at least one base word, then Generate.';}
+  else{cm.className='cap';cm.textContent='Built from your settings. Change any option and generate again.';}
+  const pv=$('preview');
+  if(!n){pv.innerHTML='<li class="empty">Your list will appear here.</li>';}
+  else{pv.innerHTML=LAST.slice(0,50).map(v=>'<li>'+v.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))+'</li>').join('')+(n>50?'<li class="empty">… and '+(n-50).toLocaleString()+' more</li>':'');}
+  $('dlbtn').disabled=!n;
+}
+
+$('genbtn').addEventListener('click',generate);
+$('dlbtn').addEventListener('click',()=>{
+  if(!LAST.length)return;
+  const blob=new Blob([LAST.join('\n')+'\n'],{type:'text/plain'});
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url;a.download='wordlist.txt';document.body.appendChild(a);a.click();
+  a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+</script>
+</body>
+</html>
