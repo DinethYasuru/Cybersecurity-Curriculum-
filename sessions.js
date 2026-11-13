@@ -10,7 +10,7 @@ window.ACM_SESSIONS=[
   {n:'4b',title:'MFA & Biometrics',desc:'Codes, push, passkeys and your face: how each one is beaten, and which to turn on first.',file:'Cyber_Session_4b_MFA_Biometrics.html',slides:42},
   {n:5,title:'Legal & Ethics',desc:'Where the line is, and the laws behind it.'},
   {n:6,title:'Networking Hardware',desc:'Routers, switches and firewalls up close.'},
-  {n:7,title:'Malicious Apps, Part 1',desc:'How malware gets in and what it does.'},
+  {n:7,title:'Malicious Apps, Part 1',desc:'How malware gets in and what it does.',file:'Cyber_Session_7_Malicious_Apps_Part1.html',slides:21},
   {n:8,title:'Malicious Apps, Part 2',desc:'Spot it, stop it, clean it up.'},
   {n:9,title:'Ethical Hacking',desc:'Real attack tools, with a study mindset.'},
   {n:10,title:'Bullying & Cybercrime',desc:'Not a victim. Not a bully.'},

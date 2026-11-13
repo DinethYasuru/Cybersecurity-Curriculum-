@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Malicious Apps, Part 1 — Cyber Security Class</title>
+<meta name="description" content="American Corner Matara cyber class, Session 7: how malware gets onto a device and what it does once it's in. Fully interactive — sorting games, a real-app-or-fake-app challenge, a permissions lab and a quick-fire quiz.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#002868;--red:#BF0A30;--ink:#0b1630;--muted:#5a6478;--line:#e3e7ee;
+  --bg:#f4f6fa;--panel:#ffffff;
+  --good:#15803d;--good-bg:#e9f8ee;--good-border:#bfe6cc;
+  --bad:#c0273c;--bad-bg:#fdecee;--bad-border:#f3c2c9;
+  --warn:#92650a;--warn-bg:#fff3dc;--warn-border:#f3dca4;
+  --radius:14px;--ease:cubic-bezier(.22,1,.36,1);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
+h1,h2,h3{font-family:'Outfit',sans-serif;margin:0}
+button{font-family:inherit;cursor:pointer}
+p{margin:0}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+
+/* ---------- chrome: progress bar, counter, nav ---------- */
+#progress{position:fixed;top:0;left:0;height:4px;background:var(--red);z-index:40;transition:width .3s var(--ease)}
+#chrome{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;
+  padding:10px 16px;z-index:30;pointer-events:none;font-family:'Outfit';font-weight:600;font-size:.85rem;color:var(--muted)}
+#chrome *{pointer-events:auto}
+#counter{background:rgba(255,255,255,.9);border:1px solid var(--line);border-radius:999px;padding:4px 12px;backdrop-filter:blur(6px)}
+#secLabel{background:var(--navy);color:#fff;border-radius:999px;padding:4px 14px;max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.navbtn{position:fixed;bottom:18px;z-index:30;background:var(--navy);color:#fff;border:none;border-radius:999px;
+  width:50px;height:50px;font-size:1.3rem;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 8px 20px rgba(0,40,104,.25);transition:transform .2s var(--ease),opacity .2s}
+.navbtn:active{transform:scale(.92)}
+.navbtn:disabled{opacity:.25;pointer-events:none}
+#prevBtn{left:18px}#nextBtn{right:18px}
+#fsBtn{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:30;background:#fff;color:var(--navy);
+  border:1px solid var(--line);border-radius:999px;padding:10px 18px;font-weight:600;font-size:.85rem;
+  box-shadow:0 8px 20px rgba(0,40,104,.1)}
+@media (max-width:640px){#fsBtn{display:none}}
+
+/* ---------- slide deck ---------- */
+#deck{min-height:100vh}
+.slide{display:none;min-height:100vh;padding:72px 20px 96px;align-items:center;justify-content:center}
+.slide.active{display:flex}
+.inner{max-width:900px;width:100%;margin:0 auto;animation:up .5s var(--ease) both}
+@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.kicker{font-family:'Outfit';font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--red);font-size:.8rem;margin-bottom:10px}
+h2.title{font-weight:700;color:var(--navy);font-size:clamp(1.7rem,4.4vw,2.6rem);line-height:1.15;margin-bottom:14px}
+h2.title .red{color:var(--red)}
+p.lead{font-size:clamp(1rem,2.2vw,1.2rem);color:var(--muted);line-height:1.55;margin-bottom:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;background:var(--navy);color:#fff;border-radius:999px;
+  padding:6px 14px;font-size:.8rem;font-weight:600;font-family:'Outfit'}
+
+/* divider (level) slides */
+.slide.divider .inner{text-align:center}
+.slide.divider .num{font-family:'Outfit';font-weight:800;font-size:clamp(3rem,9vw,5.5rem);color:var(--red);line-height:1}
+.slide.divider h2.title{font-size:clamp(2rem,6vw,3.4rem)}
+
+/* cards grid (flip-style concept cards) */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:14px;margin-top:18px}
+.flip{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;
+  text-align:left;min-height:120px;display:flex;flex-direction:column;gap:6px;transition:border-color .2s,box-shadow .2s;width:100%}
+.flip:hover{box-shadow:0 10px 24px rgba(0,40,104,.08)}
+.flip .ico{font-size:1.5rem}
+.flip .term{font-family:'Outfit';font-weight:700;color:var(--navy);font-size:1.05rem}
+.flip .def{color:var(--muted);font-size:.9rem;line-height:1.45;display:none}
+.flip.open .def{display:block}
+.flip.open{border-color:var(--navy);background:#f7f9ff}
+.flip .hint{font-size:.75rem;color:#9aa4b8;margin-top:auto}
+
+/* generic info list */
+ul.points{margin:16px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+ul.points li{display:flex;gap:10px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:12px 14px;font-size:.95rem;line-height:1.45}
+ul.points li .tag{flex:0 0 auto;font-size:1.1rem}
+
+/* ---------- sort-style game (click into group A / group B) ---------- */
+.score{font-family:'Outfit';font-weight:700;color:var(--navy)}
+.sortlist{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+.sortcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.sortcard .lbl{flex:1 1 220px;min-width:0;font-weight:600;font-size:.94rem}
+.sortcard .btns{display:flex;gap:8px;flex:0 0 auto;flex-wrap:wrap}
+.sortcard .why{flex:1 1 100%;font-size:.85rem;color:var(--muted);display:none;padding-top:6px;border-top:1px dashed var(--line);margin-top:6px}
+.sortcard.done .why{display:block}
+.sortcard.correct{background:var(--good-bg);border-color:var(--good-border)}
+.sortcard.wrong{background:var(--bad-bg);border-color:var(--bad-border)}
+.sbtn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 14px;font-size:.85rem;font-weight:600;color:var(--ink)}
+.sortcard.done .sbtn{pointer-events:none;opacity:.55}
+.sortcard.done .sbtn[data-chosen=1]{opacity:1;outline:2px solid currentColor}
+.resetBtn{margin-top:14px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 16px;font-weight:600;font-size:.85rem}
+
+/* ---------- round game (real app / fake app) ---------- */
+.appcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;margin-top:16px}
+.apphead{display:flex;gap:14px;align-items:center}
+.appicon{width:56px;height:56px;border-radius:14px;background:var(--navy);color:#fff;display:flex;
+  align-items:center;justify-content:center;font-size:1.6rem;flex:0 0 auto}
+.appmeta b{font-size:1.05rem}
+.appmeta .dev{color:var(--muted);font-size:.85rem;display:block}
+.appstats{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0;font-size:.85rem;color:var(--muted)}
+.appstats b{color:var(--ink)}
+.voterow{display:flex;gap:10px;flex-wrap:wrap}
+.vbtn{flex:1 1 140px;border:none;border-radius:10px;padding:14px;font-weight:700;font-family:'Outfit';font-size:1rem;color:#fff}
+.vbtn.real{background:var(--good)}
+.vbtn.fake{background:var(--bad)}
+.feedback{margin-top:14px;padding:12px 14px;border-radius:10px;font-size:.9rem;line-height:1.5;display:none}
+.feedback.show{display:block}
+.feedback.ok{background:var(--good-bg);border:1px solid var(--good-border);color:#0f5132}
+.feedback.no{background:var(--bad-bg);border:1px solid var(--bad-border);color:#7a1324}
+.nextRound{margin-top:14px;border:none;background:var(--navy);color:#fff;border-radius:8px;padding:10px 18px;font-weight:600;display:none}
+.nextRound.show{display:inline-block}
+.rounddone{display:none;text-align:center;padding:20px}
+.rounddone.show{display:block}
+
+/* ---------- quiz ---------- */
+.qcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;margin-top:16px}
+.qopt{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:10px;
+  padding:12px 14px;margin-bottom:10px;font-size:.95rem}
+.qopt.correct{background:var(--good-bg);border-color:var(--good-border);color:#0f5132;font-weight:600}
+.qopt.wrong{background:var(--bad-bg);border-color:var(--bad-border);color:#7a1324}
+.qopt[disabled]{pointer-events:none}
+
+.notebtn{position:fixed;bottom:18px;left:80px;z-index:30;background:#fff;border:1px solid var(--line);
+  border-radius:999px;width:40px;height:40px;font-size:1rem;color:var(--navy);box-shadow:0 8px 20px rgba(0,40,104,.1)}
+@media (max-width:640px){.notebtn{display:none}}
+.notebox{position:fixed;left:16px;right:16px;bottom:76px;max-width:520px;margin:0 auto;background:#111827;color:#f3f4f6;
+  border-radius:12px;padding:14px 16px;font-size:.82rem;line-height:1.5;z-index:35;display:none;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+.notebox.show{display:block}
+.notebox b{color:#fff}
+
+footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-size:.72rem;color:#9aa4b8;z-index:5}
+@media (max-width:640px){
+  .slide{padding:60px 16px 110px}
+  .apphead{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div id="chrome"><span id="secLabel">Session 7 · Malicious Apps, Part 1</span><span id="counter">1 / 1</span></div>
+
+<main id="deck">
+
+<!-- 1 -->
+<section class="slide" data-sec="Welcome">
+  <div class="inner" style="text-align:center">
+    <div class="kicker">American Corner Matara · Cyber Security Class</div>
+    <h2 class="title">Malicious Apps, <span class="red">Part 1</span></h2>
+    <p class="lead">How malware gets onto a device, and what it does once it's there.</p>
+    <p class="pill">Session 7 · fully hands-on, with 3 games</p>
+  </div>
+</section>
+
+<!-- 2: hook -->
+<section class="slide" data-sec="Hook">
+  <div class="inner" style="text-align:center">
+    <div class="kicker">Hands up</div>
+    <h2 class="title">Have you ever installed an app from <span class="red">outside</span> an official store?</h2>
+    <p class="lead">A link in a chat, a "download accelerator" site, a cracked version of a paid app...</p>
+    <div class="voterow" style="max-width:420px;margin:18px auto 0">
+      <button class="vbtn real" id="hookYes">Yes</button>
+      <button class="vbtn fake" id="hookNo">No</button>
+    </div>
+    <p class="lead" id="hookFact" style="margin-top:16px;display:none;background:var(--warn-bg);border:1px solid var(--warn-border);
+      color:var(--warn);padding:14px 16px;border-radius:10px;text-align:left"></p>
+  </div>
+</section>
+
+<!-- 3: agenda -->
+<section class="slide" data-sec="Today's plan">
+  <div class="inner">
+    <div class="kicker">Today's plan</div>
+    <h2 class="title">Four levels, <span class="red">three games</span></h2>
+    <ul class="points">
+      <li><span class="tag">🦠</span><div><b>Level 1 — What malware is</b> and the doors it sneaks in through. <i>Game: Safe source or risky source?</i></div></li>
+      <li><span class="tag">🔑</span><div><b>Level 2 — Permissions</b>, and spotting a fake app. <i>Game: Real app or fake app? + a permissions lab.</i></div></li>
+      <li><span class="tag">💣</span><div><b>Level 3 — What it does once it's in</b>, and reading the warning signs. <i>Game: Spot the signs.</i></div></li>
+      <li><span class="tag">✅</span><div><b>Level 4 — Install like a pro:</b> the checklist, recap, and a quick-fire quiz.</div></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 4: Level 1 divider -->
+<section class="slide divider" data-sec="Level 1 · What malware is">
+  <div class="inner">
+    <div class="num">01</div>
+    <h2 class="title">What <span class="red">malware</span> is</h2>
+    <p class="lead">"Malware" = malicious software. Any program written to do something bad to you, your data or your device — without your real consent.</p>
+  </div>
+</section>
+
+<!-- 5: malware families (flip cards) -->
+<section class="slide" data-sec="The malware family">
+  <div class="inner">
+    <div class="kicker">Click each card</div>
+    <h2 class="title">The malware <span class="red">family</span></h2>
+    <div class="grid" id="famGrid"></div>
+  </div>
+</section>
+
+<!-- 6: vectors list -->
+<section class="slide" data-sec="How it gets in">
+  <div class="inner">
+    <div class="kicker">The doors it uses</div>
+    <h2 class="title">How malware actually <span class="red">gets in</span></h2>
+    <ul class="points">
+      <li><span class="tag">📦</span><div><b>Sideloading</b> — installing an app file (.apk/.ipa) from outside the official store.</div></li>
+      <li><span class="tag">🔄</span><div><b>Fake "update now"</b> pop-ups and texts that link to a lookalike site.</div></li>
+      <li><span class="tag">🎮</span><div><b>Cracked / modded apps</b> — "free" versions of paid apps, often repackaged with malware.</div></li>
+      <li><span class="tag">📎</span><div><b>Email or chat attachments</b> and malicious ad pop-ups ("you won a prize").</div></li>
+      <li><span class="tag">🔌</span><div><b>USB drives / chargers</b> from someone else, plugged into your device.</div></li>
+      <li><span class="tag">🏭</span><div><b>Supply-chain</b> — rare, but even a real app can ship malware if its maker or an update server is hacked.</div></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 7: GAME 1 sort -->
+<section class="slide" data-sec="Game · Safe or risky source?">
+  <div class="inner">
+    <div class="kicker">Game 1</div>
+    <h2 class="title">Safe source, or <span class="red">risky</span> source?</h2>
+    <p class="lead">Sort each install method. <span class="score" id="sortScore">0 / 0</span></p>
+    <div class="sortlist" id="sortGame"></div>
+    <button class="resetBtn" id="sortReset">↺ Play again</button>
+  </div>
+</section>
+
+<!-- 8: Level 2 divider -->
+<section class="slide divider" data-sec="Level 2 · Permissions">
+  <div class="inner">
+    <div class="num">02</div>
+    <h2 class="title">The keys you <span class="red">hand over</span></h2>
+    <p class="lead">Every permission an app asks for is a key to part of your phone. The question is always: does this app actually need that key to do its job?</p>
+  </div>
+</section>
+
+<!-- 9: permissions intro -->
+<section class="slide" data-sec="Permissions, explained">
+  <div class="inner">
+    <div class="kicker">One simple test</div>
+    <h2 class="title">Does the permission match the <span class="red">job</span>?</h2>
+    <ul class="points">
+      <li><span class="tag">🔦</span><div>A <b>flashlight app</b> needs almost nothing — maybe the camera flash. Not your SMS, contacts or location.</div></li>
+      <li><span class="tag">📸</span><div>A <b>camera/photo app</b> reasonably needs the camera and storage. It doesn't need to read your text messages.</div></li>
+      <li><span class="tag">💬</span><div>A <b>chat app</b> reasonably needs contacts and microphone (for calls) — that's its actual job.</div></li>
+      <li><span class="tag">🚩</span><div>The red flag is always a <b>mismatch</b>: a permission that has nothing to do with what the app is supposed to do.</div></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 10: GAME 2 real/fake app -->
+<section class="slide" data-sec="Game · Real app or fake app?">
+  <div class="inner">
+    <div class="kicker">Game 2</div>
+    <h2 class="title">Real app, or <span class="red">fake</span> app?</h2>
+    <p class="lead"><span class="score" id="appScore">Round 1 / 6</span></p>
+    <div class="appcard" id="appCard"></div>
+    <div class="rounddone" id="appDone">
+      <h3 style="color:var(--navy)">Round over!</h3>
+      <p class="lead" id="appDoneText"></p>
+      <button class="resetBtn" id="appReset">↺ Play again</button>
+    </div>
+  </div>
+</section>
+
+<!-- 11: Lab 1 permissions -->
+<section class="slide" data-sec="Lab 1 · Read the permission list">
+  <div class="inner">
+    <div class="kicker">Lab 1 · Practical</div>
+    <h2 class="title">Read the permission <span class="red">list</span></h2>
+    <p class="lead">A "Photo Editor" app asks for all of these on install. Mark each one <b>Fine</b> or <b>Suspicious</b>. <span class="score" id="permScore">0 / 0</span></p>
+    <div class="sortlist" id="permGame"></div>
+    <button class="resetBtn" id="permReset">↺ Play again</button>
+  </div>
+</section>
+
+<!-- 12: break -->
+<section class="slide divider" data-sec="Break">
+  <div class="inner">
+    <div class="num">☕</div>
+    <h2 class="title">Short <span class="red">break</span></h2>
+    <p class="lead">Back in a few minutes for Level 3: what malware actually does once it's inside.</p>
+  </div>
+</section>
+
+<!-- 13: Level 3 divider -->
+<section class="slide divider" data-sec="Level 3 · What it does">
+  <div class="inner">
+    <div class="num">03</div>
+    <h2 class="title">What it does once it's <span class="red">in</span></h2>
+    <p class="lead">Different malware, different goals. Knowing the goal helps you spot the symptom.</p>
+  </div>
+</section>
+
+<!-- 14: payload flip cards -->
+<section class="slide" data-sec="What malware actually does">
+  <div class="inner">
+    <div class="kicker">Click each card</div>
+    <h2 class="title">Six <span class="red">goals</span>, six symptoms</h2>
+    <div class="grid" id="payloadGrid"></div>
+  </div>
+</section>
+
+<!-- 15: GAME 3 signs -->
+<section class="slide" data-sec="Game · Spot the signs">
+  <div class="inner">
+    <div class="kicker">Game 3</div>
+    <h2 class="title">Spot the <span class="red">signs</span></h2>
+    <p class="lead">Infection sign, or just normal phone behaviour? <span class="score" id="signScore">0 / 0</span></p>
+    <div class="sortlist" id="signGame"></div>
+    <button class="resetBtn" id="signReset">↺ Play again</button>
+  </div>
+</section>
+
+<!-- 16: Level 4 divider -->
+<section class="slide divider" data-sec="Level 4 · Install like a pro">
+  <div class="inner">
+    <div class="num">04</div>
+    <h2 class="title">Install like a <span class="red">pro</span></h2>
+    <p class="lead">A checklist that takes 20 seconds, every time.</p>
+  </div>
+</section>
+
+<!-- 17: checklist -->
+<section class="slide" data-sec="Before you install">
+  <div class="inner">
+    <div class="kicker">Before you tap Install</div>
+    <h2 class="title">The <span class="red">checklist</span></h2>
+    <ul class="points">
+      <li><span class="tag">🏪</span><div>Official store only — Google Play / App Store, not a random site or shared .apk.</div></li>
+      <li><span class="tag">🧑‍💻</span><div>Check the <b>developer name</b> — is it the real company, or something close but not quite?</div></li>
+      <li><span class="tag">⭐</span><div>Check <b>review count and age</b> — 5.0★ with 4 reviews from this week is a red flag, not a good sign.</div></li>
+      <li><span class="tag">🔑</span><div>Check the <b>permissions</b> it asks for — do they match what the app actually does?</div></li>
+      <li><span class="tag">🚫</span><div>Skip "mod", "cracked" and "pro-for-free" versions of paid apps — almost always repackaged with malware.</div></li>
+      <li><span class="tag">🔄</span><div>Keep auto-update on — most official security fixes arrive this way.</div></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 18: recap -->
+<section class="slide" data-sec="Recap">
+  <div class="inner">
+    <div class="kicker">Cheat card</div>
+    <h2 class="title">Today in <span class="red">six lines</span></h2>
+    <ul class="points">
+      <li><span class="tag">1️⃣</span><div>Malware is software built to do something bad — not every "virus" is actually a virus.</div></li>
+      <li><span class="tag">2️⃣</span><div>It gets in through sideloading, fake updates, cracked apps, bad attachments, and rarely, a hacked official app.</div></li>
+      <li><span class="tag">3️⃣</span><div>Permissions are keys — the question is always "does this match the app's job?"</div></li>
+      <li><span class="tag">4️⃣</span><div>Clone apps copy a real name and icon but aren't the real developer.</div></li>
+      <li><span class="tag">5️⃣</span><div>Battery drain, surprise icons, pop-ups with no browser open, and overnight data spikes are real warning signs.</div></li>
+      <li><span class="tag">6️⃣</span><div>Official store + check the developer + check the permissions = most malware blocked before it starts.</div></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 19: quiz -->
+<section class="slide" data-sec="Quick-fire quiz">
+  <div class="inner">
+    <div class="kicker">Quick fire</div>
+    <h2 class="title">Last <span class="red">check</span></h2>
+    <p class="lead"><span class="score" id="quizScore">Question 1 / 5</span></p>
+    <div class="qcard" id="quizCard"></div>
+    <div class="rounddone" id="quizDone">
+      <h3 style="color:var(--navy)">Nice work!</h3>
+      <p class="lead" id="quizDoneText"></p>
+      <button class="resetBtn" id="quizReset">↺ Play again</button>
+    </div>
+  </div>
+</section>
+
+<!-- 20: homework -->
+<section class="slide" data-sec="Homework">
+  <div class="inner">
+    <div class="kicker">Before Part 2</div>
+    <h2 class="title">Your <span class="red">homework</span></h2>
+    <ul class="points">
+      <li><span class="tag">📱</span><div>On your own phone, open the permission settings for <b>3 apps</b> you use often.</div></li>
+      <li><span class="tag">🔍</span><div>For each one, ask: does every permission it has actually match its job?</div></li>
+      <li><span class="tag">📝</span><div>Bring your <b>one most surprising finding</b> to Part 2 — "spot it, stop it, clean it up."</div></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 21: end -->
+<section class="slide" data-sec="Thank you">
+  <div class="inner" style="text-align:center">
+    <div class="kicker">Thank you</div>
+    <h2 class="title">See you for <span class="red">Part 2</span></h2>
+    <p class="lead">Next time: spotting malware that's already in, stopping it, and cleaning up after.</p>
+  </div>
+</section>
+
+</main>
+
+<button class="navbtn" id="prevBtn" aria-label="Previous slide">‹</button>
+<button class="navbtn" id="nextBtn" aria-label="Next slide">›</button>
+<button id="fsBtn" type="button">⛶ Full screen (press F)</button>
+<button class="notebtn" id="noteBtn" type="button" title="Teacher notes (N)">📝</button>
+<div class="notebox" id="noteBox"></div>
+<footer class="endnote">Use arrow keys or swipe to move between slides. Press F for full screen, N for teacher notes.</footer>
+
+<script>
+/* ============================================================
+   Slide engine: show one <section class="slide"> at a time,
+   keyboard + swipe navigation, progress bar, slide counter,
+   fullscreen toggle, optional per-slide teacher note (data-note).
+   ============================================================ */
+(function(){
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var i = 0;
+  var progress = document.getElementById('progress');
+  var counter = document.getElementById('counter');
+  var secLabel = document.getElementById('secLabel');
+  var prevBtn = document.getElementById('prevBtn');
+  var nextBtn = document.getElementById('nextBtn');
+  var noteBox = document.getElementById('noteBox');
+
+  var NOTES = {
+    0:'Welcome. Ask who has had a "weird app" scare before — keeps it personal.',
+    1:'No wrong answer here — the point is normalising sideloading as a real, common risk, not shaming anyone.',
+    4:'Let students guess the definition before revealing — click flips the card.',
+    6:'Game 1. Go card by card as a class first round, then let them race through a second pass solo.',
+    9:'Game 2. Read the dev name and review count out loud each round before voting.',
+    10:'Lab 1. This is the single most useful skill in the whole session — slow down here.',
+    14:'Game 3. Emphasise: one single "normal" item on this list is not a big deal. A pattern of several is.',
+    18:'Quick-fire quiz — can be done as teams, shout the answer before clicking.'
+  };
+
+  function render(){
+    slides.forEach(function(s, idx){ s.classList.toggle('active', idx === i); });
+    var pct = slides.length > 1 ? (i / (slides.length - 1)) * 100 : 100;
+    progress.style.width = pct + '%';
+    counter.textContent = (i + 1) + ' / ' + slides.length;
+    secLabel.textContent = slides[i].getAttribute('data-sec') || 'Session 7 · Malicious Apps, Part 1';
+    prevBtn.disabled = i === 0;
+    nextBtn.disabled = i === slides.length - 1;
+    if (noteBox.classList.contains('show')) showNote();
+    window.scrollTo(0,0);
+  }
+  function showNote(){
+    var n = NOTES[i];
+    noteBox.innerHTML = n ? ('<b>Teacher note:</b> ' + n) : '<i>No note for this slide.</i>';
+  }
+  function go(delta){
+    var next = i + delta;
+    if (next < 0 || next >= slides.length) return;
+    i = next;
+    render();
+  }
+  prevBtn.addEventListener('click', function(){ go(-1); });
+  nextBtn.addEventListener('click', function(){ go(1); });
+  document.addEventListener('keydown', function(e){
+    if (e.target && /input|textarea/i.test(e.target.tagName)) return;
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); go(1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(-1); }
+    else if (e.key === 'Home') { i = 0; render(); }
+    else if (e.key === 'End') { i = slides.length - 1; render(); }
+    else if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); }
+    else if (e.key === 'n' || e.key === 'N') { toggleNote(); }
+  });
+
+  /* swipe */
+  var touchX = null;
+  document.addEventListener('touchstart', function(e){ touchX = e.changedTouches[0].clientX; }, {passive:true});
+  document.addEventListener('touchend', function(e){
+    if (touchX === null) return;
+    var dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+    touchX = null;
+  }, {passive:true});
+
+  function toggleFullscreen(){
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen().catch(function(){});
+    } catch(e){}
+  }
+  document.getElementById('fsBtn').addEventListener('click', toggleFullscreen);
+
+  function toggleNote(){
+    noteBox.classList.toggle('show');
+    if (noteBox.classList.contains('show')) showNote();
+  }
+  document.getElementById('noteBtn').addEventListener('click', toggleNote);
+
+  render();
+})();
+
+/* ============================================================
+   Small reusable helpers for the game slides below.
+   ============================================================ */
+function el(tag, cls, html){
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html !== undefined) e.innerHTML = html;
+  return e;
+}
+
+/* ---- flip-card grid (click to reveal a definition) ---- */
+function buildFlipGrid(containerId, items){
+  var box = document.getElementById(containerId);
+  box.innerHTML = '';
+  items.forEach(function(item){
+    var card = el('button', 'flip');
+    card.type = 'button';
+    card.innerHTML = '<div class="ico">' + item.ico + '</div><div class="term">' + item.term + '</div>' +
+      '<div class="def">' + item.def + '</div><div class="hint">Tap to ' + (item._open ? 'close' : 'reveal') + '</div>';
+    card.addEventListener('click', function(){
+      card.classList.toggle('open');
+      var hint = card.querySelector('.hint');
+      hint.textContent = 'Tap to ' + (card.classList.contains('open') ? 'close' : 'reveal');
+    });
+    box.appendChild(card);
+  });
+}
+
+/* ---- sort game: each item gets two buttons (group names), click locks it in ---- */
+function buildSortGame(containerId, scoreId, items, groupNames){
+  var box = document.getElementById(containerId);
+  var scoreEl = document.getElementById(scoreId);
+  var correct = 0, answered = 0;
+
+  function updateScore(){ scoreEl.textContent = correct + ' / ' + answered + (answered < items.length ? ' so far' : ' — done!'); }
+
+  function render(){
+    box.innerHTML = '';
+    correct = 0; answered = 0;
+    items.forEach(function(item, idx){
+      var card = el('div', 'sortcard');
+      var lbl = el('div', 'lbl', item.label);
+      var btns = el('div', 'btns');
+      [0,1].forEach(function(g){
+        var b = el('button', 'sbtn', groupNames[g]);
+        b.type = 'button';
+        b.addEventListener('click', function(){
+          if (card.classList.contains('done')) return;
+          card.classList.add('done');
+          answered++;
+          b.setAttribute('data-chosen','1');
+          if (g === item.group) { card.classList.add('correct'); correct++; }
+          else { card.classList.add('wrong'); }
+          card.appendChild(el('div','why','<b>Why:</b> ' + item.why));
+          updateScore();
+        });
+        btns.appendChild(b);
+      });
+      card.appendChild(lbl);
+      card.appendChild(btns);
+      box.appendChild(card);
+    });
+    updateScore();
+  }
+  render();
+  return render; // returns a reset function
+}
+
+/* ---- round-based game: one card at a time with two choices ---- */
+function buildRoundGame(opts){
+  // opts: {cardId, scoreId, doneId, doneTextId, resetId, rounds, renderRound, choose, doneMessage}
+  var cardEl = document.getElementById(opts.cardId);
+  var scoreEl = document.getElementById(opts.scoreId);
+  var doneEl = document.getElementById(opts.doneId);
+  var doneTextEl = document.getElementById(opts.doneTextId);
+  var round = 0, score = 0;
+
+  function next(){
+    round++;
+    if (round >= opts.rounds.length){
+      cardEl.style.display = 'none';
+      doneEl.classList.add('show');
+      doneTextEl.textContent = 'You got ' + score + ' / ' + opts.rounds.length + ' right.';
+      return;
+    }
+    renderCurrent();
+  }
+  function renderCurrent(){
+    cardEl.style.display = '';
+    doneEl.classList.remove('show');
+    scoreEl.textContent = 'Round ' + (round + 1) + ' / ' + opts.rounds.length + ' · score ' + score;
+    opts.renderRound(cardEl, opts.rounds[round], function(pickedTrue){
+      var ok = (pickedTrue === !!opts.rounds[round].real);
+      if (ok) score++;
+      return ok;
+    }, next);
+  }
+  function reset(){ round = -1; score = 0; next(); }
+  reset();
+  document.getElementById(opts.resetId).addEventListener('click', reset);
+}
+
+/* ---- quiz: one MCQ at a time ---- */
+function buildQuiz(opts){
+  var cardEl = document.getElementById(opts.cardId);
+  var scoreEl = document.getElementById(opts.scoreId);
+  var doneEl = document.getElementById(opts.doneId);
+  var doneTextEl = document.getElementById(opts.doneTextId);
+  var qi = 0, score = 0;
+
+  function next(){
+    qi++;
+    if (qi >= opts.questions.length){
+      cardEl.style.display = 'none';
+      doneEl.classList.add('show');
+      doneTextEl.textContent = 'You scored ' + score + ' / ' + opts.questions.length + '.';
+      return;
+    }
+    render();
+  }
+  function render(){
+    cardEl.style.display = '';
+    doneEl.classList.remove('show');
+    var q = opts.questions[qi];
+    scoreEl.textContent = 'Question ' + (qi + 1) + ' / ' + opts.questions.length + ' · score ' + score;
+    cardEl.innerHTML = '<p class="lead" style="color:var(--ink);font-weight:600;margin-bottom:14px">' + q.q + '</p>';
+    q.options.forEach(function(opt, oi){
+      var b = el('button', 'qopt', opt);
+      b.type = 'button';
+      b.addEventListener('click', function(){
+        var opts2 = cardEl.querySelectorAll('.qopt');
+        opts2.forEach(function(o){ o.disabled = true; });
+        if (oi === q.correct) { b.classList.add('correct'); score++; }
+        else {
+          b.classList.add('wrong');
+          opts2[q.correct].classList.add('correct');
+        }
+        var nb = el('button', 'nextRound show', qi === opts.questions.length - 1 ? 'See score' : 'Next question →');
+        nb.type = 'button';
+        nb.addEventListener('click', next);
+        cardEl.appendChild(nb);
+      });
+      cardEl.appendChild(b);
+    });
+  }
+  function reset(){ qi = -1; score = 0; next(); }
+  reset();
+  document.getElementById(opts.resetId).addEventListener('click', reset);
+}
+
+/* ============================================================
+   Content data + wiring
+   ============================================================ */
+
+/* hook slide */
+(function(){
+  var fact = document.getElementById('hookFact');
+  function show(t){ fact.textContent = t; fact.style.display = 'block'; }
+  document.getElementById('hookYes').addEventListener('click', function(){
+    show("That's exactly the habit this session is about — sideloading is how most phone malware actually gets in.");
+  });
+  document.getElementById('hookNo').addEventListener('click', function(){
+    show("Good instinct — sticking to official stores already blocks most of what we're covering today.");
+  });
+})();
+
+/* malware family */
+buildFlipGrid('famGrid', [
+  {ico:'🧫',term:'Virus',def:'Attaches itself to a real file or program and spreads when that file is shared or run.'},
+  {ico:'🪱',term:'Worm',def:'Spreads by itself across a network, with no file or person needed to carry it.'},
+  {ico:'🐴',term:'Trojan',def:'Disguised as something useful or wanted — the "gift" that isn\'t what it looks like.'},
+  {ico:'🔒',term:'Ransomware',def:'Encrypts your files, then demands payment for the key to get them back.'},
+  {ico:'🕵️',term:'Spyware',def:'Quietly watches what you do — messages, keystrokes, location, camera — and sends it out.'},
+  {ico:'📢',term:'Adware',def:'Floods your device with unwanted ads, often hard to close or remove.'},
+  {ico:'🧟',term:'Rootkit',def:'Buries itself deep in the system and hides from normal checks, including some antivirus.'},
+  {ico:'🤖',term:'Botnet malware',def:'Quietly recruits your device into a remote-controlled network used for attacks or spam.'}
+]);
+
+/* game 1: safe or risky source */
+var SOURCE_ITEMS = [
+  {label:'Google Play Store / Apple App Store', group:0, why:'Both review submitted apps and can remove ones later found to be malicious. Not perfect, but by far the safest default.'},
+  {label:'The developer\'s own official website (https, correct domain)', group:0, why:'Fine when it\'s genuinely the real company\'s own site — just double-check the domain name carefully.'},
+  {label:'An app your phone auto-updated from the store', group:0, why:'Automatic updates from the store you already installed from keep the same trust chain.'},
+  {label:'An .apk file shared in a WhatsApp/Telegram group', group:1, why:'No review process at all — anyone could have repackaged it with extra code before sharing it.'},
+  {label:'A "download accelerator" pop-up that appeared on a random site', group:1, why:'Classic bait: the "accelerator" itself is often the malware, not a helper for your real download.'},
+  {label:'A cracked/modded version of a paid app, "free" download', group:1, why:'Someone had to break the app\'s licensing to make it free — that same person could add anything else they wanted.'},
+  {label:'A link in a text message saying "your package couldn\'t be delivered, install our app to track it"', group:1, why:'A classic smishing lure — real delivery companies don\'t ask you to install an app from a text link.'},
+  {label:'A third-party app store with no listed reviews or developer info', group:1, why:'No accountability and no review history means nothing is checked before it reaches your phone.'}
+];
+buildSortGame('sortGame', 'sortScore', SOURCE_ITEMS, ['✅ Safe','⚠️ Risky']);
+document.getElementById('sortReset').addEventListener('click', function(){
+  buildSortGame('sortGame', 'sortScore', SOURCE_ITEMS, ['✅ Safe','⚠️ Risky']);
+});
+
+/* game 2: real app or fake app */
+var APP_ROUNDS = [
+  {name:'WhatsApp', dev:'WhatsApp LLC', downloads:'5B+', reviews:'4.3★ (28M ratings)', perms:'Camera, Microphone, Contacts', real:true,
+   tell:'Matches the genuine developer name, with billions of installs and tens of millions of reviews — all signs line up.'},
+  {name:'WhatsApp Pro — Unlock All', dev:'Update Service Team', downloads:'500K+', reviews:'4.9★ (12 ratings)', perms:'Camera, Microphone, Contacts, SMS, Device admin', real:false,
+   tell:'"Pro" clones of free apps, a vague developer name, a near-perfect rating with almost no reviews, and SMS/Device-admin access a chat app clone shouldn\'t ask for — all classic clone-app tells.'},
+  {name:'Flashlight +', dev:'BrightTools Inc.', downloads:'10M+', reviews:'4.1★ (52K ratings)', perms:'Camera, Contacts, SMS, Location', real:false,
+   tell:'A flashlight only needs the camera flash. Contacts, SMS and location have nothing to do with turning on a light.'},
+  {name:'Google Chrome', dev:'Google LLC', downloads:'10B+', reviews:'4.3★ (28M ratings)', perms:'Storage, Location (optional)', real:true,
+   tell:'Developer name is the real, verified first-party publisher — not a lookalike spelling.'},
+  {name:'Instagran', dev:'Meta Platforms, Inc.', downloads:'50K+', reviews:'5.0★ (3 ratings)', perms:'Contacts, SMS, Storage', real:false,
+   tell:'Misspelled name ("Instagran") copying a real developer\'s name — a classic typosquat, backed up by a suspiciously perfect rating with almost no reviews.'},
+  {name:'Signal', dev:'Signal Messenger LLC', downloads:'100M+', reviews:'4.6★ (1.1M ratings)', perms:'Camera, Microphone, Contacts', real:true,
+   tell:'Real developer name, large but believable install base, and permissions that match what a messaging app actually needs.'}
+];
+buildRoundGame({
+  cardId:'appCard', scoreId:'appScore', doneId:'appDone', doneTextId:'appDoneText', resetId:'appReset',
+  rounds: APP_ROUNDS,
+  renderRound: function(cardEl, r, check, next){
+    cardEl.innerHTML =
+      '<div class="apphead"><div class="appicon">📱</div><div class="appmeta"><b>' + r.name + '</b><span class="dev">' + r.dev + '</span></div></div>' +
+      '<div class="appstats"><span>Downloads: <b>' + r.downloads + '</b></span><span>Rating: <b>' + r.reviews + '</b></span><span>Permissions: <b>' + r.perms + '</b></span></div>' +
+      '<div class="voterow"><button class="vbtn real" data-v="1">✅ Real</button><button class="vbtn fake" data-v="0">🚩 Fake</button></div>' +
+      '<div class="feedback" id="appFeedback"></div>';
+    var fb = cardEl.querySelector('#appFeedback');
+    cardEl.querySelectorAll('.vbtn').forEach(function(b){
+      b.addEventListener('click', function(){
+        cardEl.querySelectorAll('.vbtn').forEach(function(x){ x.disabled = true; x.style.opacity = .55; });
+        var pickedTrue = b.getAttribute('data-v') === '1';
+        var ok = check(pickedTrue);
+        fb.className = 'feedback show ' + (ok ? 'ok' : 'no');
+        fb.innerHTML = '<b>' + (ok ? 'Correct — ' : 'Not quite — ') + (r.real ? 'this is a real app.' : 'this is a fake / clone app.') + '</b><br>' + r.tell;
+        var nb = document.createElement('button');
+        nb.className = 'nextRound show';
+        nb.textContent = 'Next app →';
+        nb.addEventListener('click', next);
+        cardEl.appendChild(nb);
+      });
+    });
+  }
+});
+
+/* lab 1: permission list for a photo editor */
+var PERM_ITEMS = [
+  {label:'Storage / Photos — read & write', group:0, why:'Needed to open the photo you want to edit and save the result.'},
+  {label:'Camera', group:0, why:'Fine if the app also lets you take a new photo to edit, which most photo editors do.'},
+  {label:'Internet access', group:0, why:'Common for ads, cloud save or checking for updates — fine on its own.'},
+  {label:'Contacts', group:1, why:'A photo editor has no real reason to read your contact list.'},
+  {label:'SMS — read & send', group:1, why:'No photo editor needs to read or send text messages — a common trick to send premium-rate texts or steal 2FA codes.'},
+  {label:'Microphone', group:1, why:'Editing still photos doesn\'t need audio — unless it clearly also records video with sound, this is a red flag.'},
+  {label:'Device admin / Accessibility service', group:1, why:'This lets an app see and even control everything on your screen — almost never a real reason for a photo editor to ask.'}
+];
+buildSortGame('permGame', 'permScore', PERM_ITEMS, ['✅ Fine','🚩 Suspicious']);
+document.getElementById('permReset').addEventListener('click', function(){
+  buildSortGame('permGame', 'permScore', PERM_ITEMS, ['✅ Fine','🚩 Suspicious']);
+});
+
+/* payload flip cards */
+buildFlipGrid('payloadGrid', [
+  {ico:'💳',term:'Steal data',def:'Grabs saved passwords, card numbers or files and sends them out quietly in the background.'},
+  {ico:'⌨️',term:'Spy (keylogger)',def:'Records what you type or see, including passwords and private chats, as you use the device normally.'},
+  {ico:'🔒',term:'Encrypt & hold for ransom',def:'Locks your own files with a password only the attacker has, then demands payment for it.'},
+  {ico:'🤖',term:'Hijack for a botnet',def:'Uses your device\'s processor and internet connection, without you noticing, to attack other targets or mine cryptocurrency.'},
+  {ico:'📢',term:'Flood with ads / click fraud',def:'Forces ads onto your screen, or silently clicks ads in the background, to earn money for the attacker.'},
+  {ico:'💥',term:'Destroy or corrupt data',def:'Deletes or scrambles files for disruption or sabotage — no payment demand, just damage.'}
+]);
+
+/* game 3: spot the signs */
+var SIGN_ITEMS = [
+  {label:'Battery drains to empty in a few hours, even sitting untouched', group:0, why:'Malware running constantly in the background is one of the most common causes of unusual battery drain.'},
+  {label:'An app icon appears that you don\'t remember installing', group:0, why:'A classic sign of something installed itself, or was installed by another app, without your clear action.'},
+  {label:'Pop-up ads appear even when no browser or app is open', group:0, why:'Adware running as a background service, not a real browser tab, is the usual cause.'},
+  {label:'Mobile data usage spikes overnight while the phone was untouched', group:0, why:'Spyware or a botnet client "phoning home" or uploading data usually does this while you\'re asleep.'},
+  {label:'Friends receive a weird link "from you" that you never sent', group:0, why:'A sign your account or device is being used to spread the same malware further.'},
+  {label:'Phone gets warm during a long video call or a demanding game', group:1, why:'Totally normal — the processor working hard generates heat, whether the cause is a game or a video call.'},
+  {label:'Battery life feels shorter right after a big system update', group:1, why:'Common and temporary — the device re-indexes files and apps re-optimise after an update, which uses extra power briefly.'},
+  {label:'An app asks for a new permission the first time you use a new feature', group:1, why:'Normal behaviour — apps are supposed to ask for a permission right when they first need it, not all at install.'}
+];
+buildSortGame('signGame', 'signScore', SIGN_ITEMS, ['🚩 Infection sign','✅ Normal']);
+document.getElementById('signReset').addEventListener('click', function(){
+  buildSortGame('signGame', 'signScore', SIGN_ITEMS, ['🚩 Infection sign','✅ Normal']);
+});
+
+/* quiz */
+buildQuiz({
+  cardId:'quizCard', scoreId:'quizScore', doneId:'quizDone', doneTextId:'quizDoneText', resetId:'quizReset',
+  questions: [
+    {q:'Which of these is the best place to install an app from?', options:['A link someone texted you','Official store (Google Play / App Store)','A QR code on a random flyer','A "modded app" website'], correct:1},
+    {q:'A free game asks for access to your contacts and SMS messages. What should you do?', options:['Allow it — every app needs this','Allow it, but only once','Deny those permissions, or uninstall if it insists','Allow it because it has 5 stars'], correct:2},
+    {q:'What does ransomware actually do?', options:['Shows nonstop ads','Encrypts your files and demands payment to unlock them','Only slows down your Wi-Fi','Deletes itself automatically after a week'], correct:1},
+    {q:'Your battery is draining fast and you see an app icon you don\'t recognise. What\'s the first step?', options:['Restart and ignore it','Check that app\'s permissions, then uninstall if needed','Charge the phone more often','Turn off Wi-Fi permanently'], correct:1},
+    {q:'Which of these statements is actually true?', options:['A padlock icon in the browser means the whole site is 100% safe','A high star rating always means an app is safe','Clone apps often copy a real app\'s name and icon but aren\'t the real developer','Apps from official stores can never contain malware'], correct:2}
+  ]
+});
+</script>
+</body>
+</html>
