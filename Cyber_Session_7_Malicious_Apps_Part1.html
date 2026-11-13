@@ -101,20 +101,7 @@ ul.points li .tag{flex:0 0 auto;font-size:clamp(1.1rem,1.9vw,1.3rem)}
 .casebody dt{font-weight:600;color:var(--navy);font-size:.82rem;text-transform:uppercase;letter-spacing:.04em;align-self:start}
 .casebody dd{margin:0;color:var(--ink);font-size:clamp(.92rem,1.6vw,1.05rem);line-height:1.5}
 
-/* ---------- sort-style game (click into group A / group B) ---------- */
 .score{font-family:var(--display);font-weight:600;color:var(--navy)}
-.sortlist{display:flex;flex-direction:column;gap:10px;margin-top:16px}
-.sortcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px;
-  display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
-.sortcard .lbl{flex:1 1 220px;min-width:0;font-weight:500;font-size:clamp(.95rem,1.7vw,1.1rem)}
-.sortcard .btns{display:flex;gap:8px;flex:0 0 auto;flex-wrap:wrap}
-.sortcard .why{flex:1 1 100%;font-size:clamp(.85rem,1.5vw,.98rem);color:var(--muted);display:none;padding-top:6px;border-top:1px dashed var(--line);margin-top:6px}
-.sortcard.done .why{display:block}
-.sortcard.correct{background:var(--good-bg);border-color:var(--good-border)}
-.sortcard.wrong{background:var(--bad-bg);border-color:var(--bad-border)}
-.sbtn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 14px;font-size:.88rem;font-weight:600;color:var(--ink)}
-.sortcard.done .sbtn{pointer-events:none;opacity:.55}
-.sortcard.done .sbtn[data-chosen=1]{opacity:1;outline:2px solid currentColor}
 .resetBtn{margin-top:14px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 16px;font-weight:600;font-size:.88rem}
 
 /* ---------- round game (real app / fake app) ---------- */
@@ -160,6 +147,65 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
   .slide{padding:60px 16px 110px}
   .apphead{flex-wrap:wrap}
 }
+
+/* ---------- word-by-word title reveal (ported from the other decks' .split-words/.wd) ---------- */
+.wdw{display:inline-block;overflow:hidden;vertical-align:bottom;padding:0 .04em .16em;margin-bottom:-.16em}
+.wd{display:inline-block;transform:translateY(115%)}
+.slide.active .wd{animation:rise .9s var(--ease) both;animation-delay:calc(var(--i)*.08s + .1s)}
+@keyframes rise{from{transform:translateY(115%) rotate(4deg)}to{transform:none}}
+@media (prefers-reduced-motion:reduce){.wd{transform:none}.slide.active .wd{animation:none}}
+
+/* ---------- idle cursor: hide the UI chrome during a quiet moment on the projector ---------- */
+body.idle{cursor:none}
+body.idle #chrome,body.idle .navbtn,body.idle #fsBtn,body.idle .notebtn,footer.endnote{opacity:0;pointer-events:none;transition:opacity .4s}
+@media (pointer:coarse){body.idle{cursor:auto}body.idle #chrome,body.idle .navbtn,body.idle #fsBtn,body.idle .notebtn,footer.endnote{opacity:1;pointer-events:auto}}
+#chrome,.navbtn,#fsBtn,.notebtn,footer.endnote{transition:opacity .4s}
+
+/* ---------- real 3D flip cards (ported from the other decks' .fc/.fcin/.fcf/.fcb) ---------- */
+.flips{grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr))}
+.fc{all:unset;box-sizing:border-box;display:grid;cursor:pointer;perspective:1100px;min-height:150px;width:100%}
+.fcin{position:relative;display:grid;transform-style:preserve-3d;transition:transform .7s cubic-bezier(.34,1.3,.64,1)}
+.fc.flip .fcin{transform:rotateY(180deg)}
+.fcf,.fcb{grid-area:1/1;display:grid;place-items:center;align-content:center;gap:8px;text-align:center;
+  border-radius:var(--radius);padding:16px;backface-visibility:hidden;-webkit-backface-visibility:hidden;border:1px solid var(--line);background:#fff}
+.fcf{transition:border-color .2s}
+.fcf .ico{font-size:clamp(1.6rem,3vw,2.1rem)}
+.fcf .term{font-family:var(--display);font-weight:600;color:var(--navy);font-size:clamp(1.02rem,1.9vw,1.25rem)}
+.fc:hover .fcf{border-color:var(--navy)}
+.fcb{transform:rotateY(180deg);background:var(--navy);border-color:var(--navy);color:#fff;font-size:clamp(.88rem,1.6vw,1.02rem);line-height:1.4}
+@media (prefers-reduced-motion:reduce){.fcin{transition:none}}
+
+/* ---------- real drag-sort (ported from the other decks' .tray/.ipc/.sbin/.sbl) ---------- */
+.sorter{display:flex;flex-direction:column;gap:14px;margin-top:16px}
+.tray{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;min-height:60px;align-content:center;
+  padding:12px;border:1.5px dashed var(--line);border-radius:16px}
+.tray:empty::before{content:'All sorted!';font-family:var(--display);font-weight:600;font-size:1.3rem;color:var(--navy)}
+.ipc{all:unset;box-sizing:border-box;cursor:grab;touch-action:none;user-select:none;font-weight:600;
+  font-size:clamp(.88rem,1.6vw,1.02rem);padding:.6em 1em;border:1.5px solid var(--navy);color:var(--navy);
+  background:#fff;border-radius:10px;box-shadow:0 8px 18px -14px rgba(0,40,104,.6);
+  transition:translate .2s var(--ease),background .2s,color .2s,opacity .15s;max-width:100%}
+.ipc:hover{translate:0 -2px}
+.ipc.grab{opacity:.25}
+.ipc.ghost{position:fixed;z-index:60;pointer-events:none;margin:0;translate:-50% -50%;cursor:grabbing;
+  box-shadow:0 20px 34px -16px rgba(0,40,104,.55);rotate:-2deg}
+.ipc.sel{background:var(--navy);color:#fff}
+.ipc.done{cursor:default;font-size:clamp(.82rem,1.4vw,.95rem);animation:popin .4s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes popin{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
+.sbins{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:12px}
+.sbin{border:2px dashed var(--navy);border-radius:16px;padding:14px;min-height:110px;display:flex;flex-direction:column;gap:10px;
+  background:rgba(0,40,104,.025);transition:background .25s,border-style .25s,scale .25s var(--ease)}
+.sbin.pubb{border-color:var(--red);background:rgba(191,10,48,.025)}
+.sbin .kick{font-family:var(--display);font-weight:600;font-size:clamp(.95rem,1.7vw,1.12rem);color:inherit}
+.sbin .sbl{display:flex;flex-wrap:wrap;gap:8px}
+.sbin .sbl .ipc.done{border-color:var(--navy);color:var(--navy)}
+.sbin.pubb .sbl .ipc.done{border-color:var(--red);color:var(--red)}
+.sbin.hov{border-style:solid;background:rgba(0,40,104,.07);scale:1.015}
+.sbin.pubb.hov{background:rgba(191,10,48,.07)}
+.sbin.no{animation:shake .4s ease}
+@keyframes shake{20%{translate:-8px 0}40%{translate:7px 0}60%{translate:-5px 0}80%{translate:3px 0}}
+.sghint{text-align:center;font-size:.9rem;color:var(--muted);min-height:1.4em;transition:color .25s}
+.sghint.bad{color:var(--red);font-weight:600}
+.sghint.good{color:var(--navy);font-weight:600}
 </style>
 </head>
 <body>
@@ -222,7 +268,7 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
   <div class="inner">
     <div class="kicker">Click each card</div>
     <h2 class="title">The malware <span class="red">family</span></h2>
-    <div class="grid" id="famGrid"></div>
+    <div class="grid flips" id="famGrid"></div>
   </div>
 </section>
 
@@ -245,10 +291,16 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
 <!-- 7: GAME 1 sort -->
 <section class="slide" data-sec="Game · Safe or risky source?">
   <div class="inner">
-    <div class="kicker">Game 1</div>
+    <div class="kicker">Game 1 · drag or tap</div>
     <h2 class="title">Safe source, or <span class="red">risky</span> source?</h2>
-    <p class="lead">Sort each install method. <span class="score" id="sortScore">0 / 0</span></p>
-    <div class="sortlist" id="sortGame"></div>
+    <div class="sorter" id="sortGame" data-labels='["✅ Safe","⚠️ Risky"]'>
+      <div class="tray"></div>
+      <p class="sghint">Drag a chip into a box. Or tap a chip, then a box.</p>
+      <div class="sbins">
+        <div class="sbin" data-k="0"><div class="kick"></div><div class="sbl"></div></div>
+        <div class="sbin pubb" data-k="1"><div class="kick"></div><div class="sbl"></div></div>
+      </div>
+    </div>
     <button class="resetBtn" id="sortReset">↺ Play again</button>
   </div>
 </section>
@@ -294,10 +346,17 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
 <!-- 11: Lab 1 permissions -->
 <section class="slide" data-sec="Lab 1 · Read the permission list">
   <div class="inner">
-    <div class="kicker">Lab 1 · Practical</div>
+    <div class="kicker">Lab 1 · drag or tap</div>
     <h2 class="title">Read the permission <span class="red">list</span></h2>
-    <p class="lead">A "Photo Editor" app asks for all of these on install. Mark each one <b>Fine</b> or <b>Suspicious</b>. <span class="score" id="permScore">0 / 0</span></p>
-    <div class="sortlist" id="permGame"></div>
+    <p class="lead">A "Photo Editor" app asks for all of these on install.</p>
+    <div class="sorter" id="permGame" data-labels='["✅ Fine","🚩 Suspicious"]'>
+      <div class="tray"></div>
+      <p class="sghint">Drag each permission into a box. Or tap one, then a box.</p>
+      <div class="sbins">
+        <div class="sbin" data-k="0"><div class="kick"></div><div class="sbl"></div></div>
+        <div class="sbin pubb" data-k="1"><div class="kick"></div><div class="sbl"></div></div>
+      </div>
+    </div>
     <button class="resetBtn" id="permReset">↺ Play again</button>
   </div>
 </section>
@@ -325,7 +384,7 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
   <div class="inner">
     <div class="kicker">Click each card</div>
     <h2 class="title">Six <span class="red">goals</span>, six symptoms</h2>
-    <div class="grid" id="payloadGrid"></div>
+    <div class="grid flips" id="payloadGrid"></div>
   </div>
 </section>
 
@@ -342,10 +401,16 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
 <!-- 16: GAME 3 signs -->
 <section class="slide" data-sec="Game · Spot the signs">
   <div class="inner">
-    <div class="kicker">Game 3</div>
+    <div class="kicker">Game 3 · drag or tap</div>
     <h2 class="title">Spot the <span class="red">signs</span></h2>
-    <p class="lead">Infection sign, or just normal phone behaviour? <span class="score" id="signScore">0 / 0</span></p>
-    <div class="sortlist" id="signGame"></div>
+    <div class="sorter" id="signGame" data-labels='["🚩 Infection sign","✅ Normal"]'>
+      <div class="tray"></div>
+      <p class="sghint">Drag each one into a box. Or tap one, then a box.</p>
+      <div class="sbins">
+        <div class="sbin pubb" data-k="0"><div class="kick"></div><div class="sbl"></div></div>
+        <div class="sbin" data-k="1"><div class="kick"></div><div class="sbl"></div></div>
+      </div>
+    </div>
     <button class="resetBtn" id="signReset">↺ Play again</button>
   </div>
 </section>
@@ -438,6 +503,45 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
 <footer class="endnote">Use arrow keys or swipe to move between slides. Press F for full screen, N for teacher notes.</footer>
 
 <script>
+/* ---- split each h2.title into words wrapped for the rise-in reveal (ported from the
+   other decks' .split-words/.wd - see Cyber_Session_4_Passwords.html) ---- */
+(function(){
+  document.querySelectorAll('h2.title').forEach(function(h){
+    var i = 0;
+    function wrapNode(n){
+      if (n.nodeType === 3) {
+        var f = document.createDocumentFragment();
+        n.textContent.split(/(\s+)/).forEach(function(t){
+          if (!t) return;
+          if (/^\s+$/.test(t)) { f.appendChild(document.createTextNode(' ')); return; }
+          var w = document.createElement('span'); w.className = 'wdw';
+          var s = document.createElement('span'); s.className = 'wd'; s.style.setProperty('--i', i++); s.textContent = t;
+          w.appendChild(s); f.appendChild(w);
+        });
+        n.replaceWith(f);
+      } else if (n.nodeType === 1 && !n.classList.contains('wd') && !n.classList.contains('wdw')) {
+        Array.prototype.slice.call(n.childNodes).forEach(wrapNode);
+      }
+    }
+    Array.prototype.slice.call(h.childNodes).forEach(wrapNode);
+  });
+})();
+
+/* ---- hide the cursor and nav chrome after a few quiet seconds (projector mode);
+   restores instantly on any input, and never hides on a touchscreen ---- */
+(function(){
+  var idleT;
+  function wake(){
+    document.body.classList.remove('idle');
+    clearTimeout(idleT);
+    idleT = setTimeout(function(){ document.body.classList.add('idle'); }, 3500);
+  }
+  ['mousemove','keydown','touchstart','click'].forEach(function(ev){
+    document.addEventListener(ev, wake, {passive:true});
+  });
+  wake();
+})();
+
 /* ============================================================
    Slide engine: show one <section class="slide"> at a time,
    keyboard + swipe navigation, progress bar, slide counter,
@@ -536,18 +640,19 @@ function el(tag, cls, html){
 }
 
 /* ---- flip-card grid (click to reveal a definition) ---- */
+/* ---- real 3D flip card grid (ported from the other decks' .fc/.fcin/.fcf/.fcb) ---- */
 function buildFlipGrid(containerId, items){
   var box = document.getElementById(containerId);
   box.innerHTML = '';
   items.forEach(function(item){
-    var card = el('button', 'flip');
+    var card = el('button', 'fc');
     card.type = 'button';
-    card.innerHTML = '<div class="ico">' + item.ico + '</div><div class="term">' + item.term + '</div>' +
-      '<div class="def">' + item.def + '</div><div class="hint">Tap to ' + (item._open ? 'close' : 'reveal') + '</div>';
+    card.innerHTML =
+      '<div class="fcin"><div class="fcf"><div class="ico">' + item.ico + '</div><div class="term">' + item.term + '</div></div>' +
+      '<div class="fcb">' + item.def + '</div></div>';
     card.addEventListener('click', function(){
-      card.classList.toggle('open');
-      var hint = card.querySelector('.hint');
-      hint.textContent = 'Tap to ' + (card.classList.contains('open') ? 'close' : 'reveal');
+      var nowFlipped = card.classList.toggle('flip');
+      if (nowFlipped) burstAt(card);
     });
     box.appendChild(card);
   });
@@ -578,44 +683,126 @@ function buildCaseGrid(containerId, items){
   });
 }
 
-/* ---- sort game: each item gets two buttons (group names), click locks it in ---- */
-function buildSortGame(containerId, scoreId, items, groupNames){
-  var box = document.getElementById(containerId);
-  var scoreEl = document.getElementById(scoreId);
-  var correct = 0, answered = 0;
+/* ---- drag with a floating ghost; a tap still works if the pointer barely moves
+   (ported from the other decks' draggable()) ---- */
+function draggable(elx, o){
+  elx.addEventListener('pointerdown', function(e){
+    if (e.button !== 0 || elx.dataset.lock) return;
+    var sx = e.clientX, sy = e.clientY, g = null, moved = false;
+    function mv(ev){
+      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 8) return;
+      if (!moved) { moved = true; g = elx.cloneNode(true); g.classList.remove('sel'); g.classList.add('ghost'); document.body.appendChild(g); elx.classList.add('grab'); }
+      g.style.left = ev.clientX + 'px'; g.style.top = ev.clientY + 'px';
+      if (o.hover) o.hover(document.elementFromPoint(ev.clientX, ev.clientY));
+    }
+    function up(ev){
+      removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+      if (!moved) return;
+      g.remove(); elx.classList.remove('grab'); elx.dataset.dragged = '1'; setTimeout(function(){ delete elx.dataset.dragged; }, 60);
+      if (o.hover) o.hover(null);
+      if (ev.type === 'pointerup') o.drop(document.elementFromPoint(ev.clientX, ev.clientY));
+    }
+    addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+  });
+}
 
-  function updateScore(){ scoreEl.textContent = correct + ' / ' + answered + (answered < items.length ? ' so far' : ' — done!'); }
+/* ---- small reward effects (ported from the other decks' shk()/burst()/confetti()) ---- */
+function shk(elx){ if (!elx) return; elx.classList.remove('shk'); void elx.offsetWidth; elx.classList.add('shk'); setTimeout(function(){ elx.classList.remove('shk'); }, 500); }
+function burst(x, y){
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var c = document.createElement('canvas');
+  c.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:58';
+  c.width = innerWidth; c.height = innerHeight; document.body.appendChild(c);
+  var g = c.getContext('2d'), cols = ['#BF0A30', '#002868', '#15803d'];
+  var ps = Array.from({length: 40}, function(){ return {x:x, y:y, vx:(Math.random()-.5)*13, vy:-4-Math.random()*9, s:5+Math.random()*6, r:Math.random()*6, vr:(Math.random()-.5)*.5, c:cols[Math.floor(Math.random()*cols.length)]}; });
+  var f = 0;
+  (function tick(){
+    g.clearRect(0,0,c.width,c.height);
+    ps.forEach(function(p){ p.vy += .42; p.x += p.vx; p.y += p.vy; p.r += p.vr; g.save(); g.translate(p.x,p.y); g.rotate(p.r); g.fillStyle = p.c; g.fillRect(-p.s/2,-p.s/4,p.s,p.s/2); g.restore(); });
+    if (++f < 60) requestAnimationFrame(tick); else c.remove();
+  })();
+}
+function burstAt(elx){ var r = elx.getBoundingClientRect(); burst(r.left + r.width/2, r.top + r.height/2); }
+function confetti(){
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var c = document.createElement('canvas');
+  c.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:40';
+  c.width = innerWidth; c.height = innerHeight; document.body.appendChild(c);
+  var x = c.getContext('2d'), cols = ['#BF0A30', '#002868', '#b9c4da', '#15171e'];
+  var ps = Array.from({length: 180}, function(){ return {x:c.width/2, y:c.height*.6, vx:(Math.random()-.5)*20, vy:-7-Math.random()*16, s:6+Math.random()*9, r:Math.random()*6, vr:(Math.random()-.5)*.4, c:cols[Math.floor(Math.random()*cols.length)]}; });
+  var f = 0;
+  (function tick(){
+    x.clearRect(0,0,c.width,c.height);
+    ps.forEach(function(p){ p.vy += .45; p.x += p.vx; p.y += p.vy; p.r += p.vr; x.save(); x.translate(p.x,p.y); x.rotate(p.r); x.fillStyle = p.c; x.fillRect(-p.s/2,-p.s/4,p.s,p.s/2); x.restore(); });
+    if (++f < 130) requestAnimationFrame(tick); else c.remove();
+  })();
+}
 
-  function render(){
-    box.innerHTML = '';
-    correct = 0; answered = 0;
-    items.forEach(function(item, idx){
-      var card = el('div', 'sortcard');
-      var lbl = el('div', 'lbl', item.label);
-      var btns = el('div', 'btns');
-      [0,1].forEach(function(g){
-        var b = el('button', 'sbtn', groupNames[g]);
-        b.type = 'button';
-        b.addEventListener('click', function(){
-          if (card.classList.contains('done')) return;
-          card.classList.add('done');
-          answered++;
-          b.setAttribute('data-chosen','1');
-          if (g === item.group) { card.classList.add('correct'); correct++; }
-          else { card.classList.add('wrong'); }
-          card.appendChild(el('div','why','<b>Why:</b> ' + item.why));
-          updateScore();
-        });
-        btns.appendChild(b);
-      });
-      card.appendChild(lbl);
-      card.appendChild(btns);
-      box.appendChild(card);
-    });
-    updateScore();
+/* ---- drag-sort: a tray of chips, two bins (ported from the other decks' sgBuild()/sgJudge()
+   "private or public" game). Each chip is item.label with item.group (0 or 1) and item.why.
+   Wrong drops just shake + explain and stay in the tray for another try; nothing is final
+   until it's right, so a wrong guess never costs the student their one shot. ---- */
+function buildDragSort(containerId, items){
+  var root = document.getElementById(containerId);
+  var labels = JSON.parse(root.getAttribute('data-labels'));
+  var tray = root.querySelector('.tray');
+  var hint = root.querySelector('.sghint');
+  var bins = Array.prototype.slice.call(root.querySelectorAll('.sbin'));
+  bins.forEach(function(b, idx){ b.querySelector('.kick').textContent = labels[idx]; });
+  var state = { ok: 0, miss: 0, sel: null };
+
+  function setHint(t, cls){ hint.textContent = t; hint.className = 'sghint' + (cls ? ' ' + cls : ''); }
+
+  function judge(chip, bin){
+    if (!chip || !bin || chip.dataset.done) return;
+    var right = Number(chip.dataset.k) === Number(bin.dataset.k);
+    chip.classList.remove('sel'); state.sel = null;
+    if (right) {
+      chip.dataset.done = '1'; chip.dataset.lock = '1'; chip.classList.add('done');
+      bin.querySelector('.sbl').appendChild(chip);
+      state.ok++;
+      setHint('Yes — ' + chip.dataset.why, 'good');
+      if (state.ok === items.length) {
+        setHint(state.miss ? 'All sorted, with ' + state.miss + ' mistake' + (state.miss > 1 ? 's' : '') + '.' : 'Perfect — zero mistakes!', 'good');
+        confetti();
+      }
+    } else {
+      state.miss++;
+      bin.classList.remove('no'); void bin.offsetWidth; bin.classList.add('no');
+      shk(chip);
+      setHint('Not quite — ' + chip.dataset.why, 'bad');
+    }
   }
-  render();
-  return render; // returns a reset function
+
+  function build(){
+    tray.innerHTML = '';
+    bins.forEach(function(b){ b.querySelector('.sbl').innerHTML = ''; });
+    state.ok = 0; state.miss = 0; state.sel = null;
+    var order = items.map(function(it, idx){ return idx; });
+    for (var k = order.length - 1; k > 0; k--) { var j = Math.floor(Math.random() * (k + 1)); var t = order[k]; order[k] = order[j]; order[j] = t; }
+    order.forEach(function(idx){
+      var item = items[idx];
+      var chip = el('button', 'ipc', item.label);
+      chip.type = 'button';
+      chip.dataset.k = item.group;
+      chip.dataset.why = item.why;
+      chip.addEventListener('click', function(){
+        if (chip.dataset.done || chip.dataset.dragged) return;
+        var was = chip.classList.contains('sel');
+        tray.querySelectorAll('.ipc.sel').forEach(function(x){ x.classList.remove('sel'); });
+        if (!was) { chip.classList.add('sel'); state.sel = chip; } else state.sel = null;
+      });
+      draggable(chip, {
+        hover: function(t){ bins.forEach(function(b){ b.classList.toggle('hov', !!t && t.closest('.sbin') === b); }); },
+        drop: function(t){ judge(chip, t && t.closest('.sbin')); }
+      });
+      tray.appendChild(chip);
+    });
+    setHint('Drag a chip into a box. Or tap a chip, then a box.');
+  }
+  bins.forEach(function(b){ b.addEventListener('click', function(){ if (state.sel) judge(state.sel, b); }); });
+  build();
+  return build; // returns a reset function
 }
 
 /* ---- round-based game: one card at a time with two choices ---- */
@@ -739,9 +926,9 @@ var SOURCE_ITEMS = [
   {label:'A link in a text message saying "your package couldn\'t be delivered, install our app to track it"', group:1, why:'A classic smishing lure — real delivery companies don\'t ask you to install an app from a text link.'},
   {label:'A third-party app store with no listed reviews or developer info', group:1, why:'No accountability and no review history means nothing is checked before it reaches your phone.'}
 ];
-buildSortGame('sortGame', 'sortScore', SOURCE_ITEMS, ['✅ Safe','⚠️ Risky']);
+buildDragSort('sortGame', SOURCE_ITEMS);
 document.getElementById('sortReset').addEventListener('click', function(){
-  buildSortGame('sortGame', 'sortScore', SOURCE_ITEMS, ['✅ Safe','⚠️ Risky']);
+  buildDragSort('sortGame', SOURCE_ITEMS);
 });
 
 /* game 2: real app or fake app */
@@ -796,9 +983,9 @@ var PERM_ITEMS = [
   {label:'Microphone', group:1, why:'Editing still photos doesn\'t need audio — unless it clearly also records video with sound, this is a red flag.'},
   {label:'Device admin / Accessibility service', group:1, why:'This lets an app see and even control everything on your screen — almost never a real reason for a photo editor to ask.'}
 ];
-buildSortGame('permGame', 'permScore', PERM_ITEMS, ['✅ Fine','🚩 Suspicious']);
+buildDragSort('permGame', PERM_ITEMS);
 document.getElementById('permReset').addEventListener('click', function(){
-  buildSortGame('permGame', 'permScore', PERM_ITEMS, ['✅ Fine','🚩 Suspicious']);
+  buildDragSort('permGame', PERM_ITEMS);
 });
 
 /* payload flip cards */
@@ -857,9 +1044,9 @@ var SIGN_ITEMS = [
   {label:'Battery life feels shorter right after a big system update', group:1, why:'Common and temporary — the device re-indexes files and apps re-optimise after an update, which uses extra power briefly.'},
   {label:'An app asks for a new permission the first time you use a new feature', group:1, why:'Normal behaviour — apps are supposed to ask for a permission right when they first need it, not all at install.'}
 ];
-buildSortGame('signGame', 'signScore', SIGN_ITEMS, ['🚩 Infection sign','✅ Normal']);
+buildDragSort('signGame', SIGN_ITEMS);
 document.getElementById('signReset').addEventListener('click', function(){
-  buildSortGame('signGame', 'signScore', SIGN_ITEMS, ['🚩 Infection sign','✅ Normal']);
+  buildDragSort('signGame', SIGN_ITEMS);
 });
 
 /* quiz */
