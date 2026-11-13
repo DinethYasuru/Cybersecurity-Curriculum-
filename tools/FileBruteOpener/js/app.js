@@ -304,10 +304,10 @@ async function startSearch() {
   } else {
     const charset = el('maskCharset').value;
     const length = parseInt(el('maskLength').value, 10);
-    if (!charset || !length || length < 1) { alert('Provide a charset and a length of at least 1.'); return; }
-    const keyspace = Math.pow(charset.length, length);
+    if (!charset || !length || length < 1) { alert('Provide a charset and a max length of at least 1.'); return; }
+    const keyspace = maskKeyspaceSize(charset.length, length);
     if (keyspace > ABSOLUTE_MAX_MASK_KEYSPACE) {
-      alert(`Keyspace of ${keyspace.toLocaleString()} candidates exceeds the ${ABSOLUTE_MAX_MASK_KEYSPACE.toLocaleString()} safety ceiling. Narrow the charset or length.`);
+      alert(`Keyspace of ${keyspace.toLocaleString()} candidates (every length from 1 to ${length}) exceeds the ${ABSOLUTE_MAX_MASK_KEYSPACE.toLocaleString()} safety ceiling. Narrow the charset or max length.`);
       return;
     }
     opts.charset = charset; opts.length = length;

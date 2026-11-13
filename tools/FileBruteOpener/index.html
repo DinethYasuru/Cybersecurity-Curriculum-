@@ -52,15 +52,16 @@
     </div>
     <p class="notes">
       <strong>Dictionary</strong>: try each password you list, one per line - use this when you have a
-      shortlist of guesses. <strong>Mask</strong>: try every combination of a charset up to a fixed length
-      (e.g. all 4-digit PINs) - use this when you know the password's shape but not its value. Both are
-      finite by design: there's no unbounded/open-ended brute-force mode here.
+      shortlist of guesses. <strong>Mask</strong>: try every combination of a charset, at every length from
+      1 up to the max length you set (e.g. all 1-to-4-digit PINs) - use this when you know roughly what
+      characters the password uses but not its length or value. Both are finite by design: there's no
+      unbounded/open-ended brute-force mode here.
     </p>
     <div class="row">
       <label>Mode</label>
       <select id="searchMode">
         <option value="dict">Dictionary (finite list)</option>
-        <option value="mask">Mask (charset × length)</option>
+        <option value="mask">Mask (charset × up to max length)</option>
       </select>
       <label>Workers</label>
       <input type="range" id="numWorkers" min="1" max="16" value="4">
@@ -74,8 +75,8 @@
     <div id="mask-fields" class="hidden row">
       <label>Charset</label>
       <input type="text" id="maskCharset" value="abcdefghijklmnopqrstuvwxyz0123456789" style="width:280px">
-      <label>Length</label>
-      <input type="number" id="maskLength" value="4" min="1" max="8" style="width:70px">
+      <label>Max length</label>
+      <input type="number" id="maskLength" value="4" min="1" max="8" style="width:70px" title="Tries every length from 1 up to this value, not just this exact length.">
     </div>
     <p class="notes" id="search-estimate"></p>
     <div class="row">

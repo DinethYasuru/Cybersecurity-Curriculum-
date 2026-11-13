@@ -31,13 +31,27 @@ const ORIGINAL_RC4_FOR_BUNDLE = rc4;
  * the main thread can call them too, for live throughput calibration (see estimateRate in
  * app.js) - the calibration then measures exactly what a search worker would actually do. */
 
-function indexToCandidate(index, charset, length) {
-  const chars = new Array(length);
-  for (let i = length - 1; i >= 0; i--) {
-    chars[i] = charset[index % charset.length];
-    index = Math.floor(index / charset.length);
+// `maxLength` is the LONGEST candidate to try, not a fixed length: the mask search below
+// walks every length from 1 up to maxLength (shortest first), so a password shorter than
+// the chosen max is still found. `index` is a single flat index across that whole range;
+// it's resolved into (actualLength, localIndex) by walking the per-length buckets in order
+// (1-char candidates first, then 2-char, ...) and subtracting each bucket's size until the
+// remainder fits in the current one.
+function indexToCandidate(index, charset, maxLength) {
+  for (let len = 1; len <= maxLength; len++) {
+    const bucketSize = Math.pow(charset.length, len);
+    if (index < bucketSize) {
+      const chars = new Array(len);
+      for (let i = len - 1; i >= 0; i--) {
+        chars[i] = charset[index % charset.length];
+        index = Math.floor(index / charset.length);
+      }
+      return chars.join('');
+    }
+    index -= bucketSize;
   }
-  return chars.join('');
+  // Should be unreachable if callers bound `index` with maskKeyspaceSize(), kept as a guard.
+  throw new Error('mask index out of range');
 }
 
 async function testPdfCandidate(passwordStr, info) {
@@ -197,7 +211,13 @@ function createWorkerPool(n) {
 
 /* ---------- Candidate space helpers ---------- */
 
-function maskKeyspaceSize(charsetLen, length) { return Math.pow(charsetLen, length); }
+// Total candidates across every length from 1 to maxLength (sum of charsetLen^L), matching
+// indexToCandidate()'s bucketing above - a true "up to maxLength" mask, not an exact-length one.
+function maskKeyspaceSize(charsetLen, maxLength) {
+  let total = 0;
+  for (let len = 1; len <= maxLength; len++) total += Math.pow(charsetLen, len);
+  return total;
+}
 
 function splitRange(total, n) {
   const ranges = [];
@@ -219,8 +239,8 @@ function splitList(list, n) {
 }
 
 /**
- * Starts a finite password search (dictionary list, or a bounded charset^length mask) across
- * a worker pool. Returns { promise, cancel }; promise resolves to
+ * Starts a finite password search (dictionary list, or a bounded mask over every length from
+ * 1 up to `length`) across a worker pool. Returns { promise, cancel }; promise resolves to
  * { found: bool, password?, cancelled?, tested, elapsedMs }.
  */
 function runPasswordSearch({ format, payload, mode, dict, charset, length, numWorkers, onProgress }) {
