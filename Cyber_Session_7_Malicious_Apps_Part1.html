@@ -56,16 +56,16 @@ p{margin:0}
 .inner{max-width:900px;width:100%;margin:0 auto;animation:up .5s var(--ease) both}
 @keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .kicker{font-family:var(--display);font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--red);font-size:clamp(.78rem,1.3vw,1rem);margin-bottom:10px}
-h2.title{font-weight:300;color:var(--navy);font-size:clamp(2.1rem,5.6vw,4rem);line-height:1.12;letter-spacing:-.02em;margin-bottom:14px;text-wrap:balance}
+h2.title{font-weight:300;color:var(--navy);font-size:clamp(2.2rem,6.2vw,5rem);line-height:1.1;letter-spacing:-.02em;margin-bottom:14px;text-wrap:balance}
 h2.title .red{color:var(--red);font-weight:600}
-p.lead{font-size:clamp(1.05rem,2.2vw,1.4rem);font-weight:300;color:var(--muted);line-height:1.4;margin-bottom:8px}
+p.lead{font-size:clamp(1.15rem,2.4vw,2.1rem);font-weight:300;color:var(--muted);line-height:1.35;letter-spacing:-.01em;margin-bottom:8px}
 .pill{display:inline-flex;align-items:center;gap:6px;background:var(--navy);color:#fff;border-radius:999px;
   padding:6px 14px;font-size:clamp(.8rem,1.3vw,1rem);font-weight:600;font-family:var(--display)}
 
 /* divider (level) slides */
 .slide.divider .inner{text-align:center}
-.slide.divider .num{font-family:var(--display);font-weight:300;font-size:clamp(3.4rem,10vw,6.4rem);color:var(--red);line-height:1;letter-spacing:-.03em}
-.slide.divider h2.title{font-size:clamp(2.3rem,6.6vw,4.6rem)}
+.slide.divider .num{font-family:var(--display);font-weight:300;font-size:clamp(3.6rem,11vw,7.2rem);color:var(--red);line-height:1;letter-spacing:-.03em}
+.slide.divider h2.title{font-size:clamp(2.4rem,7.2vw,5.6rem)}
 
 /* cards grid (flip-style concept cards) */
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:14px;margin-top:18px}
@@ -206,6 +206,33 @@ body.idle #chrome,body.idle .navbtn,body.idle #fsBtn,body.idle .notebtn,footer.e
 .sghint{text-align:center;font-size:.9rem;color:var(--muted);min-height:1.4em;transition:color .25s}
 .sghint.bad{color:var(--red);font-weight:600}
 .sghint.good{color:var(--navy);font-weight:600}
+
+/* ---------- presenter tools: laser pointer, pen, highlighter, spotlight, zoom, undo/clear
+   (ported from the other decks' annotation toolbar - press A or tap the pen button) ---------- */
+#annToggle{left:132px}
+#annToggle.sel{background:var(--navy);color:#fff}
+#annBar{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);z-index:50;background:#15171e;
+  border-radius:14px;padding:8px;display:none;gap:4px;align-items:center;box-shadow:0 20px 44px rgba(0,0,0,.4);
+  max-width:calc(100vw - 24px);overflow-x:auto}
+#annBar.open{display:flex}
+#annBar button{all:unset;box-sizing:border-box;cursor:pointer;flex:0 0 auto;width:36px;height:36px;
+  display:flex;align-items:center;justify-content:center;border-radius:9px;color:#cbd2e1;transition:background .15s,color .15s}
+#annBar button svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#annBar button:hover{background:#2a2f3d;color:#fff}
+#annBar button.sel{background:var(--red);color:#fff}
+#annBar .sep{flex:0 0 auto;width:1px;align-self:stretch;background:#333a4a;margin:2px 3px}
+#annCanvas{position:fixed;inset:0;z-index:47;pointer-events:none;width:100vw;height:100vh}
+html.ann-draw #annCanvas{pointer-events:auto;cursor:crosshair}
+#annSpot{position:fixed;inset:0;z-index:44;pointer-events:none;display:none}
+#annSpot.on{display:block}
+#annLaserDot{position:fixed;width:16px;height:16px;border-radius:50%;background:var(--red);
+  box-shadow:0 0 0 7px rgba(191,10,48,.22),0 0 20px rgba(191,10,48,.75);
+  pointer-events:none;z-index:48;transform:translate(-50%,-50%);display:none}
+#annLaserDot.show{display:block}
+html.ann-zoom .inner{cursor:zoom-in}
+html.ann-zoom .inner.zoomed{cursor:zoom-out}
+.inner.zoomed{transition:transform .35s var(--ease)}
+@media (max-width:640px){#annToggle{display:none}}
 </style>
 </head>
 <body>
@@ -500,7 +527,12 @@ body.idle #chrome,body.idle .navbtn,body.idle #fsBtn,body.idle .notebtn,footer.e
 <button id="fsBtn" type="button">⛶ Full screen (press F)</button>
 <button class="notebtn" id="noteBtn" type="button" title="Teacher notes (N)">📝</button>
 <div class="notebox" id="noteBox"></div>
-<footer class="endnote">Use arrow keys or swipe to move between slides. Press F for full screen, N for teacher notes.</footer>
+<button class="notebtn" id="annToggle" type="button" title="Presenter tools: laser, pen, highlighter, spotlight, zoom (A)">🖊️</button>
+<div id="annBar" role="toolbar" aria-label="Presenter tools"></div>
+<canvas id="annCanvas"></canvas>
+<div id="annSpot"></div>
+<div id="annLaserDot"></div>
+<footer class="endnote">Use arrow keys or swipe to move between slides. Press F for full screen, N for teacher notes, A for presenter tools.</footer>
 
 <script>
 /* ---- split each h2.title into words wrapped for the rise-in reveal (ported from the
@@ -627,6 +659,146 @@ body.idle #chrome,body.idle .navbtn,body.idle #fsBtn,body.idle .notebtn,footer.e
   document.getElementById('noteBtn').addEventListener('click', toggleNote);
 
   render();
+})();
+
+/* ============================================================
+   Presenter tools: laser pointer, pen, highlighter, spotlight, zoom,
+   undo/clear - a lightweight, from-scratch version of the annotation
+   toolbar in the other decks (press A, or tap the pen button bottom-left).
+   Not a port of their exact drawing engine (canvas layering, pen
+   pressure, draggable toolbar) - this covers the same five tools with a
+   simpler, from-scratch implementation sized to what a teacher actually
+   reaches for mid-class.
+   ============================================================ */
+(function(){
+  var ICONS = {
+    laser: '<circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/><path d="M12 3v2.4M12 18.6V21M3 12h2.4M18.6 12H21M5.6 5.6l1.7 1.7M16.7 16.7l1.7 1.7M5.6 18.4l1.7-1.7M16.7 7.3l1.7-1.7"/>',
+    pen: '<path d="M4 20l1-3.6L14.4 6.8a1.6 1.6 0 0 1 2.3 0l.5.5a1.6 1.6 0 0 1 0 2.3L7.6 19 4 20z"/><path d="M13 8l3 3"/>',
+    hl: '<path d="M4 20h16M6 16l7-9 4 3-7 9-4-1z"/>',
+    spot: '<circle cx="12" cy="12" r="6"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>',
+    zoom: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/>',
+    undo: '<path d="M4 10h9a5 5 0 0 1 0 10h-3"/><path d="M8 5 3 10l5 5"/>',
+    clear: '<path d="M5 6h14M9 6V4h6v2M7 6l1 14h8l1-14"/>'
+  };
+  var TOOLS = [['laser','Laser pointer'],['pen','Pen'],['hl','Highlighter'],['spot','Spotlight'],['zoom','Zoom - tap a slide to zoom in or out']];
+  var bar = document.getElementById('annBar');
+  var toggleBtn = document.getElementById('annToggle');
+  var canvas = document.getElementById('annCanvas');
+  var ctx = canvas.getContext('2d');
+  var spot = document.getElementById('annSpot');
+  var laserDot = document.getElementById('annLaserDot');
+  var tool = null;
+  var strokes = [];
+  var curStroke = null;
+  var zoomedEl = null;
+
+  function resize(){ canvas.width = innerWidth; canvas.height = innerHeight; redraw(); }
+  addEventListener('resize', resize);
+  resize();
+
+  function redraw(){
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    strokes.forEach(function(s){
+      if (s.pts.length < 2) return;
+      ctx.beginPath();
+      ctx.strokeStyle = s.color; ctx.lineWidth = s.width; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      s.pts.forEach(function(p, idx){ idx === 0 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]); });
+      ctx.stroke();
+    });
+  }
+
+  TOOLS.forEach(function(t){
+    var b = document.createElement('button');
+    b.type = 'button'; b.title = t[1]; b.dataset.tool = t[0];
+    b.innerHTML = '<svg viewBox="0 0 24 24">' + ICONS[t[0]] + '</svg>';
+    b.addEventListener('click', function(){ setTool(tool === t[0] ? null : t[0]); });
+    bar.appendChild(b);
+  });
+  var sep = document.createElement('div'); sep.className = 'sep'; bar.appendChild(sep);
+  [['undo','Undo last stroke'], ['clear','Clear all strokes']].forEach(function(t){
+    var b = document.createElement('button');
+    b.type = 'button'; b.title = t[1];
+    b.innerHTML = '<svg viewBox="0 0 24 24">' + ICONS[t[0]] + '</svg>';
+    b.addEventListener('click', function(){
+      if (t[0] === 'undo') strokes.pop(); else strokes = [];
+      redraw();
+    });
+    bar.appendChild(b);
+  });
+
+  function setTool(t){
+    tool = t;
+    Array.prototype.slice.call(bar.querySelectorAll('button[data-tool]')).forEach(function(b){
+      b.classList.toggle('sel', b.dataset.tool === t);
+    });
+    document.documentElement.classList.toggle('ann-draw', t === 'pen' || t === 'hl');
+    document.documentElement.classList.toggle('ann-zoom', t === 'zoom');
+    spot.classList.toggle('on', t === 'spot');
+    laserDot.classList.toggle('show', t === 'laser');
+  }
+
+  function openBar(open){
+    bar.classList.toggle('open', open);
+    toggleBtn.classList.toggle('sel', open);
+    if (!open) setTool(null);
+  }
+  toggleBtn.addEventListener('click', function(){ openBar(!bar.classList.contains('open')); });
+
+  document.addEventListener('keydown', function(e){
+    if (e.target && /input|textarea/i.test(e.target.tagName)) return;
+    if (e.key === 'a' || e.key === 'A') openBar(!bar.classList.contains('open'));
+    else if (e.key === 'Escape' && tool) setTool(null);
+  });
+
+  /* pen / highlighter: draw on the full-viewport canvas */
+  var drawing = false;
+  canvas.addEventListener('pointerdown', function(e){
+    if (tool !== 'pen' && tool !== 'hl') return;
+    drawing = true;
+    curStroke = { pts: [[e.clientX, e.clientY]], color: tool === 'hl' ? 'rgba(255,209,0,.45)' : '#BF0A30', width: tool === 'hl' ? 22 : 4 };
+    strokes.push(curStroke);
+  });
+  canvas.addEventListener('pointermove', function(e){
+    if (drawing && curStroke) { curStroke.pts.push([e.clientX, e.clientY]); redraw(); }
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
+    canvas.addEventListener(ev, function(){ drawing = false; curStroke = null; });
+  });
+
+  /* laser pointer dot + spotlight cutout both just track the live cursor position */
+  document.addEventListener('pointermove', function(e){
+    if (tool === 'laser') { laserDot.style.left = e.clientX + 'px'; laserDot.style.top = e.clientY + 'px'; }
+    if (tool === 'spot') { spot.style.background = 'radial-gradient(circle 150px at ' + e.clientX + 'px ' + e.clientY + 'px, transparent 0 150px, rgba(0,0,0,.72) 151px)'; }
+  });
+
+  /* zoom: tap inside the active slide's content to zoom in around that point; tap again to reset */
+  function clearZoom(){
+    if (zoomedEl) { zoomedEl.style.transform = ''; zoomedEl.classList.remove('zoomed'); zoomedEl = null; }
+  }
+  function zoomClick(e){
+    if (tool !== 'zoom') return;
+    var innerEl = e.target.closest('.inner');
+    if (!innerEl) return;
+    e.preventDefault(); e.stopPropagation();
+    if (innerEl.classList.contains('zoomed')) { clearZoom(); return; }
+    clearZoom();
+    var r = innerEl.getBoundingClientRect();
+    var ox = ((e.clientX - r.left) / r.width) * 100;
+    var oy = ((e.clientY - r.top) / r.height) * 100;
+    innerEl.style.transformOrigin = ox + '% ' + oy + '%';
+    innerEl.style.transform = 'scale(1.7)';
+    innerEl.classList.add('zoomed');
+    zoomedEl = innerEl;
+  }
+  document.addEventListener('click', zoomClick, true);
+  // never carry a zoomed-in slide across a slide change
+  ['prevBtn','nextBtn'].forEach(function(id){
+    var b = document.getElementById(id);
+    if (b) b.addEventListener('click', clearZoom);
+  });
+  document.addEventListener('keydown', function(e){
+    if (['ArrowRight','ArrowLeft',' ','PageDown','PageUp','Home','End'].indexOf(e.key) !== -1) clearZoom();
+  });
 })();
 
 /* ============================================================
