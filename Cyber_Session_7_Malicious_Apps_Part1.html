@@ -10,17 +10,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --navy:#002868;--red:#BF0A30;--ink:#0b1630;--muted:#5a6478;--line:#e3e7ee;
-  --bg:#f4f6fa;--panel:#ffffff;
+  /* Same palette and type scale as the other decks (Cyber_Session_4_Passwords.html etc.):
+     navy/red accents, near-black body text (not navy), muted grey for secondary text,
+     Outfit for display/headings (light weight, big clamp()s), DM Sans for body copy. */
+  --navy:#002868;--red:#BF0A30;--ink:#15171e;--muted:#6a7080;--line:#e3e6ee;
+  --bg:#fbfcfe;--panel:#ffffff;
   --good:#15803d;--good-bg:#e9f8ee;--good-border:#bfe6cc;
   --bad:#c0273c;--bad-bg:#fdecee;--bad-border:#f3c2c9;
   --warn:#92650a;--warn-bg:#fff3dc;--warn-border:#f3dca4;
+  --display:'Outfit',sans-serif;--body:'DM Sans',system-ui,sans-serif;
   --radius:14px;--ease:cubic-bezier(.22,1,.36,1);
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
-h1,h2,h3{font-family:'Outfit',sans-serif;margin:0}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);
+  font-size:clamp(1rem,1.3vw,1.15rem);line-height:1.4;min-height:100vh;overflow-x:hidden}
+h1,h2,h3{font-family:var(--display);font-weight:300;margin:0;letter-spacing:-.01em}
+h3{font-weight:500}/* small in-card headings (e.g. "Nice work!") read better a touch heavier than the light display titles */
 button{font-family:inherit;cursor:pointer}
 p{margin:0}
 .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
@@ -49,66 +55,82 @@ p{margin:0}
 .slide.active{display:flex}
 .inner{max-width:900px;width:100%;margin:0 auto;animation:up .5s var(--ease) both}
 @keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-.kicker{font-family:'Outfit';font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--red);font-size:.8rem;margin-bottom:10px}
-h2.title{font-weight:700;color:var(--navy);font-size:clamp(1.7rem,4.4vw,2.6rem);line-height:1.15;margin-bottom:14px}
-h2.title .red{color:var(--red)}
-p.lead{font-size:clamp(1rem,2.2vw,1.2rem);color:var(--muted);line-height:1.55;margin-bottom:8px}
+.kicker{font-family:var(--display);font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--red);font-size:clamp(.78rem,1.3vw,1rem);margin-bottom:10px}
+h2.title{font-weight:300;color:var(--navy);font-size:clamp(2.1rem,5.6vw,4rem);line-height:1.12;letter-spacing:-.02em;margin-bottom:14px;text-wrap:balance}
+h2.title .red{color:var(--red);font-weight:600}
+p.lead{font-size:clamp(1.05rem,2.2vw,1.4rem);font-weight:300;color:var(--muted);line-height:1.4;margin-bottom:8px}
 .pill{display:inline-flex;align-items:center;gap:6px;background:var(--navy);color:#fff;border-radius:999px;
-  padding:6px 14px;font-size:.8rem;font-weight:600;font-family:'Outfit'}
+  padding:6px 14px;font-size:clamp(.8rem,1.3vw,1rem);font-weight:600;font-family:var(--display)}
 
 /* divider (level) slides */
 .slide.divider .inner{text-align:center}
-.slide.divider .num{font-family:'Outfit';font-weight:800;font-size:clamp(3rem,9vw,5.5rem);color:var(--red);line-height:1}
-.slide.divider h2.title{font-size:clamp(2rem,6vw,3.4rem)}
+.slide.divider .num{font-family:var(--display);font-weight:300;font-size:clamp(3.4rem,10vw,6.4rem);color:var(--red);line-height:1;letter-spacing:-.03em}
+.slide.divider h2.title{font-size:clamp(2.3rem,6.6vw,4.6rem)}
 
 /* cards grid (flip-style concept cards) */
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:14px;margin-top:18px}
-.flip{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;
-  text-align:left;min-height:120px;display:flex;flex-direction:column;gap:6px;transition:border-color .2s,box-shadow .2s;width:100%}
+.flip{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;
+  text-align:left;min-height:130px;display:flex;flex-direction:column;gap:6px;transition:border-color .2s,box-shadow .2s;width:100%}
 .flip:hover{box-shadow:0 10px 24px rgba(0,40,104,.08)}
-.flip .ico{font-size:1.5rem}
-.flip .term{font-family:'Outfit';font-weight:700;color:var(--navy);font-size:1.05rem}
-.flip .def{color:var(--muted);font-size:.9rem;line-height:1.45;display:none}
+.flip .ico{font-size:clamp(1.4rem,2.6vw,1.8rem)}
+.flip .term{font-family:var(--display);font-weight:600;color:var(--navy);font-size:clamp(1.05rem,1.9vw,1.3rem)}
+.flip .def{color:var(--muted);font-size:clamp(.9rem,1.6vw,1.05rem);line-height:1.45;display:none}
 .flip.open .def{display:block}
 .flip.open{border-color:var(--navy);background:#f7f9ff}
-.flip .hint{font-size:.75rem;color:#9aa4b8;margin-top:auto}
+.flip .hint{font-size:.78rem;color:#9aa4b8;margin-top:auto}
 
 /* generic info list */
 ul.points{margin:16px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
 ul.points li{display:flex;gap:10px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);
-  border-radius:10px;padding:12px 14px;font-size:.95rem;line-height:1.45}
-ul.points li .tag{flex:0 0 auto;font-size:1.1rem}
+  border-radius:10px;padding:13px 15px;font-size:clamp(.95rem,1.7vw,1.15rem);line-height:1.45}
+ul.points li .tag{flex:0 0 auto;font-size:clamp(1.1rem,1.9vw,1.3rem)}
+
+/* ---------- real-world case cards (accordion: click to expand) ---------- */
+.cases{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+.case{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;transition:border-color .2s}
+.case.open{border-color:var(--navy)}
+.casehead{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:12px;width:100%;cursor:pointer;
+  padding:13px 16px;font-family:var(--display)}
+.casehead .ico{font-size:clamp(1.3rem,2.4vw,1.7rem);flex:0 0 auto}
+.casehead .name{flex:1 1 auto;min-width:0;font-weight:600;color:var(--navy);font-size:clamp(1rem,1.9vw,1.25rem)}
+.casehead .chev{flex:0 0 auto;color:var(--muted);transition:transform .25s var(--ease);font-size:1.1rem}
+.case.open .casehead .chev{transform:rotate(90deg)}
+.casebody{max-height:0;overflow:hidden;transition:max-height .3s var(--ease)}
+.casebody .in{padding:0 16px 16px;display:flex;flex-direction:column;gap:8px}
+.casebody dl{margin:0;display:grid;grid-template-columns:minmax(0,88px) minmax(0,1fr);gap:4px 10px}
+.casebody dt{font-weight:600;color:var(--navy);font-size:.82rem;text-transform:uppercase;letter-spacing:.04em;align-self:start}
+.casebody dd{margin:0;color:var(--ink);font-size:clamp(.92rem,1.6vw,1.05rem);line-height:1.5}
 
 /* ---------- sort-style game (click into group A / group B) ---------- */
-.score{font-family:'Outfit';font-weight:700;color:var(--navy)}
+.score{font-family:var(--display);font-weight:600;color:var(--navy)}
 .sortlist{display:flex;flex-direction:column;gap:10px;margin-top:16px}
-.sortcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+.sortcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px;
   display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
-.sortcard .lbl{flex:1 1 220px;min-width:0;font-weight:600;font-size:.94rem}
+.sortcard .lbl{flex:1 1 220px;min-width:0;font-weight:500;font-size:clamp(.95rem,1.7vw,1.1rem)}
 .sortcard .btns{display:flex;gap:8px;flex:0 0 auto;flex-wrap:wrap}
-.sortcard .why{flex:1 1 100%;font-size:.85rem;color:var(--muted);display:none;padding-top:6px;border-top:1px dashed var(--line);margin-top:6px}
+.sortcard .why{flex:1 1 100%;font-size:clamp(.85rem,1.5vw,.98rem);color:var(--muted);display:none;padding-top:6px;border-top:1px dashed var(--line);margin-top:6px}
 .sortcard.done .why{display:block}
 .sortcard.correct{background:var(--good-bg);border-color:var(--good-border)}
 .sortcard.wrong{background:var(--bad-bg);border-color:var(--bad-border)}
-.sbtn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 14px;font-size:.85rem;font-weight:600;color:var(--ink)}
+.sbtn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 14px;font-size:.88rem;font-weight:600;color:var(--ink)}
 .sortcard.done .sbtn{pointer-events:none;opacity:.55}
 .sortcard.done .sbtn[data-chosen=1]{opacity:1;outline:2px solid currentColor}
-.resetBtn{margin-top:14px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 16px;font-weight:600;font-size:.85rem}
+.resetBtn{margin-top:14px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 16px;font-weight:600;font-size:.88rem}
 
 /* ---------- round game (real app / fake app) ---------- */
 .appcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;margin-top:16px}
 .apphead{display:flex;gap:14px;align-items:center}
 .appicon{width:56px;height:56px;border-radius:14px;background:var(--navy);color:#fff;display:flex;
   align-items:center;justify-content:center;font-size:1.6rem;flex:0 0 auto}
-.appmeta b{font-size:1.05rem}
-.appmeta .dev{color:var(--muted);font-size:.85rem;display:block}
-.appstats{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0;font-size:.85rem;color:var(--muted)}
+.appmeta b{font-size:clamp(1.05rem,1.9vw,1.25rem)}
+.appmeta .dev{color:var(--muted);font-size:.88rem;display:block}
+.appstats{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0;font-size:.88rem;color:var(--muted)}
 .appstats b{color:var(--ink)}
 .voterow{display:flex;gap:10px;flex-wrap:wrap}
-.vbtn{flex:1 1 140px;border:none;border-radius:10px;padding:14px;font-weight:700;font-family:'Outfit';font-size:1rem;color:#fff}
+.vbtn{flex:1 1 140px;border:none;border-radius:10px;padding:14px;font-weight:600;font-family:var(--display);font-size:1.05rem;color:#fff}
 .vbtn.real{background:var(--good)}
 .vbtn.fake{background:var(--bad)}
-.feedback{margin-top:14px;padding:12px 14px;border-radius:10px;font-size:.9rem;line-height:1.5;display:none}
+.feedback{margin-top:14px;padding:12px 14px;border-radius:10px;font-size:.92rem;line-height:1.5;display:none}
 .feedback.show{display:block}
 .feedback.ok{background:var(--good-bg);border:1px solid var(--good-border);color:#0f5132}
 .feedback.no{background:var(--bad-bg);border:1px solid var(--bad-border);color:#7a1324}
@@ -120,7 +142,7 @@ ul.points li .tag{flex:0 0 auto;font-size:1.1rem}
 /* ---------- quiz ---------- */
 .qcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;margin-top:16px}
 .qopt{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:10px;
-  padding:12px 14px;margin-bottom:10px;font-size:.95rem}
+  padding:12px 14px;margin-bottom:10px;font-size:clamp(.95rem,1.7vw,1.08rem)}
 .qopt.correct{background:var(--good-bg);border-color:var(--good-border);color:#0f5132;font-weight:600}
 .qopt.wrong{background:var(--bad-bg);border-color:var(--bad-border);color:#7a1324}
 .qopt[disabled]{pointer-events:none}
@@ -307,7 +329,17 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
   </div>
 </section>
 
-<!-- 15: GAME 3 signs -->
+<!-- 15: 10 real malicious apps -->
+<section class="slide" data-sec="10 real malicious apps">
+  <div class="inner">
+    <div class="kicker">Real cases · tap to open</div>
+    <h2 class="title">10 real <span class="red">malicious apps</span></h2>
+    <p class="lead">Not hypotheticals — these actually spread. Each one: how it worked, and what stopped it.</p>
+    <div class="cases" id="caseGrid"></div>
+  </div>
+</section>
+
+<!-- 16: GAME 3 signs -->
 <section class="slide" data-sec="Game · Spot the signs">
   <div class="inner">
     <div class="kicker">Game 3</div>
@@ -318,7 +350,7 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
   </div>
 </section>
 
-<!-- 16: Level 4 divider -->
+<!-- 17: Level 4 divider -->
 <section class="slide divider" data-sec="Level 4 · Install like a pro">
   <div class="inner">
     <div class="num">04</div>
@@ -327,7 +359,7 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
   </div>
 </section>
 
-<!-- 17: checklist -->
+<!-- 18: checklist -->
 <section class="slide" data-sec="Before you install">
   <div class="inner">
     <div class="kicker">Before you tap Install</div>
@@ -343,7 +375,7 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
   </div>
 </section>
 
-<!-- 18: recap -->
+<!-- 19: recap -->
 <section class="slide" data-sec="Recap">
   <div class="inner">
     <div class="kicker">Cheat card</div>
@@ -359,7 +391,7 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
   </div>
 </section>
 
-<!-- 19: quiz -->
+<!-- 20: quiz -->
 <section class="slide" data-sec="Quick-fire quiz">
   <div class="inner">
     <div class="kicker">Quick fire</div>
@@ -374,7 +406,7 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
   </div>
 </section>
 
-<!-- 20: homework -->
+<!-- 21: homework -->
 <section class="slide" data-sec="Homework">
   <div class="inner">
     <div class="kicker">Before Part 2</div>
@@ -387,7 +419,7 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
   </div>
 </section>
 
-<!-- 21: end -->
+<!-- 22: end -->
 <section class="slide" data-sec="Thank you">
   <div class="inner" style="text-align:center">
     <div class="kicker">Thank you</div>
@@ -428,8 +460,9 @@ footer.endnote{position:fixed;bottom:4px;left:0;right:0;text-align:center;font-s
     6:'Game 1. Go card by card as a class first round, then let them race through a second pass solo.',
     9:'Game 2. Read the dev name and review count out loud each round before voting.',
     10:'Lab 1. This is the single most useful skill in the whole session — slow down here.',
-    14:'Game 3. Emphasise: one single "normal" item on this list is not a big deal. A pattern of several is.',
-    18:'Quick-fire quiz — can be done as teams, shout the answer before clicking.'
+    14:'10 real cases. Pick 3-4 to open as a class rather than all 10 - Joker, FluBot and Anubis land best with this age group.',
+    15:'Game 3. Emphasise: one single "normal" item on this list is not a big deal. A pattern of several is.',
+    19:'Quick-fire quiz — can be done as teams, shout the answer before clicking.'
   };
 
   function render(){
@@ -516,6 +549,31 @@ function buildFlipGrid(containerId, items){
       var hint = card.querySelector('.hint');
       hint.textContent = 'Tap to ' + (card.classList.contains('open') ? 'close' : 'reveal');
     });
+    box.appendChild(card);
+  });
+}
+
+/* ---- case grid: accordion rows (name always visible, click to expand how/stopped-by) ---- */
+function buildCaseGrid(containerId, items){
+  var box = document.getElementById(containerId);
+  box.innerHTML = '';
+  items.forEach(function(item){
+    var card = el('div', 'case');
+    var head = el('button', 'casehead');
+    head.type = 'button';
+    head.innerHTML = '<span class="ico">' + item.ico + '</span><span class="name">' + item.name + '</span><span class="chev">›</span>';
+    var body = el('div', 'casebody');
+    body.innerHTML = '<div class="in"><dl>' +
+      '<dt>Type</dt><dd>' + item.type + '</dd>' +
+      '<dt>How it worked</dt><dd>' + item.how + '</dd>' +
+      '<dt>Stopped by</dt><dd>' + item.stop + '</dd>' +
+      '</dl></div>';
+    head.addEventListener('click', function(){
+      var open = card.classList.toggle('open');
+      body.style.maxHeight = open ? body.scrollHeight + 'px' : '0';
+    });
+    card.appendChild(head);
+    card.appendChild(body);
     box.appendChild(card);
   });
 }
@@ -751,6 +809,41 @@ buildFlipGrid('payloadGrid', [
   {ico:'🤖',term:'Hijack for a botnet',def:'Uses your device\'s processor and internet connection, without you noticing, to attack other targets or mine cryptocurrency.'},
   {ico:'📢',term:'Flood with ads / click fraud',def:'Forces ads onto your screen, or silently clicks ads in the background, to earn money for the attacker.'},
   {ico:'💥',term:'Destroy or corrupt data',def:'Deletes or scrambles files for disruption or sabotage — no payment demand, just damage.'}
+]);
+
+/* 10 real malicious apps / malware campaigns — publicly documented, used here purely as
+   teaching case studies (what it did, how it worked, what actually stopped it). */
+buildCaseGrid('caseGrid', [
+  {ico:'🃏', name:'Joker', type:'Billing-fraud trojan, hidden inside fake photo/wallpaper/SMS apps on official and third-party stores.',
+   how:'Once installed, it quietly used the SMS permission it had been granted for something else to subscribe victims to paid premium services in the background.',
+   stop:'Google Play Protect scanning plus repeatedly banning its publishers; most victims only noticed from a surprise charge on their phone bill.'},
+  {ico:'📦', name:'FluBot', type:'SMS-spread banking trojan.',
+   how:'Spread via "missed delivery" texts with a link to a fake tracking app; once installed, it drew fake login screens over real banking apps to steal credentials.',
+   stop:'A multi-country police takedown of its servers (2022) and carrier-side SMS filtering — and it never works at all if you never install an app from a text link.'},
+  {ico:'🎯', name:'Pegasus', type:'Nation-state "zero-click" spyware.',
+   how:'Exploited un-patched bugs in messaging apps to install itself with no tap needed, then read messages, location, camera and microphone.',
+   stop:'The same OS security updates that patch the exploited bugs — the single best reason to install updates promptly, plus hardened modes like Apple\'s Lockdown Mode.'},
+  {ico:'📄', name:'CamScanner (2019 incident)', type:'Trojan dropper riding inside a real, popular, otherwise-legitimate app.',
+   how:'A third-party advertising SDK bundled inside the genuine scanning app quietly downloaded and ran extra malicious code.',
+   stop:'Google pulled the app from Play until the ad SDK was fixed — a reminder that even a "real" app can carry a bad third-party component.'},
+  {ico:'🧬', name:'Triada', type:'Rootkit, often pre-installed rather than downloaded.',
+   how:'Baked into the firmware of some cheap budget phones before they ever reached a store shelf, giving it system-level control to inject ads and tamper with other apps.',
+   stop:'Buying from reputable brands/retailers and keeping firmware updated; Play Protect also flags known variants.'},
+  {ico:'🏦', name:'Anubis', type:'Banking trojan with a ransomware mode.',
+   how:'Disguised as a normal utility app, asked for the Accessibility service, then used that access to draw a fake login screen on top of a real banking app and capture what was typed.',
+   stop:'Never granting the Accessibility service to an app with no real reason to need it — it\'s one of the most powerful permissions on Android.'},
+  {ico:'🕵️', name:'BRATA', type:'Remote-access banking trojan.',
+   how:'Posed as a security/cleaner app, screen-recorded and remote-controlled the device to drain bank accounts, then triggered a factory reset to erase evidence.',
+   stop:'Avoiding unknown "antivirus/cleaner" apps with no track record, and treating a surprise factory-reset prompt as a huge red flag.'},
+  {ico:'👻', name:'Xhelper', type:'Persistent, self-reinstalling malware.',
+   how:'Hid itself off the visible app list, silently reinstalled itself after being uninstalled, and kept pushing ads and redirects — spread mainly through sideloaded apps.',
+   stop:'Avoiding sideloading in the first place; once infected, often only a full factory reset fully removes it.'},
+  {ico:'🎮', name:'"WAP-click" subscription games', type:'Premium-subscription billing fraud.',
+   how:'Free-looking games or wallpaper apps from third-party stores silently clicked through mobile-carrier billing pages to subscribe the victim to paid services.',
+   stop:'Checking the phone bill regularly, and carrier anti-fraud/parental controls that block premium billing by default.'},
+  {ico:'🔎', name:'Consumer stalkerware (e.g. mSpy-style apps)', type:'Covert tracking app, installed by another person rather than tricking the victim into installing it.',
+   how:'Installed with a few minutes of physical access to the unlocked device, then hides its own icon while silently reporting location, messages and calls to someone else.',
+   stop:'A lock-screen passcode so no one else can install anything; both Apple and Google now show on-device warnings when this kind of app is detected.'}
 ]);
 
 /* game 3: spot the signs */
