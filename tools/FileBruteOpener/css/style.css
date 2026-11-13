@@ -44,16 +44,23 @@ main {
   margin: 0;
   padding: 24px 32px;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  /* minmax(0, 1fr), not plain 1fr: a bare 1fr track's min-width is auto, i.e. the max-content
+     width of whatever's inside it - so a wide inner control (e.g. the mask charset input)
+     forced the whole column, and the page, to overflow horizontally instead of wrapping. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
   align-items: start;
 }
 .span-full { grid-column: 1 / -1; }
 @media (max-width: 980px) {
-  main { grid-template-columns: 1fr; }
+  /* Same minmax(0, ...) reasoning as the 2-column rule above: a bare 1fr track still won't
+     shrink below its content's min-content width, so on a phone it was blowing the single
+     column (and the whole page) out past the viewport instead of wrapping/scrolling inside. */
+  main { grid-template-columns: minmax(0, 1fr); }
 }
 
 section.panel {
+  min-width: 0; /* let this grid item shrink below its content's natural width when needed */
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius);
@@ -86,6 +93,11 @@ textarea:focus, select:focus {
   outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim);
 }
 textarea { width: 100%; min-height: 90px; font-family: ui-monospace, monospace; }
+/* Flexible instead of a fixed pixel width, so the mask row's inputs shrink on a narrow panel
+   or phone screen and wrap onto their own line, rather than forcing the panel (and the whole
+   page) to overflow horizontally. */
+.charset-input { flex: 1 1 200px; min-width: 0; max-width: 100%; }
+.length-input { flex: 0 0 70px; width: 70px; }
 
 button {
   background: var(--accent); color: #fff; border: none; border-radius: 6px;
@@ -113,6 +125,11 @@ button:hover:not(:disabled) { opacity: 0.9; }
 .progress-fill { background: var(--accent); height: 100%; width: 0%; transition: width .2s; }
 .notes { font-size: 0.82rem; color: var(--text-dim); margin-top: 8px; line-height: 1.5; }
 
+/* 5 columns of real data (a timestamp, filename, action, detail and result) don't fit a phone
+   width without truncating to the point of uselessness, so this table scrolls horizontally
+   within its own card - containing the overflow there, instead of it blowing out the whole
+   page (which is what a bare wide <table> with no wrapper does). */
+.table-scroll { width: 100%; overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--panel-border); }
 th { color: var(--text-dim); font-weight: 600; }
