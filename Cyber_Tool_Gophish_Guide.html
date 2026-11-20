@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gophish Guide — Cyber Security Class</title>
+<meta name="description" content="American Corner Matara cyber class: a detailed, ethics-first guide to Gophish — what it is, the lab rules, install, and every step from sending profile to reading the results of an authorised phishing simulation.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=DM+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#002868;--red:#BF0A30;--ink:#0b1630;--muted:#5a6478;--line:#e3e7ee;--bg:#ffffff;--card:#ffffff;--tint:#f6f8fc;--ok:#157347;--warn:#9a6700;--ease:cubic-bezier(.22,1,.36,1)}
+*{box-sizing:border-box;margin:0}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;overflow-x:hidden;line-height:1.55}
+a{color:var(--navy)}
+.deco{position:absolute;top:0;left:0;right:0;height:420px;pointer-events:none;z-index:0;overflow:hidden}
+.stripes{position:absolute;top:-12vmin;left:-12vmin;width:42vmin;height:42vmin;transform:rotate(-45deg);display:grid;gap:2.1vmin;align-content:center;opacity:.9}
+.stripes i{display:block;height:2.1vmin;background:var(--red);transform-origin:left;animation:grow 1.4s var(--ease) both}
+.stripes i:nth-child(2){animation-delay:.12s}.stripes i:nth-child(3){animation-delay:.24s}.stripes i:nth-child(4){animation-delay:.36s}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+main{position:relative;z-index:1;max-width:860px;margin:0 auto;padding:clamp(20px,4vw,48px) 18px 72px}
+.back{margin:0 0 22px}.back a{font-family:'Outfit';font-weight:600;text-decoration:none}.back a:hover{color:var(--red)}
+.kicker{font-family:'Outfit';font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--red);font-size:clamp(.8rem,1.4vw,1rem)}
+h1{font-family:'Outfit';font-weight:700;color:var(--navy);font-size:clamp(2.4rem,7vw,4.4rem);line-height:1.02;margin:.25em 0 .3em;letter-spacing:-.02em}
+h1 span{color:var(--red)}
+.lede{font-size:clamp(1.08rem,2vw,1.3rem);color:var(--muted);max-width:60ch}
+header{animation:up .9s var(--ease) both;margin-bottom:28px}
+.banner{display:flex;gap:14px;align-items:flex-start;background:#fff4f5;border:1px solid #f3c9d1;border-left:6px solid var(--red);border-radius:14px;padding:16px 18px;margin:26px 0 8px}
+.banner svg{flex:none;width:26px;height:26px;color:var(--red);margin-top:2px}
+.banner b{font-family:'Outfit';color:var(--red)}
+.banner p{font-size:1rem;color:#6a2630}
+nav.toc{background:var(--tint);border:1px solid var(--line);border-radius:16px;padding:18px 22px;margin:28px 0}
+nav.toc h2{font-family:'Outfit';font-size:.85rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+nav.toc ol{margin:0;padding-left:1.2em;columns:2;column-gap:28px}
+nav.toc li{margin:5px 0;break-inside:avoid}
+nav.toc a{font-family:'Outfit';font-weight:600;text-decoration:none}
+nav.toc a:hover{color:var(--red)}
+section{margin:40px 0;animation:up .8s var(--ease) both}
+section>h2{font-family:'Outfit';font-weight:700;color:var(--navy);font-size:clamp(1.5rem,3.4vw,2.1rem);line-height:1.1;margin:0 0 6px;scroll-margin-top:20px;display:flex;gap:14px;align-items:baseline}
+section>h2 .n{font-size:.8em;color:var(--red);font-variant-numeric:tabular-nums;min-width:1.4em}
+section>.hint{color:var(--muted);font-size:1rem;margin:0 0 16px}
+h3{font-family:'Outfit';font-weight:600;color:var(--navy);font-size:1.25rem;margin:22px 0 8px}
+p{margin:12px 0}
+ul,ol.steps{margin:12px 0;padding-left:1.3em}
+li{margin:7px 0}
+.steps{counter-reset:s;list-style:none;padding-left:0}
+.steps>li{position:relative;padding:2px 0 2px 46px;margin:14px 0}
+.steps>li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:0;width:32px;height:32px;display:grid;place-items:center;background:var(--navy);color:#fff;font-family:'Outfit';font-weight:700;border-radius:9px;font-size:1rem}
+code,kbd,.mono{font-family:'JetBrains Mono',monospace;font-size:.92em}
+code{background:var(--tint);border:1px solid var(--line);border-radius:6px;padding:.1em .4em;color:#13203e;word-break:break-word}
+kbd{background:#fff;border:1px solid #cbd3e1;border-bottom-width:2px;border-radius:6px;padding:.08em .45em;font-weight:600}
+.box{border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin:18px 0;background:#fff}
+.box.tip{background:#f1f8f3;border-color:#bfe0c9;border-left:6px solid var(--ok)}
+.box.warn{background:#fff9ec;border-color:#f0dca8;border-left:6px solid var(--warn)}
+.box.scope{background:#eef3fb;border-color:#c6d6ef;border-left:6px solid var(--navy)}
+.box h4{font-family:'Outfit';font-size:1.02rem;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.box.tip h4{color:var(--ok)}.box.warn h4{color:var(--warn)}.box.scope h4{color:var(--navy)}
+.box p:first-of-type,.box ul{margin-top:6px}
+.fields{width:100%;border-collapse:collapse;margin:14px 0;font-size:.98rem}
+.fields th,.fields td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+.fields th{background:var(--tint);font-family:'Outfit';color:var(--navy);font-weight:600;white-space:nowrap}
+.fields td code{background:#fff}
+.flow{display:flex;flex-wrap:wrap;gap:10px;align-items:stretch;margin:16px 0}
+.flow .st{flex:1 1 150px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:#fff;position:relative}
+.flow .st b{font-family:'Outfit';color:var(--navy);display:block;font-size:1.05rem}
+.flow .st span{color:var(--muted);font-size:.92rem}
+.flow .st.hot{border-color:var(--red);border-left:5px solid var(--red)}
+.metric{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;align-items:baseline;margin:14px 0}
+.metric dt{font-family:'Outfit';font-weight:700;color:var(--navy);font-size:1.05rem}
+.metric dd{margin:0 0 8px;color:var(--ink)}
+footer{color:var(--muted);font-size:.95rem;text-align:center;border-top:1px solid var(--line);padding-top:24px;margin-top:48px}
+footer a{font-weight:600}
+@media (max-width:620px){nav.toc ol{columns:1}section>h2{gap:10px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="deco" aria-hidden="true"><div class="stripes"><i></i><i></i><i></i><i></i></div></div>
+<main>
+  <p class="back"><a href="tools.html">&larr; Back to tools</a></p>
+  <header>
+    <div class="kicker">American Corner Matara · Session 4c</div>
+    <h1>Gophish, <span>step by step.</span></h1>
+    <p class="lede">A complete, plain-language guide to running an <b>authorised</b> phishing simulation with Gophish — the same tool organisations use to train their own staff. For the lesson deck, open <a href="Cyber_Session_4c_Phishing.html">Session 4c · Phishing &amp; Scams</a>.</p>
+  </header>
+
+  <div class="banner" role="note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    <div>
+      <b>Authorised / educational use only.</b>
+      <p>Everything here is for a classroom lab on your own machine and your own test accounts, or a real test you have <b>written permission</b> to run. Sending phishing to anyone who has not agreed is a crime under Sri Lanka's Computer Crimes Act No. 24 of 2007. If you are unsure, don't.</p>
+    </div>
+  </div>
+
+  <nav class="toc" aria-label="Contents">
+    <h2>On this page</h2>
+    <ol>
+      <li><a href="#what">What Gophish is</a></li>
+      <li><a href="#rules">Before you start: the rules</a></li>
+      <li><a href="#install">Install &amp; first login</a></li>
+      <li><a href="#tour">The dashboard</a></li>
+      <li><a href="#sending">Sending profile (SMTP)</a></li>
+      <li><a href="#template">Email template</a></li>
+      <li><a href="#landing">Landing page</a></li>
+      <li><a href="#group">Users &amp; groups</a></li>
+      <li><a href="#campaign">The campaign</a></li>
+      <li><a href="#results">Reading the results</a></li>
+      <li><a href="#real">To run one for real</a></li>
+      <li><a href="#scope">Out of scope</a></li>
+      <li><a href="#trouble">Troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <section id="what">
+    <h2><span class="n">—</span>What Gophish is</h2>
+    <p>Gophish is a free, open-source <b>phishing-simulation framework</b>. Security teams use it to send a harmless, made-up "phishing" email to their own staff, then measure who opened it, who clicked, and who typed something into a fake login page. The point is never to catch people out — it is to find out, kindly, how ready the team is, and then run short training for whoever needs it.</p>
+    <p>It is one program. You run it, and it opens a dashboard in your web browser. You don't need to write any code. You build five things — a <b>sending profile</b>, an <b>email template</b>, a <b>landing page</b>, a <b>group of people</b> — tie them together in a <b>campaign</b>, press launch, and watch a live results screen.</p>
+    <div class="box scope">
+      <h4>In this class</h4>
+      <p>Your "organisation" is the classroom. The sender is the instructor's own test email, the only recipient is the instructor's own test account, and the whole thing runs on the local network. Nobody else is ever a target.</p>
+    </div>
+  </section>
+
+  <section id="rules">
+    <h2><span class="n">0</span>Before you start: the rules</h2>
+    <p class="hint">These come first for a reason. The exact same skill is a paid job or a crime — the only difference is permission.</p>
+    <ul>
+      <li><b>Permission.</b> Only test a system and people you own, or have written authorisation to test.</li>
+      <li><b>Local only.</b> Classroom machine, local network. Nothing is sent out over the internet.</li>
+      <li><b>Test accounts only.</b> Use the instructor's own or dummy accounts as both sender and target.</li>
+      <li><b>Dummy data.</b> Fake names, fake passwords. Never submit anything real.</li>
+      <li><b>No real brands.</b> Do not clone a real company's login page or imitate a real person or sender.</li>
+      <li><b>Stop means stop.</b> If anything feels off, pause and ask. Then don't.</li>
+    </ul>
+  </section>
+
+  <section id="install">
+    <h2><span class="n">1</span>Install &amp; first login</h2>
+    <p>Gophish runs on Windows, macOS and Linux. For the classroom we install it <b>locally on one Windows machine</b>.</p>
+    <ol class="steps">
+      <li>Go to <a href="https://getgophish.com" target="_blank" rel="noopener noreferrer">getgophish.com</a> and open <b>Download</b> → the GitHub <b>Releases</b> page.</li>
+      <li>Download the ZIP that matches your computer (for example the 64-bit Windows build).</li>
+      <li><b>Extract</b> the ZIP to a folder. You'll see the program file plus a few config files.</li>
+      <li>Double-click the <code>gophish</code> program to run it. A console window opens and prints two web addresses: an <b>admin</b> address (the dashboard, usually <code>https://127.0.0.1:3333</code>) and a <b>phish</b> address (where test emails point, usually <code>http://0.0.0.0:80</code>).</li>
+      <li>In that same console, Gophish prints a <b>one-time admin password</b>. Copy it.</li>
+      <li>Open the admin address in your browser. You'll get a certificate warning because it's a local, self-signed site — that's expected here; choose <b>Advanced → Proceed</b>.</li>
+      <li>Log in with username <code>admin</code> and the password from the console. Gophish immediately asks you to <b>set a new password</b>. Do it, and keep it safe.</li>
+    </ol>
+    <div class="box warn">
+      <h4>Change the password first</h4>
+      <p>The printed password is temporary and visible to anyone who can see that console. Setting your own password is the first thing you do, before anything else.</p>
+    </div>
+    <div class="box tip">
+      <h4>Why the certificate warning?</h4>
+      <p>The dashboard uses HTTPS with a certificate the program made for itself, so your browser can't "vouch" for it. On a local machine you own, proceeding is safe. On the public internet you would never click past a warning like this — that warning is one of the phishing red flags from the lesson.</p>
+    </div>
+  </section>
+
+  <section id="tour">
+    <h2><span class="n">2</span>The dashboard</h2>
+    <p>Down the left side you'll find the pieces you build, roughly in the order you use them:</p>
+    <ul>
+      <li><b>Sending Profiles</b> — the mailbox the test email is sent from.</li>
+      <li><b>Email Templates</b> — the message people receive.</li>
+      <li><b>Landing Pages</b> — the page that opens if they click.</li>
+      <li><b>Users &amp; Groups</b> — who the test goes to.</li>
+      <li><b>Campaigns</b> — tie it all together and launch.</li>
+      <li><b>Dashboard</b> — the live results.</li>
+    </ul>
+    <p>We'll build them in that order.</p>
+  </section>
+
+  <section id="sending">
+    <h2><span class="n">3</span>Sending profile (SMTP)</h2>
+    <p class="hint">The mailbox the simulation sends from. In class, this is the instructor's own test email.</p>
+    <p>Open <b>Sending Profiles → New Profile</b>. A sending profile is just the settings your email program would use to send mail, called <b>SMTP</b>. For a classroom lab you can send through a free test email account you created for this purpose.</p>
+    <table class="fields">
+      <tr><th>Name</th><td>Anything, e.g. <code>Class test mailbox</code>.</td></tr>
+      <tr><th>SMTP From</th><td>The test address the email appears to come from — <b>your own test account</b>, never a real person or company.</td></tr>
+      <tr><th>Host</th><td>Your test provider's SMTP server and port, e.g. <code>smtp.gmail.com:587</code>.</td></tr>
+      <tr><th>Username</th><td>Your test account's email address.</td></tr>
+      <tr><th>Password</th><td>An <b>app password</b> (see below) — not your normal account password.</td></tr>
+    </table>
+    <div class="box tip">
+      <h4>App passwords</h4>
+      <p>If your test account has 2-step verification on (it should), your normal password won't work for SMTP. Instead you create a one-off <b>app password</b> in that account's security settings and paste it here. This is a normal, legitimate feature for letting a program send from an account you own. You can delete the app password afterwards.</p>
+    </div>
+    <p>Use <b>Send Test Email</b> to check it works before going further. A test message should arrive in your own inbox. Then <b>Save profile</b>.</p>
+    <div class="box scope">
+      <h4>Scope reminder</h4>
+      <p>The "From" address is your own test account. We never configure Gophish to <b>spoof</b> a real company's or person's address — that is out of scope and, outside a signed engagement, illegal.</p>
+    </div>
+  </section>
+
+  <section id="template">
+    <h2><span class="n">4</span>Email template</h2>
+    <p class="hint">The message people receive.</p>
+    <p>Open <b>Email Templates → New Template</b>. Give it a name, a subject line, and the body. Gophish lets you write plain text or HTML. For a classroom demo, write a simple, obviously made-up message — for example an internal "please confirm your training account" note from a pretend department.</p>
+    <ul>
+      <li>Insert a link that points to your landing page using the placeholder <code>{{.URL}}</code> — Gophish fills in the real address per recipient so it can track clicks.</li>
+      <li>Turn on <b>Add Tracking Image</b> so Gophish can tell when the email is opened.</li>
+    </ul>
+    <div class="box warn">
+      <h4>Keep it fictional</h4>
+      <p>Don't copy a real brand's email, logo or wording. The teaching value is in the <i>shape</i> of a phishing message — urgency, a link, a request — not in imitating a real organisation.</p>
+    </div>
+  </section>
+
+  <section id="landing">
+    <h2><span class="n">5</span>Landing page</h2>
+    <p class="hint">The page that opens if someone clicks the link.</p>
+    <p>Open <b>Landing Pages → New Page</b>. This is the page a recipient lands on after clicking. For a safe classroom demo, make a simple, neutral page — for example a plain "Training portal" page with a message, or a basic form. Options you'll see:</p>
+    <ul>
+      <li><b>Capture Submitted Data</b> — records that a form was submitted. In class, only ever with made-up data typed by the instructor.</li>
+      <li><b>Capture Passwords</b> — leave this off for a demo; we are showing the <i>concept</i> of "submitted", not collecting anything.</li>
+      <li><b>Redirect</b> — after submit, send the visitor to a short "this was a training test — here's what to check next time" page. A real awareness programme does exactly this.</li>
+    </ul>
+    <div class="box warn">
+      <h4>Do not clone a real login page</h4>
+      <p>Gophish has an "Import Site" button that copies a web page. We do <b>not</b> use it to copy a real company's login. Build a plain training page of your own instead. Cloning a real brand to harvest real credentials is the line between a lesson and an attack.</p>
+    </div>
+  </section>
+
+  <section id="group">
+    <h2><span class="n">6</span>Users &amp; groups</h2>
+    <p class="hint">Who the test goes to.</p>
+    <p>Open <b>Users &amp; Groups → New Group</b>. Add the recipients: first name, last name, email, position. For a real test this is the list of people who agreed to be tested. <b>For class, add only the instructor's own test address(es).</b></p>
+    <div class="box scope">
+      <h4>This is the most important field</h4>
+      <p>A phishing tool is only as ethical as its recipient list. If an address in this group did not agree to be tested, stop. In our lab the group is the instructor's own accounts and nobody else.</p>
+    </div>
+  </section>
+
+  <section id="campaign">
+    <h2><span class="n">7</span>The campaign</h2>
+    <p class="hint">Tie it all together and launch.</p>
+    <p>Open <b>Campaigns → New Campaign</b> and pick the pieces you built:</p>
+    <table class="fields">
+      <tr><th>Name</th><td>e.g. <code>Class demo</code>.</td></tr>
+      <tr><th>Email Template</th><td>The message you wrote.</td></tr>
+      <tr><th>Landing Page</th><td>Your training page.</td></tr>
+      <tr><th>URL</th><td>The <b>phish</b> address Gophish printed at startup — on a local lab, your machine's local address. This is what <code>{{.URL}}</code> becomes.</td></tr>
+      <tr><th>Sending Profile</th><td>Your test mailbox.</td></tr>
+      <tr><th>Groups</th><td>Your test-account group.</td></tr>
+    </table>
+    <p>Press <b>Launch Campaign</b>. The email goes out to the group, and the dashboard starts filling in.</p>
+  </section>
+
+  <section id="results">
+    <h2><span class="n">8</span>Reading the results</h2>
+    <p class="hint">The numbers that help — they tell you where to teach, not who to blame.</p>
+    <div class="flow" aria-hidden="true">
+      <div class="st"><b>Sent</b><span>It went out</span></div>
+      <div class="st"><b>Opened</b><span>They read it</span></div>
+      <div class="st"><b>Clicked</b><span>They tapped the link</span></div>
+      <div class="st hot"><b>Submitted</b><span>They typed into the page</span></div>
+    </div>
+    <dl class="metric">
+      <dt>Email Sent</dt><dd>The simulation reached the recipient's mailbox.</dd>
+      <dt>Email Opened</dt><dd>They opened and read it. Normal and fine.</dd>
+      <dt>Clicked Link</dt><dd>They tapped the link and reached the landing page. A gentle reminder is due.</dd>
+      <dt>Submitted Data</dt><dd>They typed into the fake page. In a real programme this person gets training first — never blame.</dd>
+      <dt>Email Reported</dt><dd>Best outcome: they spotted it and reported it. This is the habit you're building.</dd>
+    </dl>
+    <div class="box tip">
+      <h4>The whole point</h4>
+      <p>A good campaign is followed by a two-minute lesson, not a telling-off. That's why we end the class understanding the attacker's view: so that a real "you clicked our test" email feels like help, not a trap.</p>
+    </div>
+  </section>
+
+  <section id="real">
+    <h2><span class="n">9</span>To run one for real</h2>
+    <p class="hint">An honest list of what an authorised, real-world simulation needs — the first two are the real work.</p>
+    <ol class="steps">
+      <li><b>Written authorisation</b> from whoever owns the people and systems. Without it, everything below is a crime, not a test.</li>
+      <li><b>A scope</b> — exactly who is in, what's allowed, and the start and end dates.</li>
+      <li><b>A server</b> running Gophish that the test emails come from (a spare laptop or a rented machine).</li>
+      <li><b>A mailbox or mail service (SMTP)</b> it is allowed to send through.</li>
+      <li><b>An email and a landing page</b> — a believable but fictional message and a harmless page that records a click.</li>
+      <li><b>A debrief</b> — report the numbers, then train the people. That is the deliverable.</li>
+    </ol>
+    <p>For this class the "server" is the classroom PC and the "people" are the instructor's own test accounts. That is the whole, legal version of "doing it for real", scaled to one room.</p>
+  </section>
+
+  <section id="scope">
+    <h2><span class="n">10</span>Out of scope</h2>
+    <p class="hint">What we deliberately do not do, and why.</p>
+    <ul>
+      <li><b>Public hosting</b> — no renting a VPS, buying a domain, or sending over the internet.</li>
+      <li><b>Spoofing</b> — no faking a real company's or person's email address.</li>
+      <li><b>Real targets</b> — no sending to anyone who hasn't agreed, in writing.</li>
+      <li><b>Evading defences</b> — no tricks to get past spam filters or security tools.</li>
+    </ul>
+    <p>Some online tutorials show the VPS-and-domain version. We stop at the classroom door on purpose: that part turns a training tool into a weapon, and it is exactly what the Computer Crimes Act covers. We name it so you recognise it, and we leave it out.</p>
+  </section>
+
+  <section id="trouble">
+    <h2><span class="n">11</span>Troubleshooting</h2>
+    <h3>The login page won't open / certificate warning</h3>
+    <p>Expected on a local machine — the dashboard's certificate is self-signed. Choose <b>Advanced → Proceed</b>. Make sure you're using the <b>https</b> admin address and port Gophish printed (often <code>3333</code>), not the phish port.</p>
+    <h3>The test email doesn't send</h3>
+    <ul>
+      <li>Check the host and port, e.g. <code>smtp.gmail.com:587</code>.</li>
+      <li>Use an <b>app password</b>, not your normal account password.</li>
+      <li>Confirm the test account allows SMTP sending and 2-step verification is set up so an app password can be created.</li>
+      <li>Use <b>Send Test Email</b> and read the error message — it usually names the problem.</li>
+    </ul>
+    <h3>Clicks aren't tracked</h3>
+    <p>Make sure the email link uses <code>{{.URL}}</code>, the campaign's <b>URL</b> points at the reachable phish address, and the recipient opened it on the same local network.</p>
+    <div class="box scope">
+      <h4>Still stuck?</h4>
+      <p>The official <a href="https://docs.getgophish.com" target="_blank" rel="noopener noreferrer">Gophish documentation</a> covers each screen in detail. Keep every experiment inside the rules at the top of this page.</p>
+    </div>
+  </section>
+
+  <footer>
+    Authorised, educational use only · American Corner Matara cyber class · <a href="Cyber_Session_4c_Phishing.html">Session 4c deck</a> · <a href="tools.html">All tools</a>
+  </footer>
+</main>
+</body>
+</html>
